@@ -3,7 +3,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, Header, Query, Request
 
 from app.auth.dependencies import AuthContext, rate_limit_order_creation, require_roles
-from app.dependencies import get_gcs_bridge_client
+from app.integrations.gcs_bridge_client import get_gcs_bridge_client
 from app.schemas.ui import (
     EventResponse,
     EventsTimelineResponse,
@@ -59,9 +59,17 @@ async def create_order_endpoint(
     order = create_order(
         auth,
         payload.customer_name,
+        customer_phone=payload.customer_phone,
         lat=payload.lat,
         weight=payload.weight,
+        pickup_lat=payload.pickup_lat,
+        pickup_lng=payload.pickup_lng,
+        dropoff_lat=payload.dropoff_lat,
+        dropoff_lng=payload.dropoff_lng,
+        dropoff_accuracy_m=payload.dropoff_accuracy_m,
+        payload_weight_kg=payload.payload_weight_kg,
         payload_type=payload.payload_type,
+        priority=payload.priority,
     )
     response_payload = OrderDetailResponse.model_validate(order).model_dump(mode="json")
 

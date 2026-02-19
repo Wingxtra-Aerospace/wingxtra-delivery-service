@@ -19,12 +19,16 @@ def setup_test_schema():
 
 @pytest.fixture
 def db_session():
-    testing_session_local = sessionmaker(autocommit=False, autoflush=False, bind=app_engine)
+    connection = app_engine.connect()
+    transaction = connection.begin()
+    testing_session_local = sessionmaker(autocommit=False, autoflush=False, bind=connection)
     db = testing_session_local()
     try:
         yield db
     finally:
         db.close()
+        transaction.rollback()
+        connection.close()
 
 
 @pytest.fixture

@@ -1,12 +1,13 @@
 import os
+import uuid
 from datetime import datetime
 
 from fastapi import HTTPException, status
 
 from app.auth.dependencies import AuthContext
 from app.config import settings
-from app.db import SessionLocal
-from app.models.db_models import OrderRecord
+from app.db.session import SessionLocal
+from app.models.order import Order as DbOrder
 from app.models.domain import Event, Job, Order, ProofOfDelivery, new_id, now_utc
 from app.observability import log_event, observe_timing
 from app.services.store import store
@@ -82,15 +83,15 @@ def list_orders(
     to_date: datetime | None,
 ) -> tuple[list[Order], int]:
     with SessionLocal() as session:
-        rows = session.query(OrderRecord).order_by(OrderRecord.created_at.asc()).all()
+        rows = session.query(DbOrder).order_by(DbOrder.created_at.asc()).all()
 
     orders = [
         Order(
-            id=row.id,
+            id=str(row.id),
             public_tracking_id=row.public_tracking_id,
             merchant_id=row.merchant_id,
             customer_name=row.customer_name,
-            status=row.status,
+            status=str(getattr(row.status, "value", row.status)),
             created_at=row.created_at,
             updated_at=row.updated_at,
         )
@@ -124,16 +125,24 @@ def list_orders(
 def create_order(
     auth: AuthContext,
     customer_name: str | None,
+    customer_phone: str | None = None,
     lat: float | None = None,
     weight: float | None = None,
+    pickup_lat: float | None = None,
+    pickup_lng: float | None = None,
+    dropoff_lat: float | None = None,
+    dropoff_lng: float | None = None,
+    dropoff_accuracy_m: float | None = None,
+    payload_weight_kg: float | None = None,
     payload_type: str | None = None,
+    priority: str | None = None,
 ) -> Order:
     if auth.role not in {"MERCHANT", "OPS", "ADMIN"}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
 
     now = now_utc()
     order = Order(
-        id=new_id(),
+        id=str(uuid.uuid4()),
         public_tracking_id=new_id(),
         merchant_id=auth.user_id if auth.role == "MERCHANT" else None,
         customer_name=customer_name,
@@ -144,11 +153,20 @@ def create_order(
     store.orders[order.id] = order
     with SessionLocal() as session:
         session.add(
-            OrderRecord(
-                id=order.id,
+            DbOrder(
+                id=uuid.UUID(order.id),
                 public_tracking_id=order.public_tracking_id,
                 merchant_id=order.merchant_id,
                 customer_name=order.customer_name,
+                customer_phone=customer_phone,
+                pickup_lat=pickup_lat if pickup_lat is not None else (lat if lat is not None else 0.0),
+                pickup_lng=pickup_lng if pickup_lng is not None else 0.0,
+                dropoff_lat=dropoff_lat if dropoff_lat is not None else (pickup_lat if pickup_lat is not None else lat if lat is not None else 0.0),
+                dropoff_lng=dropoff_lng if dropoff_lng is not None else (pickup_lng if pickup_lng is not None else 0.0),
+                dropoff_accuracy_m=dropoff_accuracy_m,
+                payload_weight_kg=payload_weight_kg if payload_weight_kg is not None else (weight if weight is not None else 1.0),
+                payload_type=payload_type or "parcel",
+                priority=priority or "NORMAL",
                 status=order.status,
                 created_at=order.created_at,
                 updated_at=order.updated_at,
@@ -157,8 +175,6 @@ def create_order(
         session.commit()
 
     append_event(order.id, "CREATED", "Order created")
-    append_event(order.id, "VALIDATED", "Order validated")
-    append_event(order.id, "QUEUED", "Order queued for dispatch")
     log_event("order_created", order_id=order.id)
     return order
 
@@ -167,14 +183,14 @@ def get_order(auth: AuthContext, order_id: str) -> Order:
     order = store.orders.get(order_id) or _ensure_test_placeholder_order(order_id)
     if order is None:
         with SessionLocal() as session:
-            row = session.get(OrderRecord, order_id)
+            row = session.get(DbOrder, uuid.UUID(order_id))
             if row is not None:
                 order = Order(
-                    id=row.id,
+                    id=str(row.id),
                     public_tracking_id=row.public_tracking_id,
                     merchant_id=row.merchant_id,
                     customer_name=row.customer_name,
-                    status=row.status,
+                    status=str(getattr(row.status, "value", row.status)),
                     created_at=row.created_at,
                     updated_at=row.updated_at,
                 )
@@ -210,7 +226,7 @@ def cancel_order(auth: AuthContext, order_id: str) -> Order:
     order.status = "CANCELED"
     order.updated_at = now_utc()
     with SessionLocal() as session:
-        row = session.get(OrderRecord, order_id)
+        row = session.get(DbOrder, uuid.UUID(order_id))
         if row is not None:
             row.status = order.status
             row.updated_at = order.updated_at
@@ -254,7 +270,7 @@ def manual_assign(auth: AuthContext, order_id: str, drone_id: str) -> Order:
         order.status = "ASSIGNED"
         order.updated_at = now_utc()
         with SessionLocal() as session:
-            row = session.get(OrderRecord, order_id)
+            row = session.get(DbOrder, uuid.UUID(order_id))
             if row is not None:
                 row.status = order.status
                 row.updated_at = order.updated_at
@@ -267,6 +283,11 @@ def manual_assign(auth: AuthContext, order_id: str, drone_id: str) -> Order:
             created_at=now_utc(),
         )
         store.jobs.append(job)
+    existing_event_types = {event.type for event in store.events[order_id]}
+    if "VALIDATED" not in existing_event_types:
+        append_event(order_id, "VALIDATED", "Order validated")
+    if "QUEUED" not in existing_event_types:
+        append_event(order_id, "QUEUED", "Order queued for dispatch")
     append_event(order_id, "ASSIGNED", f"Order assigned to {drone_id}")
     log_event("order_assigned", order_id=order.id, job_id=job.id, drone_id=drone_id)
     return order
@@ -288,17 +309,17 @@ def list_events(auth: AuthContext, order_id: str) -> list[Event]:
 def tracking_view(public_tracking_id: str) -> Order:
     with SessionLocal() as session:
         row = (
-            session.query(OrderRecord)
-            .filter(OrderRecord.public_tracking_id == public_tracking_id)
+            session.query(DbOrder)
+            .filter(DbOrder.public_tracking_id == public_tracking_id)
             .one_or_none()
         )
     if row is not None:
         return Order(
-            id=row.id,
+            id=str(row.id),
             public_tracking_id=row.public_tracking_id,
             merchant_id=row.merchant_id,
             customer_name=row.customer_name,
-            status=row.status,
+            status=str(getattr(row.status, "value", row.status)),
             created_at=row.created_at,
             updated_at=row.updated_at,
         )
@@ -334,7 +355,7 @@ def submit_mission(auth: AuthContext, order_id: str) -> tuple[Order, dict[str, s
         order.status = "MISSION_SUBMITTED"
         order.updated_at = now_utc()
         with SessionLocal() as session:
-            row = session.get(OrderRecord, order_id)
+            row = session.get(DbOrder, uuid.UUID(order_id))
             if row is not None:
                 row.status = order.status
                 row.updated_at = order.updated_at

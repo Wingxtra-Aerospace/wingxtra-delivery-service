@@ -7,8 +7,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
 from app.config import allowed_origins, settings
-from app.db import Base, engine
-from app.models.db_models import OrderRecord
+from app.db.base import Base
+from app.db.session import engine
 from app.observability import configure_logging, log_event, metrics_store, set_request_id
 from app.routers.dispatch import router as dispatch_router
 from app.routers.health import router as health_router
@@ -59,6 +59,6 @@ app.include_router(metrics_router)
 @app.on_event("startup")
 def startup_seed() -> None:
     configure_logging()
-    Base.metadata.create_all(bind=engine, tables=[OrderRecord.__table__])
+    Base.metadata.create_all(bind=engine)
     if not settings.testing and "PYTEST_CURRENT_TEST" not in os.environ:
         seed_data()

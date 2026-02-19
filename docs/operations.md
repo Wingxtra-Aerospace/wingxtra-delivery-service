@@ -37,3 +37,8 @@ Timing metrics currently captured:
 - `mission_intent_generation_seconds`
 - `http_request_duration_seconds`
 
+
+### Database configuration
+
+Set `WINGXTRA_DATABASE_URL` to configure the SQLAlchemy connection URL.
+For CI and local test safety, the service defaults to `sqlite+pysqlite:///./test.db` when unset.

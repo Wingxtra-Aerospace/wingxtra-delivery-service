@@ -7,6 +7,8 @@ on:
 jobs:
   api:
     runs-on: ubuntu-latest
+    env:
+      WINGXTRA_DATABASE_URL: sqlite+pysqlite:///./ci.db
     defaults:
       run:
         working-directory: apps/api

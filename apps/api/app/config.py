@@ -1,8 +1,14 @@
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     app_name: str = "Wingxtra Delivery Service"
+
+    database_url: str = Field(
+        default="sqlite+pysqlite:///./test.db",
+        validation_alias="WINGXTRA_DATABASE_URL",
+    )
     cors_allowed_origins: str = "http://localhost:3000,http://localhost:5173"
 
     jwt_secret: str = "wingxtra-jwt-secret"

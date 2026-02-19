@@ -1,43 +1,41 @@
+# apps/api/tests/conftest.py
 import pytest
-from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
-import app.models.db_models  # noqa: F401
 from app.db.base import Base
-from app.db.session import engine as app_engine
 from app.db.session import get_db
 from app.main import app
+import app.models  # ensure models are imported so tables are registered
 
+TEST_DB_URL = "sqlite+pysqlite:///:memory:"
 
-@pytest.fixture
-def db_session():
+@pytest.fixture(scope="function")
+def db_engine():
     engine = create_engine(
-        "sqlite+pysqlite:///:memory:",
+        TEST_DB_URL,
         connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
     )
-    testing_session_local = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     Base.metadata.create_all(bind=engine)
-    Base.metadata.drop_all(bind=app_engine)
-    Base.metadata.create_all(bind=app_engine)
+    try:
+        yield engine
+    finally:
+        Base.metadata.drop_all(bind=engine)
 
-    db = testing_session_local()
+@pytest.fixture(scope="function")
+def db_session(db_engine):
+    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=db_engine)
+    db = TestingSessionLocal()
     try:
         yield db
     finally:
         db.close()
-        Base.metadata.drop_all(bind=engine)
-        Base.metadata.drop_all(bind=app_engine)
 
-
-@pytest.fixture
-def client(db_session):
-    def override_get_db():
+@pytest.fixture(scope="function", autouse=True)
+def override_get_db(db_session):
+    def _get_db_override():
         yield db_session
 
-    app.dependency_overrides[get_db] = override_get_db
-    with TestClient(app) as test_client:
-        yield test_client
-    app.dependency_overrides.clear()
+    app.dependency_overrides[get_db] = _get_db_override
+    yield
+    app.dependency_overrides.pop(get_db, None)

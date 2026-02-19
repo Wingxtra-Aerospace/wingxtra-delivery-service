@@ -42,3 +42,6 @@ Timing metrics currently captured:
 
 Set `WINGXTRA_DATABASE_URL` to configure the SQLAlchemy connection URL.
 For CI and local test safety, the service defaults to `sqlite+pysqlite:///./test.db` when unset.
+
+Set `WINGXTRA_TESTING=true` in test environments to disable startup demo-data seeding.
+This keeps API list endpoints deterministic for integration tests.

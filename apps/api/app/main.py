@@ -56,5 +56,5 @@ app.include_router(metrics_router)
 @app.on_event("startup")
 def startup_seed() -> None:
     configure_logging()
-    seed_data()
-
+    if not settings.testing:
+        seed_data()

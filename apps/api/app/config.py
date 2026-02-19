@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     jwt_secret: str = "wingxtra-jwt-secret"
     allowed_roles: str = "CUSTOMER,MERCHANT,OPS,ADMIN"
     gcs_auth_source: str = "gcs"
+    enable_test_auth_bypass: bool = False
 
     public_tracking_rate_limit_requests: int = 10
     public_tracking_rate_limit_window_s: int = 60

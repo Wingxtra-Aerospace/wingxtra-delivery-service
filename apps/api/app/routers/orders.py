@@ -32,7 +32,7 @@ from app.services.ui_service import (
 router = APIRouter(prefix="/api/v1/orders", tags=["orders"])
 
 
-@router.post("", response_model=OrderDetailResponse, summary="Create order")
+@router.post("", response_model=OrderDetailResponse, summary="Create order", status_code=201)
 async def create_order_endpoint(
     request: Request,
     payload: OrderCreateRequest,

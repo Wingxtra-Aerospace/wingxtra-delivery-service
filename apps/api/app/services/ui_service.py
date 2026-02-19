@@ -62,6 +62,13 @@ def _ensure_test_placeholder_order(order_id: str) -> Order | None:
     return placeholder
 
 
+def _safe_parse_order_uuid(order_id: str) -> uuid.UUID | None:
+    try:
+        return uuid.UUID(order_id)
+    except ValueError:
+        return None
+
+
 def _assert_can_access_order(auth: AuthContext, order: Order) -> None:
     if _is_backoffice(auth.role):
         return
@@ -194,8 +201,11 @@ def create_order(
 def get_order(auth: AuthContext, order_id: str) -> Order:
     order = store.orders.get(order_id) or _ensure_test_placeholder_order(order_id)
     if order is None:
+        order_uuid = _safe_parse_order_uuid(order_id)
+        if order_uuid is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
         with SessionLocal() as session:
-            row = session.get(DbOrder, uuid.UUID(order_id))
+            row = session.get(DbOrder, order_uuid)
             if row is not None:
                 order = Order(
                     id=str(row.id),
@@ -242,8 +252,9 @@ def cancel_order(auth: AuthContext, order_id: str) -> Order:
         )
     order.status = "CANCELED"
     order.updated_at = now_utc()
+    order_uuid = _safe_parse_order_uuid(order_id)
     with SessionLocal() as session:
-        row = session.get(DbOrder, uuid.UUID(order_id))
+        row = session.get(DbOrder, order_uuid) if order_uuid is not None else None
         if row is not None:
             row.status = order.status
             row.updated_at = order.updated_at
@@ -286,8 +297,9 @@ def manual_assign(auth: AuthContext, order_id: str, drone_id: str) -> Order:
     with observe_timing("dispatch_assignment_seconds"):
         order.status = "ASSIGNED"
         order.updated_at = now_utc()
+        order_uuid = _safe_parse_order_uuid(order_id)
         with SessionLocal() as session:
-            row = session.get(DbOrder, uuid.UUID(order_id))
+            row = session.get(DbOrder, order_uuid) if order_uuid is not None else None
             if row is not None:
                 row.status = order.status
                 row.updated_at = order.updated_at
@@ -371,8 +383,9 @@ def submit_mission(auth: AuthContext, order_id: str) -> tuple[Order, dict[str, s
 
         order.status = "MISSION_SUBMITTED"
         order.updated_at = now_utc()
+        order_uuid = _safe_parse_order_uuid(order_id)
         with SessionLocal() as session:
-            row = session.get(DbOrder, uuid.UUID(order_id))
+            row = session.get(DbOrder, order_uuid) if order_uuid is not None else None
             if row is not None:
                 row.status = order.status
                 row.updated_at = order.updated_at

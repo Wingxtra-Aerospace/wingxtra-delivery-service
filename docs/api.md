@@ -38,7 +38,7 @@ Rate limiting:
 - `GET /api/v1/tracking/{public_tracking_id}` returns `429` when public tracking rate limit is exceeded.
 - `POST /api/v1/orders` returns `429` when order creation rate limit is exceeded.
 
-Public tracking response is sanitized to: `order_id`, `public_tracking_id`, `status`.
+Public tracking response is sanitized to: `order_id`, `public_tracking_id`, `status`. When proof-of-delivery exists, it also includes `pod_summary` (including at least `method`).
 
 
 Observability headers:

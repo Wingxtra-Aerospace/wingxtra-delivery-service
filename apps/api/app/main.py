@@ -1,3 +1,4 @@
+import os
 import time
 from uuid import uuid4
 
@@ -56,5 +57,5 @@ app.include_router(metrics_router)
 @app.on_event("startup")
 def startup_seed() -> None:
     configure_logging()
-    if not settings.testing:
+    if not settings.testing and "PYTEST_CURRENT_TEST" not in os.environ:
         seed_data()

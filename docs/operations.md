@@ -44,6 +44,6 @@ Set `WINGXTRA_DATABASE_URL` to configure the SQLAlchemy connection URL.
 For CI and local test safety, the service defaults to `sqlite+pysqlite:///./test.db` when unset.
 
 Set `WINGXTRA_TESTING=true` in test environments to disable startup demo-data seeding.
-This keeps API list endpoints deterministic for integration tests.
+This keeps API list endpoints deterministic for integration tests. During pytest runs, seeding is also automatically disabled when `PYTEST_CURRENT_TEST` is present.
 
 In test mode (`WINGXTRA_TESTING=true` or pytest runtime), placeholder order IDs `ord-1` and `ord-2` are accepted for UI integration tests and are materialized as in-memory stub orders.

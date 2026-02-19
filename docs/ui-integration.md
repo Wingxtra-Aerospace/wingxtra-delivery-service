@@ -69,6 +69,8 @@ curl -X POST "http://localhost:8000/api/v1/orders/ord-1/assign" \
 
 Idempotent via `Idempotency-Key` header.
 
+In test mode, placeholder order IDs such as `ord-1` and `ord-2` are accepted by assign/submit endpoints for UI smoke tests.
+
 
 ## Rate limiting
 - Public tracking is limited per client IP via `PUBLIC_TRACKING_RATE_LIMIT_REQUESTS` and `PUBLIC_TRACKING_RATE_LIMIT_WINDOW_S` (returns `429` when exceeded).

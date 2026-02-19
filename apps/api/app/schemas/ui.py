@@ -81,10 +81,17 @@ class JobsListResponse(ResponseModel):
     items: list[JobResponse]
 
 
+class TrackingPodSummary(ResponseModel):
+    method: str
+    photo_url: str | None = None
+    created_at: datetime
+
+
 class TrackingViewResponse(ResponseModel):
     order_id: str
     public_tracking_id: str
     status: str
+    pod_summary: TrackingPodSummary | None = None
 
 
 class MissionSubmitResponse(ResponseModel):

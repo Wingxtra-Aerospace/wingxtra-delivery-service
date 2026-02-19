@@ -38,6 +38,9 @@ Tracking output is sanitized to:
 - `public_tracking_id`
 - `status`
 
+When proof-of-delivery exists, tracking also includes:
+- `pod_summary` (with at least `method`)
+
 Rate limiting is applied per client IP:
 - Public tracking (stricter defaults):
   - `PUBLIC_TRACKING_RATE_LIMIT_REQUESTS` (default `10`)

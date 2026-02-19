@@ -15,4 +15,6 @@ def get_mission_publisher() -> MissionPublisher:
 
 
 def get_gcs_bridge_client() -> MissionPublisher:
-    return NoopMissionPublisher()
+    from app.integrations.gcs_bridge_client import get_gcs_bridge_client as integration_client
+
+    return integration_client()

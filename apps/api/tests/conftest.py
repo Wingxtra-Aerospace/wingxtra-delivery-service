@@ -6,6 +6,7 @@ from sqlalchemy.pool import StaticPool
 
 import app.models  # noqa: F401
 from app.db.base import Base
+from app.db.session import engine as app_engine
 from app.db.session import get_db
 from app.main import app
 
@@ -19,6 +20,8 @@ def db_session():
     )
     testing_session_local = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     Base.metadata.create_all(bind=engine)
+    Base.metadata.drop_all(bind=app_engine)
+    Base.metadata.create_all(bind=app_engine)
 
     db = testing_session_local()
     try:
@@ -26,6 +29,7 @@ def db_session():
     finally:
         db.close()
         Base.metadata.drop_all(bind=engine)
+        Base.metadata.drop_all(bind=app_engine)
 
 
 @pytest.fixture

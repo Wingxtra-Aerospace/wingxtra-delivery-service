@@ -202,6 +202,23 @@ def test_auto_dispatch_and_manual_assign_routes_exist():
     assert assign.status_code == 200
 
 
+def test_placeholder_order_ids_support_assign_and_submit_mission():
+    headers = _headers("OPS", sub="ops-placeholders")
+
+    assign = client.post(
+        "/api/v1/orders/ord-2/assign",
+        json={"drone_id": "DR-6"},
+        headers=headers,
+    )
+    assert assign.status_code == 200
+
+    mission = client.post(
+        "/api/v1/orders/ord-2/submit-mission-intent",
+        headers=headers,
+    )
+    assert mission.status_code == 200
+
+
 def test_manual_assign_includes_validated_and_queued_events():
     create = client.post(
         "/api/v1/orders",

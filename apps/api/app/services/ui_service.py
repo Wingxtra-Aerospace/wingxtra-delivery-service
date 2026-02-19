@@ -3,6 +3,7 @@ import uuid
 from datetime import datetime
 
 from fastapi import HTTPException, status
+from sqlalchemy.orm import Session
 
 from app.auth.dependencies import AuthContext
 from app.config import settings
@@ -59,6 +60,13 @@ def _ensure_test_placeholder_order(order_id: str) -> Order | None:
     append_event(placeholder.id, "VALIDATED", "Order validated")
     append_event(placeholder.id, "QUEUED", "Order queued for dispatch")
     return placeholder
+
+
+def _safe_parse_order_uuid(order_id: str) -> uuid.UUID | None:
+    try:
+        return uuid.UUID(order_id)
+    except ValueError:
+        return None
 
 
 def _assert_can_access_order(auth: AuthContext, order: Order) -> None:
@@ -193,8 +201,11 @@ def create_order(
 def get_order(auth: AuthContext, order_id: str) -> Order:
     order = store.orders.get(order_id) or _ensure_test_placeholder_order(order_id)
     if order is None:
+        order_uuid = _safe_parse_order_uuid(order_id)
+        if order_uuid is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
         with SessionLocal() as session:
-            row = session.get(DbOrder, uuid.UUID(order_id))
+            row = session.get(DbOrder, order_uuid)
             if row is not None:
                 order = Order(
                     id=str(row.id),
@@ -229,6 +240,11 @@ def cancel_order(auth: AuthContext, order_id: str) -> Order:
     if auth.role not in {"OPS", "ADMIN"}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
     order = get_order(auth, order_id)
+    with SessionLocal() as session:
+        row = session.get(DbOrder, uuid.UUID(order_id))
+        if row is not None:
+            order.status = str(getattr(row.status, "value", row.status))
+
     if order.status in TERMINAL:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -236,8 +252,9 @@ def cancel_order(auth: AuthContext, order_id: str) -> Order:
         )
     order.status = "CANCELED"
     order.updated_at = now_utc()
+    order_uuid = _safe_parse_order_uuid(order_id)
     with SessionLocal() as session:
-        row = session.get(DbOrder, uuid.UUID(order_id))
+        row = session.get(DbOrder, order_uuid) if order_uuid is not None else None
         if row is not None:
             row.status = order.status
             row.updated_at = order.updated_at
@@ -280,8 +297,9 @@ def manual_assign(auth: AuthContext, order_id: str, drone_id: str) -> Order:
     with observe_timing("dispatch_assignment_seconds"):
         order.status = "ASSIGNED"
         order.updated_at = now_utc()
+        order_uuid = _safe_parse_order_uuid(order_id)
         with SessionLocal() as session:
-            row = session.get(DbOrder, uuid.UUID(order_id))
+            row = session.get(DbOrder, order_uuid) if order_uuid is not None else None
             if row is not None:
                 row.status = order.status
                 row.updated_at = order.updated_at
@@ -365,8 +383,9 @@ def submit_mission(auth: AuthContext, order_id: str) -> tuple[Order, dict[str, s
 
         order.status = "MISSION_SUBMITTED"
         order.updated_at = now_utc()
+        order_uuid = _safe_parse_order_uuid(order_id)
         with SessionLocal() as session:
-            row = session.get(DbOrder, uuid.UUID(order_id))
+            row = session.get(DbOrder, order_uuid) if order_uuid is not None else None
             if row is not None:
                 row.status = order.status
                 row.updated_at = order.updated_at
@@ -415,6 +434,7 @@ def run_auto_dispatch(auth: AuthContext) -> dict[str, int | list[dict[str, str]]
 
 def create_pod(
     auth: AuthContext,
+    db: Session,
     order_id: str,
     method: str,
     otp_code: str | None,
@@ -423,7 +443,14 @@ def create_pod(
 ) -> ProofOfDelivery:
     if auth.role not in {"OPS", "ADMIN"}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
+
+    row = db.get(DbOrder, uuid.UUID(order_id))
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
+
     order = get_order(auth, order_id)
+    order.status = str(getattr(row.status, "value", row.status))
+    order.updated_at = row.updated_at
     if order.status != "DELIVERED":
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

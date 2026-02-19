@@ -1,13 +1,11 @@
-# apps/api/tests/conftest.py
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-import app.models  # noqa: F401  (register models/tables)
+import app.models  # noqa: F401
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import app
-
 
 TEST_DB_URL = "sqlite+pysqlite:///:memory:"
 

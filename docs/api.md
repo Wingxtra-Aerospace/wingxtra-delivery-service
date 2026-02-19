@@ -53,6 +53,18 @@ Generates mission intent for an assigned order, publishes via stub bridge client
 ```
 - **Response 409** when order is not in `ASSIGNED` state or no active job exists.
 
+
+### `POST /api/v1/orders/{order_id}/pod`
+Creates proof-of-delivery record for delivered orders.
+
+Supported methods:
+- `OPERATOR_CONFIRM` (requires `confirmed_by`)
+- `OTP` (requires `otp_code`, currently placeholder hash storage)
+- `PHOTO` (requires `photo_url`)
+
+**Response 200** returns POD metadata including method and timestamp.
+**Response 409** if order is not `DELIVERED`.
+
 ### `GET /api/v1/orders/{order_id}/events`
 Returns immutable timeline events for one order, ordered by event creation time (ascending).
 
@@ -83,3 +95,5 @@ Behavior:
 
 ### `GET /api/v1/tracking/{public_tracking_id}`
 Returns public-safe tracking data.
+
+When order is `DELIVERED`, tracking includes `pod_summary` with POD method/photo/timestamp when available.

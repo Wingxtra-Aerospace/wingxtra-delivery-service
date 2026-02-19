@@ -149,6 +149,39 @@ def test_submit_mission_intent_rejected_when_not_assigned(client):
     assert response.status_code == 409
 
 
+
+def test_create_pod_and_tracking_summary(client, db_session):
+    order = _create_order(client).json()
+
+    db_order = db_session.get(Order, UUID(order["id"]))
+    db_order.status = OrderStatus.DELIVERED
+    db_session.commit()
+
+    pod_response = client.post(
+        f"/api/v1/orders/{order['id']}/pod",
+        json={
+            "method": "PHOTO",
+            "photo_url": "https://cdn.example/pod.jpg",
+            "metadata": {"camera": "ops-device"},
+        },
+    )
+    assert pod_response.status_code == 200
+    assert pod_response.json()["method"] == "PHOTO"
+
+    tracking = client.get(f"/api/v1/tracking/{order['public_tracking_id']}")
+    assert tracking.status_code == 200
+    assert tracking.json()["pod_summary"]["method"] == "PHOTO"
+
+
+def test_create_pod_rejected_for_non_delivered_order(client):
+    order = _create_order(client).json()
+    response = client.post(
+        f"/api/v1/orders/{order['id']}/pod",
+        json={"method": "OPERATOR_CONFIRM", "confirmed_by": "ops"},
+    )
+    assert response.status_code == 409
+
+
 def test_cancel_rejected_for_terminal_state(client, db_session):
     create_response = _create_order(client)
     created = create_response.json()

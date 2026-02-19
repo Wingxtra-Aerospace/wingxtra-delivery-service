@@ -36,6 +36,13 @@ order_status = sa.Enum(
 delivery_job_status = sa.Enum(
     "PENDING", "ACTIVE", "COMPLETED", "FAILED", name="delivery_job_status"
 )
+proof_of_delivery_method = sa.Enum(
+    "PHOTO",
+    "OTP",
+    "OPERATOR_CONFIRM",
+    name="proof_of_delivery_method",
+)
+
 delivery_event_type = sa.Enum(
     "CREATED",
     "VALIDATED",
@@ -60,6 +67,7 @@ def upgrade() -> None:
     order_status.create(bind, checkfirst=True)
     delivery_job_status.create(bind, checkfirst=True)
     delivery_event_type.create(bind, checkfirst=True)
+    proof_of_delivery_method.create(bind, checkfirst=True)
 
     op.create_table(
         "orders",
@@ -140,7 +148,37 @@ def upgrade() -> None:
     )
 
 
+
+    op.create_table(
+        "proof_of_deliveries",
+        sa.Column("id", sa.Uuid(), nullable=False),
+        sa.Column("order_id", sa.Uuid(), nullable=False),
+        sa.Column("method", proof_of_delivery_method, nullable=False),
+        sa.Column("photo_url", sa.String(length=1024), nullable=True),
+        sa.Column("otp_hash", sa.String(length=255), nullable=True),
+        sa.Column("confirmed_by", sa.String(length=255), nullable=True),
+        sa.Column("metadata_json", sa.JSON(), nullable=False),
+        sa.Column("notes", sa.Text(), nullable=True),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.ForeignKeyConstraint(["order_id"], ["orders.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(
+        op.f("ix_proof_of_deliveries_order_id"),
+        "proof_of_deliveries",
+        ["order_id"],
+        unique=False,
+    )
+
 def downgrade() -> None:
+    op.drop_index(op.f("ix_proof_of_deliveries_order_id"), table_name="proof_of_deliveries")
+    op.drop_table("proof_of_deliveries")
+
     op.drop_index(op.f("ix_delivery_events_order_id"), table_name="delivery_events")
     op.drop_index(op.f("ix_delivery_events_job_id"), table_name="delivery_events")
     op.drop_table("delivery_events")
@@ -152,6 +190,7 @@ def downgrade() -> None:
     op.drop_table("orders")
 
     bind = op.get_bind()
+    proof_of_delivery_method.drop(bind, checkfirst=True)
     delivery_event_type.drop(bind, checkfirst=True)
     delivery_job_status.drop(bind, checkfirst=True)
     order_status.drop(bind, checkfirst=True)

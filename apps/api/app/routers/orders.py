@@ -11,6 +11,7 @@ from app.schemas.dispatch import ManualAssignRequest, ManualAssignResponse
 from app.schemas.events import DeliveryEventListResponse, DeliveryEventResponse
 from app.schemas.mission_intent import MissionIntentSubmitResponse
 from app.schemas.order import OrderCancelResponse, OrderCreate, OrderListResponse, OrderResponse
+from app.schemas.pod import ProofOfDeliveryCreate, ProofOfDeliveryResponse
 from app.services.dispatch_service import manual_assign_order
 from app.services.mission_intent_service import submit_mission_intent
 from app.services.orders_service import (
@@ -20,6 +21,7 @@ from app.services.orders_service import (
     list_order_events,
     list_orders,
 )
+from app.services.pod_service import create_proof_of_delivery
 
 router = APIRouter(prefix="/api/v1/orders", tags=["orders"])
 
@@ -78,6 +80,23 @@ def submit_mission_intent_endpoint(
         order_id=order.id,
         mission_intent_id=job.mission_intent_id or "",
         status=order.status.value,
+    )
+
+
+@router.post("/{order_id}/pod", response_model=ProofOfDeliveryResponse)
+def create_pod_endpoint(
+    order_id: uuid.UUID,
+    payload: ProofOfDeliveryCreate,
+    db: Session = Depends(get_db),
+) -> ProofOfDeliveryResponse:
+    pod = create_proof_of_delivery(db, order_id, payload)
+    return ProofOfDeliveryResponse(
+        id=pod.id,
+        order_id=pod.order_id,
+        method=pod.method,
+        photo_url=pod.photo_url,
+        confirmed_by=pod.confirmed_by,
+        created_at=pod.created_at,
     )
 
 

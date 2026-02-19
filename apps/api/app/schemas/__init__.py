@@ -7,6 +7,7 @@ from app.schemas.dispatch import (
 from app.schemas.events import DeliveryEventListResponse, DeliveryEventResponse
 from app.schemas.mission_intent import MissionIntentSubmitResponse
 from app.schemas.order import OrderCancelResponse, OrderCreate, OrderListResponse, OrderResponse
+from app.schemas.pod import ProofOfDeliveryCreate, ProofOfDeliveryResponse, PublicPodSummary
 from app.schemas.tracking import PublicTrackingResponse
 
 __all__ = [
@@ -22,4 +23,7 @@ __all__ = [
     "ManualAssignRequest",
     "ManualAssignResponse",
     "MissionIntentSubmitResponse",
+    "ProofOfDeliveryCreate",
+    "ProofOfDeliveryResponse",
+    "PublicPodSummary",
 ]

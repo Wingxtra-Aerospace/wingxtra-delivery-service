@@ -4,6 +4,7 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict
 
 from app.models.order import OrderStatus
+from app.schemas.pod import PublicPodSummary
 
 
 class PublicTrackingResponse(BaseModel):
@@ -14,3 +15,4 @@ class PublicTrackingResponse(BaseModel):
     status: OrderStatus
     created_at: datetime
     updated_at: datetime
+    pod_summary: PublicPodSummary | None = None

@@ -4,6 +4,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     app_name: str = "Wingxtra Delivery Service"
     cors_allowed_origins: str = "http://localhost:3000,http://localhost:5173"
+    gcs_auth_source: str = "gcs"
+    gcs_auth_token: str = "wingxtra-dev-token"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

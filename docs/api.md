@@ -12,3 +12,8 @@ Core UI integration endpoints:
 - `POST /api/v1/orders/{order_id}/cancel`
 - `GET /api/v1/jobs`
 - `GET /api/v1/tracking/{public_tracking_id}`
+
+
+Security headers for Ops endpoints:
+- `Authorization: Bearer <token>`
+- `X-Wingxtra-Source: gcs`

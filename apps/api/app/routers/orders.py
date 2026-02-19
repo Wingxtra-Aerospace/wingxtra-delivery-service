@@ -1,7 +1,8 @@
 from datetime import datetime
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 
+from app.auth.dependencies import AuthContext, require_gcs_ops_auth
 from app.schemas.ui import (
     EventResponse,
     EventsTimelineResponse,
@@ -24,7 +25,9 @@ def list_orders_endpoint(
     to_date: datetime | None = Query(default=None, alias="to"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
+    auth: AuthContext = Depends(require_gcs_ops_auth),
 ) -> OrdersListResponse:
+    _ = auth
     items, total = list_orders(
         page=page,
         page_size=page_size,
@@ -40,7 +43,11 @@ def list_orders_endpoint(
 
 
 @router.get("/{order_id}", response_model=OrderDetailResponse, summary="Get order detail")
-def get_order_endpoint(order_id: str) -> OrderDetailResponse:
+def get_order_endpoint(
+    order_id: str,
+    auth: AuthContext = Depends(require_gcs_ops_auth),
+) -> OrderDetailResponse:
+    _ = auth
     return OrderDetailResponse.model_validate(get_order(order_id))
 
 
@@ -49,18 +56,31 @@ def get_order_endpoint(order_id: str) -> OrderDetailResponse:
     response_model=EventsTimelineResponse,
     summary="Get order timeline",
 )
-def get_events_endpoint(order_id: str) -> EventsTimelineResponse:
+def get_events_endpoint(
+    order_id: str,
+    auth: AuthContext = Depends(require_gcs_ops_auth),
+) -> EventsTimelineResponse:
+    _ = auth
     events = [EventResponse.model_validate(event) for event in list_events(order_id)]
     return EventsTimelineResponse(items=events)
 
 
 @router.post("/{order_id}/assign", response_model=OrderActionResponse, summary="Manual assignment")
-def assign_endpoint(order_id: str, payload: ManualAssignRequest) -> OrderActionResponse:
+def assign_endpoint(
+    order_id: str,
+    payload: ManualAssignRequest,
+    auth: AuthContext = Depends(require_gcs_ops_auth),
+) -> OrderActionResponse:
+    _ = auth
     order = manual_assign(order_id, payload.drone_id)
     return OrderActionResponse(order_id=order.id, status=order.status)
 
 
 @router.post("/{order_id}/cancel", response_model=OrderActionResponse, summary="Cancel order")
-def cancel_endpoint(order_id: str) -> OrderActionResponse:
+def cancel_endpoint(
+    order_id: str,
+    auth: AuthContext = Depends(require_gcs_ops_auth),
+) -> OrderActionResponse:
+    _ = auth
     order = cancel_order(order_id)
     return OrderActionResponse(order_id=order.id, status=order.status)

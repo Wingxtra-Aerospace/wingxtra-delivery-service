@@ -21,6 +21,7 @@ def seed_data() -> None:
     order = Order(
         id="ord-1",
         public_tracking_id="TRK001",
+        merchant_id="merchant-1",
         customer_name="Demo Customer",
         status="ASSIGNED",
         created_at=created,

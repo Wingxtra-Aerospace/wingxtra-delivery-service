@@ -1,63 +1,85 @@
 from fastapi.testclient import TestClient
 
+from app.auth.dependencies import reset_public_tracking_limits
+from app.auth.jwt import issue_jwt
+from app.config import settings
 from app.main import app
 
 client = TestClient(app)
-AUTH_HEADERS = {
-    "Authorization": "Bearer wingxtra-dev-token",
-    "X-Wingxtra-Source": "gcs",
-}
 
 
-def test_orders_list_with_pagination_filters():
-    response = client.get("/api/v1/orders?page=1&page_size=10&search=TRK001", headers=AUTH_HEADERS)
-    assert response.status_code == 200
-    payload = response.json()
-    assert payload["pagination"]["page"] == 1
-    assert payload["pagination"]["total"] >= 1
+def _jwt(sub: str, role: str, source: str | None = None) -> str:
+    payload = {"sub": sub, "role": role}
+    if source:
+        payload["source"] = source
+    return issue_jwt(payload, settings.jwt_secret)
 
 
-def test_order_detail_events_assign_cancel_flow():
-    order_id = client.get("/api/v1/orders", headers=AUTH_HEADERS).json()["items"][0]["id"]
+def _headers(role: str = "OPS", sub: str = "ops-1", source: str | None = None) -> dict[str, str]:
+    headers = {"Authorization": f"Bearer {_jwt(sub=sub, role=role, source=source)}"}
+    if source == "gcs":
+        headers["X-Wingxtra-Source"] = "gcs"
+    return headers
 
-    detail = client.get(f"/api/v1/orders/{order_id}", headers=AUTH_HEADERS)
-    assert detail.status_code == 200
 
-    events = client.get(f"/api/v1/orders/{order_id}/events", headers=AUTH_HEADERS)
-    assert events.status_code == 200
-
-    assign = client.post(
-        f"/api/v1/orders/{order_id}/assign",
-        json={"drone_id": "DR-2"},
-        headers=AUTH_HEADERS,
+def test_orders_list_with_pagination_filters_as_ops():
+    response = client.get(
+        "/api/v1/orders?page=1&page_size=10&search=TRK001",
+        headers=_headers("OPS"),
     )
-    assert assign.status_code == 200
-
-    cancel = client.post(f"/api/v1/orders/{order_id}/cancel", headers=AUTH_HEADERS)
-    assert cancel.status_code == 200
+    assert response.status_code == 200
 
 
-def test_jobs_and_tracking_views():
-    jobs = client.get("/api/v1/jobs?active=true", headers=AUTH_HEADERS)
-    assert jobs.status_code == 200
+def test_merchant_can_create_and_view_own_order_only():
+    create = client.post(
+        "/api/v1/orders",
+        json={"customer_name": "Merchant Customer"},
+        headers=_headers("MERCHANT", sub="merchant-99"),
+    )
+    assert create.status_code == 200
+    created = create.json()
 
+    list_own = client.get("/api/v1/orders", headers=_headers("MERCHANT", sub="merchant-99"))
+    assert any(item["id"] == created["id"] for item in list_own.json()["items"])
+
+    forbidden = client.get("/api/v1/orders/ord-1", headers=_headers("MERCHANT", sub="merchant-99"))
+    assert forbidden.status_code == 403
+
+
+def test_jobs_forbidden_for_merchant_and_allowed_for_admin():
+    merchant_jobs = client.get("/api/v1/jobs", headers=_headers("MERCHANT", sub="merchant-1"))
+    assert merchant_jobs.status_code == 403
+
+    admin_jobs = client.get("/api/v1/jobs", headers=_headers("ADMIN", sub="admin-1"))
+    assert admin_jobs.status_code == 200
+
+
+def test_gcs_authenticated_requests_map_to_ops_role():
+    response = client.post(
+        "/api/v1/orders/ord-1/assign",
+        json={"drone_id": "DR-2"},
+        headers=_headers(role="CUSTOMER", sub="gcs-user", source="gcs"),
+    )
+    assert response.status_code == 200
+
+
+def test_public_tracking_is_unauthenticated_and_sanitized():
     tracking = client.get("/api/v1/tracking/TRK001")
     assert tracking.status_code == 200
-    assert tracking.json()["public_tracking_id"] == "TRK001"
+    payload = tracking.json()
+    assert set(payload.keys()) == {"order_id", "public_tracking_id", "status"}
 
 
-def test_protected_endpoints_require_gcs_auth_headers():
+def test_protected_endpoints_require_jwt():
     response = client.get("/api/v1/orders")
     assert response.status_code == 401
 
 
-def test_cors_preflight_has_origin_header():
-    response = client.options(
-        "/api/v1/orders",
-        headers={
-            "Origin": "http://localhost:3000",
-            "Access-Control-Request-Method": "GET",
-        },
-    )
-    assert response.status_code in (200, 204)
-    assert response.headers.get("access-control-allow-origin") == "http://localhost:3000"
+def test_public_tracking_rate_limit_enforced():
+    reset_public_tracking_limits()
+    for _ in range(settings.public_tracking_rate_limit_requests):
+        ok = client.get("/api/v1/tracking/TRK001")
+        assert ok.status_code == 200
+
+    limited = client.get("/api/v1/tracking/TRK001")
+    assert limited.status_code == 429

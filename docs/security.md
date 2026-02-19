@@ -1,27 +1,47 @@
 # Security
 
-## Wingxtra Cloud GCS auth integration
+## JWT authentication
 
-Protected Ops endpoints accept and validate these headers:
-- `Authorization: Bearer <token>`
-- `X-Wingxtra-Source: <source>`
+Protected API endpoints require a JWT bearer token:
+- `Authorization: Bearer <jwt>`
 
-Environment variables:
-- `GCS_AUTH_TOKEN` (default: `wingxtra-dev-token`)
-- `GCS_AUTH_SOURCE` (default: `gcs`)
+JWT claims used by API:
+- `sub` (user identity)
+- `role` (`CUSTOMER`, `MERCHANT`, `OPS`, `ADMIN`)
+- `source` (optional; `gcs` for Wingxtra Cloud GCS)
+- `exp` (expiration timestamp)
 
-On successful validation, requests are mapped to role: `OPS`.
+Config:
+- `JWT_SECRET`
+- `ALLOWED_ROLES`
 
-Protected endpoints:
-- `GET /api/v1/orders`
-- `GET /api/v1/orders/{order_id}`
-- `GET /api/v1/orders/{order_id}/events`
-- `POST /api/v1/orders/{order_id}/assign`
-- `POST /api/v1/orders/{order_id}/cancel`
-- `GET /api/v1/jobs`
+## Wingxtra Cloud GCS header integration
 
-Public unauthenticated endpoint:
-- `GET /api/v1/tracking/{public_tracking_id}`
+When JWT claim `source=gcs`, the API also validates:
+- `X-Wingxtra-Source: gcs` (configurable via `GCS_AUTH_SOURCE`)
+
+If valid, request role is mapped to `OPS`.
+
+## RBAC matrix
+
+- `CUSTOMER`: no protected endpoint access; can use public tracking only.
+- `MERCHANT`: create order, list own orders, view own order details/events.
+- `OPS`: full operations (list orders, order detail/events, assign, cancel, jobs).
+- `ADMIN`: all OPS permissions.
+
+## Public tracking
+
+`GET /api/v1/tracking/{public_tracking_id}` remains unauthenticated.
+
+Tracking output is sanitized to:
+- `order_id`
+- `public_tracking_id`
+- `status`
+
+Rate limiting is applied per client IP for public tracking requests:
+- `PUBLIC_TRACKING_RATE_LIMIT_REQUESTS`
+- `PUBLIC_TRACKING_RATE_LIMIT_WINDOW_S`
 
 ## CORS
-Set `CORS_ALLOWED_ORIGINS` as comma-separated origins for external UI applications.
+
+Set `CORS_ALLOWED_ORIGINS` as comma-separated origins for UI clients.

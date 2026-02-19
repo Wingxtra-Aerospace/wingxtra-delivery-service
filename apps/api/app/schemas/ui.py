@@ -9,9 +9,14 @@ class PaginationMeta(BaseModel):
     total: int
 
 
+class OrderCreateRequest(BaseModel):
+    customer_name: str | None = None
+
+
 class OrderSummary(BaseModel):
     id: str
     public_tracking_id: str
+    merchant_id: str | None
     customer_name: str | None
     status: str
     created_at: datetime

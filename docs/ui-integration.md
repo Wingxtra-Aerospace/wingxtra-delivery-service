@@ -9,13 +9,18 @@ This document describes delivery API endpoints intended for Wingxtra Cloud GCS O
 CORS is enabled via `CORS_ALLOWED_ORIGINS` (comma-separated env var, default includes localhost UI origins).
 
 ## Authentication
-All Ops endpoints require:
+All Ops endpoints require JWT bearer auth.
+
+For Wingxtra Cloud GCS requests (JWT `source=gcs`), include:
 - `Authorization: Bearer <token>`
 - `X-Wingxtra-Source: gcs`
 
 Tracking endpoint remains public/unauthenticated.
 
 ## Endpoints
+
+### Create order
+`POST /api/v1/orders`
 
 ### Orders list
 `GET /api/v1/orders`

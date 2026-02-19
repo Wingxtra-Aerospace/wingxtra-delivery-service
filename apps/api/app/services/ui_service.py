@@ -2,6 +2,7 @@ from datetime import datetime
 
 from fastapi import HTTPException, status
 
+from app.auth.dependencies import AuthContext
 from app.models.domain import Event, Job, Order, new_id, now_utc
 from app.services.store import store
 
@@ -16,8 +17,24 @@ ACTIVE_JOB_STATUSES = {
 }
 
 
+def _is_backoffice(role: str) -> bool:
+    return role in {"OPS", "ADMIN"}
+
+
+def _assert_can_access_order(auth: AuthContext, order: Order) -> None:
+    if _is_backoffice(auth.role):
+        return
+    if auth.role == "MERCHANT" and order.merchant_id == auth.user_id:
+        return
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Access denied for this order",
+    )
+
+
 def list_orders(
     *,
+    auth: AuthContext,
     page: int,
     page_size: int,
     status_filter: str | None,
@@ -26,6 +43,9 @@ def list_orders(
     to_date: datetime | None,
 ) -> tuple[list[Order], int]:
     orders = list(store.orders.values())
+    if auth.role == "MERCHANT":
+        orders = [order for order in orders if order.merchant_id == auth.user_id]
+
     if status_filter:
         orders = [order for order in orders if order.status == status_filter]
     if search:
@@ -48,10 +68,30 @@ def list_orders(
     return orders[start:end], total
 
 
-def get_order(order_id: str) -> Order:
+def create_order(auth: AuthContext, customer_name: str | None) -> Order:
+    if auth.role not in {"MERCHANT", "OPS", "ADMIN"}:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
+
+    now = now_utc()
+    order = Order(
+        id=new_id("ord-"),
+        public_tracking_id=new_id("TRK-")[-8:],
+        merchant_id=auth.user_id if auth.role == "MERCHANT" else None,
+        customer_name=customer_name,
+        status="CREATED",
+        created_at=now,
+        updated_at=now,
+    )
+    store.orders[order.id] = order
+    append_event(order.id, "CREATED", "Order created")
+    return order
+
+
+def get_order(auth: AuthContext, order_id: str) -> Order:
     order = store.orders.get(order_id)
     if not order:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
+    _assert_can_access_order(auth, order)
     return order
 
 
@@ -67,8 +107,10 @@ def append_event(order_id: str, event_type: str, message: str) -> None:
     )
 
 
-def cancel_order(order_id: str) -> Order:
-    order = get_order(order_id)
+def cancel_order(auth: AuthContext, order_id: str) -> Order:
+    if auth.role not in {"OPS", "ADMIN"}:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
+    order = get_order(auth, order_id)
     if order.status in TERMINAL:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -80,8 +122,10 @@ def cancel_order(order_id: str) -> Order:
     return order
 
 
-def manual_assign(order_id: str, drone_id: str) -> Order:
-    order = get_order(order_id)
+def manual_assign(auth: AuthContext, order_id: str, drone_id: str) -> Order:
+    if auth.role not in {"OPS", "ADMIN"}:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
+    order = get_order(auth, order_id)
     if order.status in TERMINAL:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -102,14 +146,16 @@ def manual_assign(order_id: str, drone_id: str) -> Order:
     return order
 
 
-def list_jobs(active_only: bool) -> list[Job]:
+def list_jobs(auth: AuthContext, active_only: bool) -> list[Job]:
+    if auth.role not in {"OPS", "ADMIN"}:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
     if not active_only:
         return list(store.jobs)
     return [job for job in store.jobs if job.status in ACTIVE_JOB_STATUSES]
 
 
-def list_events(order_id: str) -> list[Event]:
-    get_order(order_id)
+def list_events(auth: AuthContext, order_id: str) -> list[Event]:
+    get_order(auth, order_id)
     return store.events[order_id]
 
 

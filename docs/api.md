@@ -5,6 +5,7 @@ OpenAPI is provided by FastAPI:
 - OpenAPI JSON: `/openapi.json`
 
 Core UI integration endpoints:
+- `POST /api/v1/orders`
 - `GET /api/v1/orders` (pagination + filtering)
 - `GET /api/v1/orders/{order_id}`
 - `GET /api/v1/orders/{order_id}/events`
@@ -17,3 +18,6 @@ Core UI integration endpoints:
 Security headers for Ops endpoints:
 - `Authorization: Bearer <token>`
 - `X-Wingxtra-Source: gcs`
+
+
+JWT bearer required for protected endpoints.

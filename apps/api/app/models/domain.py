@@ -24,6 +24,7 @@ OrderStatus = Literal[
 class Order(BaseModel):
     id: str
     public_tracking_id: str
+    merchant_id: str | None
     customer_name: str | None
     status: OrderStatus
     created_at: datetime

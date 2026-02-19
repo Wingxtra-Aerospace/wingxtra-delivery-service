@@ -54,3 +54,12 @@ def now_utc() -> datetime:
 
 def new_id(prefix: str = "") -> str:
     return f"{prefix}{uuid4()}"
+
+
+class ProofOfDelivery(BaseModel):
+    order_id: str
+    method: str
+    otp_code: str | None = None
+    operator_name: str | None = None
+    photo_url: str | None = None
+    created_at: datetime

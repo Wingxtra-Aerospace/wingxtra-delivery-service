@@ -3,7 +3,7 @@ from datetime import datetime
 from fastapi import HTTPException, status
 
 from app.auth.dependencies import AuthContext
-from app.models.domain import Event, Job, Order, new_id, now_utc
+from app.models.domain import Event, Job, Order, ProofOfDelivery, new_id, now_utc
 from app.observability import log_event, observe_timing
 from app.services.store import store
 
@@ -75,7 +75,7 @@ def create_order(auth: AuthContext, customer_name: str | None) -> Order:
 
     now = now_utc()
     order = Order(
-        id=new_id("ord-"),
+        id=new_id(),
         public_tracking_id=new_id(),
         merchant_id=auth.user_id if auth.role == "MERCHANT" else None,
         customer_name=customer_name,
@@ -128,7 +128,9 @@ def cancel_order(auth: AuthContext, order_id: str) -> Order:
 
 
 def _is_valid_drone_id(drone_id: str) -> bool:
-    return drone_id.startswith("DR-") or drone_id.startswith("DRONE-")
+    import re
+
+    return bool(re.match(r"^(DR|DRONE)-[0-9]+$", drone_id))
 
 
 def manual_assign(auth: AuthContext, order_id: str, drone_id: str) -> Order:
@@ -178,7 +180,7 @@ def tracking_view(public_tracking_id: str) -> Order:
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tracking record not found")
 
 
-def submit_mission(auth: AuthContext, order_id: str) -> Order:
+def submit_mission(auth: AuthContext, order_id: str, publisher=None) -> Order:
     if auth.role not in {"OPS", "ADMIN"}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
     order = get_order(auth, order_id)
@@ -203,6 +205,15 @@ def submit_mission(auth: AuthContext, order_id: str) -> Order:
         order.status = "MISSION_SUBMITTED"
         order.updated_at = now_utc()
 
+    if publisher is not None:
+        publisher.publish_mission_intent(
+            {
+                "order_id": order.id,
+                "mission_intent_id": job.mission_intent_id,
+                "drone_id": job.assigned_drone_id,
+            }
+        )
+
     append_event(order_id, "MISSION_SUBMITTED", "Mission submitted")
     log_event(
         "mission_intent_submitted",
@@ -213,15 +224,53 @@ def submit_mission(auth: AuthContext, order_id: str) -> Order:
     return order
 
 
-def run_auto_dispatch(auth: AuthContext) -> dict[str, list[dict[str, str]]]:
+def run_auto_dispatch(auth: AuthContext) -> dict[str, int | list[dict[str, str]]]:
     if auth.role not in {"OPS", "ADMIN"}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
 
     assignments: list[dict[str, str]] = []
-    for order in store.orders.values():
-        if order.status in {"CREATED", "VALIDATED", "QUEUED"}:
-            drone_id = f"DR-AUTO-{len(store.jobs) + 1}"
-            assigned_order = manual_assign(auth, order.id, drone_id)
-            assignments.append({"order_id": assigned_order.id, "status": assigned_order.status})
+    candidates = [
+        order
+        for order in store.orders.values()
+        if order.status in {"CREATED", "VALIDATED", "QUEUED"}
+    ]
+    candidates.sort(key=lambda x: x.created_at)
+    for order in candidates:
+        drone_id = f"DRONE-{len(store.jobs) + 1}"
+        assigned_order = manual_assign(auth, order.id, drone_id)
+        assignments.append({"order_id": assigned_order.id, "status": assigned_order.status})
 
-    return {"assignments": assignments}
+    return {"assigned": len(assignments), "assignments": assignments}
+
+
+def create_pod(
+    auth: AuthContext,
+    order_id: str,
+    method: str,
+    otp_code: str | None,
+    operator_name: str | None,
+    photo_url: str | None,
+) -> ProofOfDelivery:
+    if auth.role not in {"OPS", "ADMIN"}:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
+    order = get_order(auth, order_id)
+    if order.status != "DELIVERED":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="POD requires DELIVERED order",
+        )
+
+    pod = ProofOfDelivery(
+        order_id=order_id,
+        method=method,
+        otp_code=otp_code,
+        operator_name=operator_name,
+        photo_url=photo_url,
+        created_at=now_utc(),
+    )
+    store.pods[order_id] = pod
+    return pod
+
+
+def get_pod(order_id: str) -> ProofOfDelivery | None:
+    return store.pods.get(order_id)

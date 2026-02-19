@@ -11,6 +11,7 @@ Core UI integration endpoints:
 - `GET /api/v1/orders/{order_id}/events`
 - `POST /api/v1/orders/{order_id}/assign`
 - `POST /api/v1/orders/{order_id}/cancel`
+- `POST /api/v1/orders/{order_id}/pod`
 - `GET /api/v1/jobs`
 - `POST /api/v1/dispatch/run`
 - `GET /api/v1/tracking/{public_tracking_id}`
@@ -42,4 +43,4 @@ Observability headers:
 - `X-Request-ID` accepted on requests and echoed on responses.
 
 
-Dispatch run response contains `assignments` list entries with `order_id` and `status`.
+Dispatch run response contains `assigned` and `assignments` list entries with `order_id` and `status`.

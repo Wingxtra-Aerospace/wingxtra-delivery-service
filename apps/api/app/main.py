@@ -57,3 +57,4 @@ app.include_router(metrics_router)
 def startup_seed() -> None:
     configure_logging()
     seed_data()
+

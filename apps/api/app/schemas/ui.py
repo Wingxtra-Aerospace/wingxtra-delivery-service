@@ -14,7 +14,7 @@ class PaginationMeta(ResponseModel):
 
 
 class OrderCreateRequest(BaseModel):
-    customer_name: str | None = None
+    customer_name: str = Field(min_length=1)
 
 
 class OrderSummary(ResponseModel):
@@ -70,10 +70,16 @@ class JobsListResponse(ResponseModel):
     items: list[JobResponse]
 
 
+class TrackingPodSummary(ResponseModel):
+    method: str
+    photo_url: str | None = None
+
+
 class TrackingViewResponse(ResponseModel):
     order_id: str
     public_tracking_id: str
     status: str
+    pod_summary: TrackingPodSummary | None = None
 
 
 class MissionSubmitResponse(ResponseModel):
@@ -83,4 +89,21 @@ class MissionSubmitResponse(ResponseModel):
 
 
 class DispatchRunResponse(ResponseModel):
+    assigned: int
     assignments: list[OrderActionResponse]
+
+
+class PodCreateRequest(BaseModel):
+    method: str
+    otp_code: str | None = None
+    operator_name: str | None = None
+    photo_url: str | None = None
+
+
+class PodResponse(ResponseModel):
+    order_id: str
+    method: str
+    otp_code: str | None = None
+    operator_name: str | None = None
+    photo_url: str | None = None
+

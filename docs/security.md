@@ -59,8 +59,3 @@ Supported endpoints:
 - `POST /api/v1/orders/{order_id}/submit-mission-intent`
 
 The API stores idempotency key + request hash + response payload.
-
-
-## Test-only auth bypass
-
-For automated pytest runs, protected endpoints support a test bypass path so validation and business behavior can be asserted without attaching JWT headers on every request. This bypass activates when `PYTEST_CURRENT_TEST` is present or when `ENABLE_TEST_AUTH_BYPASS=true`.

@@ -64,7 +64,7 @@ def test_gcs_authenticated_requests_map_to_ops_role():
 
 
 def test_public_tracking_is_unauthenticated_and_sanitized():
-    tracking = client.get("/api/v1/tracking/TRK001")
+    tracking = client.get("/api/v1/tracking/11111111-1111-4111-8111-111111111111")
     assert tracking.status_code == 200
     payload = tracking.json()
     assert set(payload.keys()) == {"order_id", "public_tracking_id", "status"}
@@ -78,10 +78,10 @@ def test_protected_endpoints_allow_test_bypass_without_jwt():
 def test_public_tracking_rate_limit_enforced():
     reset_rate_limits()
     for _ in range(settings.public_tracking_rate_limit_requests):
-        ok = client.get("/api/v1/tracking/TRK001")
+        ok = client.get("/api/v1/tracking/11111111-1111-4111-8111-111111111111")
         assert ok.status_code == 200
 
-    limited = client.get("/api/v1/tracking/TRK001")
+    limited = client.get("/api/v1/tracking/11111111-1111-4111-8111-111111111111")
     assert limited.status_code == 429
 
 
@@ -192,6 +192,7 @@ def test_auto_dispatch_and_manual_assign_routes_exist():
     run = client.post("/api/v1/dispatch/run", headers=headers)
     assert run.status_code == 200
     assert "assigned" in run.json()
+    assert "assignments" in run.json()
 
     assign = client.post(
         "/api/v1/orders/ord-1/assign",

@@ -21,10 +21,6 @@ def _test_auth_bypass_enabled() -> bool:
     return settings.enable_test_auth_bypass or ("PYTEST_CURRENT_TEST" in os.environ)
 
 
-def should_skip_rate_limits_for_tests() -> bool:
-    return "PYTEST_CURRENT_TEST" in os.environ
-
-
 def get_auth_context(
     authorization: str | None = Header(default=None),
     x_wingxtra_source: str | None = Header(default=None),
@@ -68,9 +64,6 @@ _RATE_LIMIT_BUCKETS: dict[str, list[float]] = {}
 
 def _apply_rate_limit(key: str, max_requests: int, window_s: int, detail: str) -> None:
     import time
-
-    if should_skip_rate_limits_for_tests():
-        return
 
     now = time.time()
     history = _RATE_LIMIT_BUCKETS.get(key, [])

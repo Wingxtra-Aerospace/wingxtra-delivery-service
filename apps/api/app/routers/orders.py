@@ -3,6 +3,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, Header, Query, Request
 
 from app.auth.dependencies import AuthContext, rate_limit_order_creation, require_roles
+from app.dependencies import get_mission_publisher
 from app.schemas.ui import (
     EventResponse,
     EventsTimelineResponse,
@@ -13,6 +14,8 @@ from app.schemas.ui import (
     OrderDetailResponse,
     OrdersListResponse,
     PaginationMeta,
+    PodCreateRequest,
+    PodResponse,
 )
 from app.services.idempotency_service import (
     check_idempotency,
@@ -22,6 +25,7 @@ from app.services.store import store
 from app.services.ui_service import (
     cancel_order,
     create_order,
+    create_pod,
     get_order,
     list_events,
     list_orders,
@@ -142,6 +146,7 @@ async def submit_mission_endpoint(
     request: Request,
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     auth: AuthContext = Depends(require_roles("OPS", "ADMIN")),
+    publisher=Depends(get_mission_publisher),
 ) -> MissionSubmitResponse:
     request_payload = {"order_id": order_id}
     if idempotency_key:
@@ -154,7 +159,7 @@ async def submit_mission_endpoint(
         if idem.replay and idem.response_payload:
             return MissionSubmitResponse.model_validate(idem.response_payload)
 
-    order = submit_mission(auth, order_id)
+    order = submit_mission(auth, order_id, publisher=publisher)
     jobs = [job for job in store.jobs if job.order_id == order_id]
     mission_intent_id = jobs[-1].mission_intent_id or ""
     response_payload = MissionSubmitResponse(
@@ -173,3 +178,20 @@ async def submit_mission_endpoint(
         )
 
     return MissionSubmitResponse.model_validate(response_payload)
+
+
+@router.post("/{order_id}/pod", response_model=PodResponse, summary="Create proof of delivery")
+def create_pod_endpoint(
+    order_id: str,
+    payload: PodCreateRequest,
+    auth: AuthContext = Depends(require_roles("OPS", "ADMIN")),
+) -> PodResponse:
+    pod = create_pod(
+        auth,
+        order_id=order_id,
+        method=payload.method,
+        otp_code=payload.otp_code,
+        operator_name=payload.operator_name,
+        photo_url=payload.photo_url,
+    )
+    return PodResponse.model_validate(pod)

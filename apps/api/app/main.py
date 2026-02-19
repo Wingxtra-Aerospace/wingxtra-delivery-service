@@ -7,7 +7,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
 from app.config import allowed_origins, settings
-from app.db import Base, engine
+from app.db.base import Base
+from app.db.session import engine
 from app.models.db_models import OrderRecord
 from app.observability import configure_logging, log_event, metrics_store, set_request_id
 from app.routers.dispatch import router as dispatch_router

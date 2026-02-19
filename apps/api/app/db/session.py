@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from app.config import settings
-
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
+
 
 
 is_sqlite = settings.database_url.startswith("sqlite")

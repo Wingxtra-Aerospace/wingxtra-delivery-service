@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.config import settings
+
 
 is_sqlite = settings.database_url.startswith("sqlite")
 is_sqlite_memory = is_sqlite and ":memory:" in settings.database_url

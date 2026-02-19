@@ -7,8 +7,8 @@ from fastapi import HTTPException, status
 from app.auth.dependencies import AuthContext
 from app.config import settings
 from app.db.session import SessionLocal
-from app.models.order import Order as DbOrder
 from app.models.domain import Event, Job, Order, ProofOfDelivery, new_id, now_utc
+from app.models.order import Order as DbOrder
 from app.observability import log_event, observe_timing
 from app.services.store import store
 
@@ -151,6 +151,17 @@ def create_order(
         updated_at=now,
     )
     store.orders[order.id] = order
+
+    resolved_pickup_lat = pickup_lat if pickup_lat is not None else lat
+    resolved_pickup_lat = resolved_pickup_lat if resolved_pickup_lat is not None else 0.0
+    resolved_pickup_lng = pickup_lng if pickup_lng is not None else 0.0
+    resolved_dropoff_lat = dropoff_lat if dropoff_lat is not None else resolved_pickup_lat
+    resolved_dropoff_lng = dropoff_lng if dropoff_lng is not None else resolved_pickup_lng
+    resolved_payload_weight = payload_weight_kg if payload_weight_kg is not None else weight
+    resolved_payload_weight = (
+        resolved_payload_weight if resolved_payload_weight is not None else 1.0
+    )
+
     with SessionLocal() as session:
         session.add(
             DbOrder(
@@ -159,12 +170,12 @@ def create_order(
                 merchant_id=order.merchant_id,
                 customer_name=order.customer_name,
                 customer_phone=customer_phone,
-                pickup_lat=pickup_lat if pickup_lat is not None else (lat if lat is not None else 0.0),
-                pickup_lng=pickup_lng if pickup_lng is not None else 0.0,
-                dropoff_lat=dropoff_lat if dropoff_lat is not None else (pickup_lat if pickup_lat is not None else lat if lat is not None else 0.0),
-                dropoff_lng=dropoff_lng if dropoff_lng is not None else (pickup_lng if pickup_lng is not None else 0.0),
+                pickup_lat=resolved_pickup_lat,
+                pickup_lng=resolved_pickup_lng,
+                dropoff_lat=resolved_dropoff_lat,
+                dropoff_lng=resolved_dropoff_lng,
                 dropoff_accuracy_m=dropoff_accuracy_m,
-                payload_weight_kg=payload_weight_kg if payload_weight_kg is not None else (weight if weight is not None else 1.0),
+                payload_weight_kg=resolved_payload_weight,
                 payload_type=payload_type or "parcel",
                 priority=priority or "NORMAL",
                 status=order.status,

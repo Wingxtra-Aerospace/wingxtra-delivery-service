@@ -5,6 +5,7 @@ from app.schemas.dispatch import (
     ManualAssignResponse,
 )
 from app.schemas.events import DeliveryEventListResponse, DeliveryEventResponse
+from app.schemas.mission_intent import MissionIntentSubmitResponse
 from app.schemas.order import OrderCancelResponse, OrderCreate, OrderListResponse, OrderResponse
 from app.schemas.tracking import PublicTrackingResponse
 
@@ -20,4 +21,5 @@ __all__ = [
     "DispatchRunResponseItem",
     "ManualAssignRequest",
     "ManualAssignResponse",
+    "MissionIntentSubmitResponse",
 ]

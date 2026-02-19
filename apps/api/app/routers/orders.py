@@ -5,11 +5,14 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.integrations.fleet_api_client import FleetApiClientProtocol, get_fleet_api_client
+from app.integrations.gcs_bridge_client import MissionPublisherProtocol, get_gcs_bridge_client
 from app.models.order import OrderStatus
 from app.schemas.dispatch import ManualAssignRequest, ManualAssignResponse
 from app.schemas.events import DeliveryEventListResponse, DeliveryEventResponse
+from app.schemas.mission_intent import MissionIntentSubmitResponse
 from app.schemas.order import OrderCancelResponse, OrderCreate, OrderListResponse, OrderResponse
 from app.services.dispatch_service import manual_assign_order
+from app.services.mission_intent_service import submit_mission_intent
 from app.services.orders_service import (
     cancel_order,
     create_order,
@@ -61,6 +64,20 @@ def manual_assign_order_endpoint(
     return ManualAssignResponse(
         order_id=job.order_id,
         assigned_drone_id=job.assigned_drone_id or "",
+    )
+
+
+@router.post("/{order_id}/submit-mission-intent", response_model=MissionIntentSubmitResponse)
+def submit_mission_intent_endpoint(
+    order_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    publisher: MissionPublisherProtocol = Depends(get_gcs_bridge_client),
+) -> MissionIntentSubmitResponse:
+    order, job, _intent = submit_mission_intent(db, publisher, order_id)
+    return MissionIntentSubmitResponse(
+        order_id=order.id,
+        mission_intent_id=job.mission_intent_id or "",
+        status=order.status.value,
     )
 
 

@@ -39,6 +39,20 @@ Behavior:
 - Drone must be available and have battery >= 30% from Fleet API.
 - On success, order transitions to `ASSIGNED`, assignment job is created, and event timeline is appended.
 
+
+### `POST /api/v1/orders/{order_id}/submit-mission-intent`
+Generates mission intent for an assigned order, publishes via stub bridge client, stores `mission_intent_id` on the active delivery job, and transitions order to `MISSION_SUBMITTED`.
+
+- **Response 200**
+```json
+{
+  "order_id": "<uuid>",
+  "mission_intent_id": "mi_...",
+  "status": "MISSION_SUBMITTED"
+}
+```
+- **Response 409** when order is not in `ASSIGNED` state or no active job exists.
+
 ### `GET /api/v1/orders/{order_id}/events`
 Returns immutable timeline events for one order, ordered by event creation time (ascending).
 

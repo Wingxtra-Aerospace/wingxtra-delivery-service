@@ -1,6 +1,7 @@
 from uuid import UUID
 
 from app.integrations.fleet_api_client import FleetDroneTelemetry, get_fleet_api_client
+from app.integrations.gcs_bridge_client import get_gcs_bridge_client
 from app.main import app
 from app.models.order import Order, OrderStatus
 
@@ -31,6 +32,14 @@ def _create_order(client):
 
 def _set_fleet_override(drones: list[FleetDroneTelemetry]) -> None:
     app.dependency_overrides[get_fleet_api_client] = lambda: FakeFleetApiClient(drones)
+
+
+class FakePublisher:
+    def __init__(self) -> None:
+        self.published: list[dict] = []
+
+    def publish_mission_intent(self, mission_intent: dict) -> None:
+        self.published.append(mission_intent)
 
 
 def test_create_get_list_cancel_tracking_and_events(client):
@@ -112,6 +121,32 @@ def test_manual_assign_rejects_invalid_drone(client):
     order = _create_order(client).json()
     response = client.post(f"/api/v1/orders/{order['id']}/assign", json={"drone_id": "DRONE-LOW"})
     assert response.status_code == 400
+
+
+def test_submit_mission_intent_for_assigned_order(client):
+    _set_fleet_override(
+        [FleetDroneTelemetry(drone_id="DRONE-1", lat=6.45, lng=3.39, battery=95, is_available=True)]
+    )
+    publisher = FakePublisher()
+    app.dependency_overrides[get_gcs_bridge_client] = lambda: publisher
+
+    order = _create_order(client).json()
+    assign = client.post(f"/api/v1/orders/{order['id']}/assign", json={"drone_id": "DRONE-1"})
+    assert assign.status_code == 200
+
+    submit = client.post(f"/api/v1/orders/{order['id']}/submit-mission-intent")
+    assert submit.status_code == 200
+    payload = submit.json()
+    assert payload["order_id"] == order["id"]
+    assert payload["status"] == "MISSION_SUBMITTED"
+    assert payload["mission_intent_id"].startswith("mi_")
+    assert len(publisher.published) == 1
+
+
+def test_submit_mission_intent_rejected_when_not_assigned(client):
+    order = _create_order(client).json()
+    response = client.post(f"/api/v1/orders/{order['id']}/submit-mission-intent")
+    assert response.status_code == 409
 
 
 def test_cancel_rejected_for_terminal_state(client, db_session):

@@ -1,1 +1,76 @@
-{}
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wingxtra.internal/contracts/mission_intent_contract.json",
+  "title": "WingxtraMissionIntent",
+  "type": "object",
+  "required": [
+    "intent_id",
+    "order_id",
+    "drone_id",
+    "pickup",
+    "dropoff",
+    "actions",
+    "constraints",
+    "safety",
+    "metadata"
+  ],
+  "properties": {
+    "intent_id": { "type": "string", "minLength": 1 },
+    "order_id": { "type": "string", "format": "uuid" },
+    "drone_id": { "type": "string", "minLength": 1 },
+    "pickup": {
+      "type": "object",
+      "required": ["lat", "lng", "alt_m"],
+      "properties": {
+        "lat": { "type": "number", "minimum": -90, "maximum": 90 },
+        "lng": { "type": "number", "minimum": -180, "maximum": 180 },
+        "alt_m": { "type": "number", "minimum": 0 }
+      }
+    },
+    "dropoff": {
+      "type": "object",
+      "required": ["lat", "lng", "alt_m", "delivery_alt_m"],
+      "properties": {
+        "lat": { "type": "number", "minimum": -90, "maximum": 90 },
+        "lng": { "type": "number", "minimum": -180, "maximum": 180 },
+        "alt_m": { "type": "number", "minimum": 0 },
+        "delivery_alt_m": { "type": "number", "minimum": 0 }
+      }
+    },
+    "actions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "enum": ["TAKEOFF", "CRUISE", "DESCEND", "DROP_OR_WINCH", "ASCEND", "RTL"]
+      }
+    },
+    "constraints": {
+      "type": "object",
+      "required": ["battery_min_pct", "service_area_id"],
+      "properties": {
+        "battery_min_pct": { "type": "number", "minimum": 0, "maximum": 100 },
+        "service_area_id": { "type": "string" }
+      }
+    },
+    "safety": {
+      "type": "object",
+      "required": ["abort_rtl_on_fail", "loiter_timeout_s", "lost_link_behavior"],
+      "properties": {
+        "abort_rtl_on_fail": { "type": "boolean" },
+        "loiter_timeout_s": { "type": "integer", "minimum": 0 },
+        "lost_link_behavior": { "type": "string" }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["payload_type", "payload_weight_kg", "priority", "created_at"],
+      "properties": {
+        "payload_type": { "type": "string" },
+        "payload_weight_kg": { "type": "number", "minimum": 0 },
+        "priority": { "type": "string" },
+        "created_at": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}

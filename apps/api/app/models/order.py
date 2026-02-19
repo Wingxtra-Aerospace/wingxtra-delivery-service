@@ -39,6 +39,7 @@ class Order(Base):
         String(32), unique=True, nullable=False, index=True
     )
 
+    merchant_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     customer_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     customer_phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
 

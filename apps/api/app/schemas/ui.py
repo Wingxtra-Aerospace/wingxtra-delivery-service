@@ -15,9 +15,17 @@ class PaginationMeta(ResponseModel):
 
 class OrderCreateRequest(BaseModel):
     customer_name: str | None = None
+    customer_phone: str | None = None
     lat: float | None = Field(default=None, ge=-90, le=90)
     weight: float | None = Field(default=None, gt=0)
+    pickup_lat: float | None = Field(default=None, ge=-90, le=90)
+    pickup_lng: float | None = Field(default=None, ge=-180, le=180)
+    dropoff_lat: float | None = Field(default=None, ge=-90, le=90)
+    dropoff_lng: float | None = Field(default=None, ge=-180, le=180)
+    dropoff_accuracy_m: float | None = Field(default=None, ge=0)
+    payload_weight_kg: float | None = Field(default=None, gt=0)
     payload_type: str | None = Field(default=None, min_length=1)
+    priority: str | None = None
 
 
 class OrderSummary(ResponseModel):

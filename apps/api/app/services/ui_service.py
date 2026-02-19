@@ -164,3 +164,30 @@ def tracking_view(public_tracking_id: str) -> Order:
         if order.public_tracking_id == public_tracking_id:
             return order
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tracking record not found")
+
+
+def submit_mission(auth: AuthContext, order_id: str) -> Order:
+    if auth.role not in {"OPS", "ADMIN"}:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
+    order = get_order(auth, order_id)
+    if order.status not in {"ASSIGNED", "MISSION_SUBMITTED"}:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Order must be ASSIGNED before mission submission",
+        )
+
+    active_jobs = [job for job in store.jobs if job.order_id == order_id]
+    if not active_jobs:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No delivery job for order",
+        )
+
+    job = active_jobs[-1]
+    if not job.mission_intent_id:
+        job.mission_intent_id = new_id("mi-")
+
+    order.status = "MISSION_SUBMITTED"
+    order.updated_at = now_utc()
+    append_event(order_id, "MISSION_SUBMITTED", "Mission submitted")
+    return order

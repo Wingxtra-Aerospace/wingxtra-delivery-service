@@ -62,3 +62,9 @@ curl -X POST "http://localhost:8000/api/v1/orders/ord-1/assign" \
   -H "Content-Type: application/json" \
   -d '{"drone_id":"DRONE-12"}'
 ```
+
+
+### Submit mission intent
+`POST /api/v1/orders/{order_id}/submit-mission-intent`
+
+Idempotent via `Idempotency-Key` header.

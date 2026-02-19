@@ -70,3 +70,9 @@ class TrackingViewResponse(BaseModel):
     order_id: str
     public_tracking_id: str
     status: str
+
+
+class MissionSubmitResponse(BaseModel):
+    order_id: str
+    mission_intent_id: str
+    status: str

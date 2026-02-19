@@ -45,3 +45,11 @@ Rate limiting is applied per client IP for public tracking requests:
 ## CORS
 
 Set `CORS_ALLOWED_ORIGINS` as comma-separated origins for UI clients.
+
+
+## Idempotency
+Supported endpoints:
+- `POST /api/v1/orders`
+- `POST /api/v1/orders/{order_id}/submit-mission-intent`
+
+The API stores idempotency key + request hash + response payload.

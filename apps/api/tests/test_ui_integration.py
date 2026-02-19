@@ -83,3 +83,40 @@ def test_public_tracking_rate_limit_enforced():
 
     limited = client.get("/api/v1/tracking/TRK001")
     assert limited.status_code == 429
+
+
+def test_idempotency_for_create_order_replay_and_conflict():
+    headers = _headers("MERCHANT", sub="merchant-22")
+    headers["Idempotency-Key"] = "idem-create-1"
+
+    first = client.post("/api/v1/orders", json={"customer_name": "A"}, headers=headers)
+    second = client.post("/api/v1/orders", json={"customer_name": "A"}, headers=headers)
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert second.json() == first.json()
+
+    conflict = client.post("/api/v1/orders", json={"customer_name": "B"}, headers=headers)
+    assert conflict.status_code == 409
+
+
+def test_idempotency_for_mission_submission_replay_and_conflict():
+    headers = _headers("OPS", sub="ops-22")
+
+    assign = client.post(
+        "/api/v1/orders/ord-1/assign",
+        json={"drone_id": "DR-4"},
+        headers=headers,
+    )
+    assert assign.status_code == 200
+
+    idem_headers = dict(headers)
+    idem_headers["Idempotency-Key"] = "idem-mission-1"
+
+    first = client.post("/api/v1/orders/ord-1/submit-mission-intent", headers=idem_headers)
+    second = client.post("/api/v1/orders/ord-1/submit-mission-intent", headers=idem_headers)
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert second.json() == first.json()
+
+    conflict = client.post("/api/v1/orders/ord-2/submit-mission-intent", headers=idem_headers)
+    assert conflict.status_code == 409

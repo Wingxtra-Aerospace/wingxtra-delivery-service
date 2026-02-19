@@ -1,18 +1,24 @@
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Header, Query, Request
 
 from app.auth.dependencies import AuthContext, require_roles
 from app.schemas.ui import (
     EventResponse,
     EventsTimelineResponse,
     ManualAssignRequest,
+    MissionSubmitResponse,
     OrderActionResponse,
     OrderCreateRequest,
     OrderDetailResponse,
     OrdersListResponse,
     PaginationMeta,
 )
+from app.services.idempotency_service import (
+    check_idempotency,
+    save_idempotency_result,
+)
+from app.services.store import store
 from app.services.ui_service import (
     cancel_order,
     create_order,
@@ -20,17 +26,43 @@ from app.services.ui_service import (
     list_events,
     list_orders,
     manual_assign,
+    submit_mission,
 )
 
 router = APIRouter(prefix="/api/v1/orders", tags=["orders"])
 
 
 @router.post("", response_model=OrderDetailResponse, summary="Create order")
-def create_order_endpoint(
+async def create_order_endpoint(
+    request: Request,
     payload: OrderCreateRequest,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     auth: AuthContext = Depends(require_roles("MERCHANT", "OPS", "ADMIN")),
 ) -> OrderDetailResponse:
-    return OrderDetailResponse.model_validate(create_order(auth, payload.customer_name))
+    if idempotency_key:
+        body = await request.json()
+        idem = check_idempotency(
+            user_id=auth.user_id,
+            route="POST:/api/v1/orders",
+            idempotency_key=idempotency_key,
+            request_payload=body,
+        )
+        if idem.replay and idem.response_payload:
+            return OrderDetailResponse.model_validate(idem.response_payload)
+
+    order = create_order(auth, payload.customer_name)
+    response_payload = OrderDetailResponse.model_validate(order).model_dump(mode="json")
+
+    if idempotency_key:
+        save_idempotency_result(
+            user_id=auth.user_id,
+            route="POST:/api/v1/orders",
+            idempotency_key=idempotency_key,
+            request_payload=await request.json(),
+            response_payload=response_payload,
+        )
+
+    return OrderDetailResponse.model_validate(response_payload)
 
 
 @router.get("", response_model=OrdersListResponse, summary="List orders for Ops UI")
@@ -96,3 +128,46 @@ def cancel_endpoint(
 ) -> OrderActionResponse:
     order = cancel_order(auth, order_id)
     return OrderActionResponse(order_id=order.id, status=order.status)
+
+
+@router.post(
+    "/{order_id}/submit-mission-intent",
+    response_model=MissionSubmitResponse,
+    summary="Submit mission intent",
+)
+async def submit_mission_endpoint(
+    order_id: str,
+    request: Request,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    auth: AuthContext = Depends(require_roles("OPS", "ADMIN")),
+) -> MissionSubmitResponse:
+    request_payload = {"order_id": order_id}
+    if idempotency_key:
+        idem = check_idempotency(
+            user_id=auth.user_id,
+            route="POST:/api/v1/orders/{order_id}/submit-mission-intent",
+            idempotency_key=idempotency_key,
+            request_payload=request_payload,
+        )
+        if idem.replay and idem.response_payload:
+            return MissionSubmitResponse.model_validate(idem.response_payload)
+
+    order = submit_mission(auth, order_id)
+    jobs = [job for job in store.jobs if job.order_id == order_id]
+    mission_intent_id = jobs[-1].mission_intent_id or ""
+    response_payload = MissionSubmitResponse(
+        order_id=order.id,
+        mission_intent_id=mission_intent_id,
+        status=order.status,
+    ).model_dump(mode="json")
+
+    if idempotency_key:
+        save_idempotency_result(
+            user_id=auth.user_id,
+            route="POST:/api/v1/orders/{order_id}/submit-mission-intent",
+            idempotency_key=idempotency_key,
+            request_payload=request_payload,
+            response_payload=response_payload,
+        )
+
+    return MissionSubmitResponse.model_validate(response_payload)

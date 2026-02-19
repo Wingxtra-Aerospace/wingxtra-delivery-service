@@ -8,6 +8,7 @@ class InMemoryStore:
         self.orders: dict[str, Order] = {}
         self.events: dict[str, list[Event]] = defaultdict(list)
         self.jobs: list[Job] = []
+        self.idempotency_records: dict[tuple[str, str, str], dict] = {}
 
 
 store = InMemoryStore()

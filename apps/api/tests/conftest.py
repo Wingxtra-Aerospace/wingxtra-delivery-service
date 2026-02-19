@@ -3,10 +3,11 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+import app.models  # noqa: F401  (register models/tables)
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import app
-import app.models  # ensure models are imported so tables are registered
+
 
 TEST_DB_URL = "sqlite+pysqlite:///:memory:"
 

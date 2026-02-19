@@ -85,12 +85,14 @@ def create_order(
         public_tracking_id=new_id(),
         merchant_id=auth.user_id if auth.role == "MERCHANT" else None,
         customer_name=customer_name,
-        status="CREATED",
+        status="QUEUED",
         created_at=now,
         updated_at=now,
     )
     store.orders[order.id] = order
     append_event(order.id, "CREATED", "Order created")
+    append_event(order.id, "VALIDATED", "Order validated")
+    append_event(order.id, "QUEUED", "Order queued for dispatch")
     log_event("order_created", order_id=order.id)
     return order
 

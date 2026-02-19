@@ -200,3 +200,32 @@ def test_auto_dispatch_and_manual_assign_routes_exist():
         headers=headers,
     )
     assert assign.status_code == 200
+
+
+def test_manual_assign_includes_validated_and_queued_events():
+    create = client.post(
+        "/api/v1/orders",
+        json={"customer_name": "Event Sequence"},
+        headers=_headers("OPS", sub="ops-events"),
+    )
+    assert create.status_code == 201
+    order_id = create.json()["id"]
+
+    assign = client.post(
+        f"/api/v1/orders/{order_id}/assign",
+        json={"drone_id": "DR-3"},
+        headers=_headers("OPS", sub="ops-events"),
+    )
+    assert assign.status_code == 200
+
+    events = client.get(
+        f"/api/v1/orders/{order_id}/events",
+        headers=_headers("OPS", sub="ops-events"),
+    )
+    assert events.status_code == 200
+    assert [item["type"] for item in events.json()["items"]] == [
+        "CREATED",
+        "VALIDATED",
+        "QUEUED",
+        "ASSIGNED",
+    ]

@@ -235,7 +235,7 @@ def tracking_view(public_tracking_id: str) -> Order:
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tracking record not found")
 
 
-def submit_mission(auth: AuthContext, order_id: str, publisher) -> Order:
+def submit_mission(auth: AuthContext, order_id: str) -> tuple[Order, dict[str, str]]:
     if auth.role not in {"OPS", "ADMIN"}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
     order = get_order(auth, order_id)
@@ -260,14 +260,11 @@ def submit_mission(auth: AuthContext, order_id: str, publisher) -> Order:
         order.status = "MISSION_SUBMITTED"
         order.updated_at = now_utc()
 
-    if publisher is not None:
-        publisher.publish_mission_intent(
-            {
-                "order_id": order.id,
-                "mission_intent_id": job.mission_intent_id,
-                "drone_id": job.assigned_drone_id,
-            }
-        )
+    mission_intent_payload = {
+        "order_id": order.id,
+        "mission_intent_id": job.mission_intent_id,
+        "drone_id": job.assigned_drone_id,
+    }
 
     append_event(order_id, "MISSION_SUBMITTED", "Mission submitted")
     log_event(
@@ -276,7 +273,7 @@ def submit_mission(auth: AuthContext, order_id: str, publisher) -> Order:
         job_id=job.id,
         drone_id=job.assigned_drone_id,
     )
-    return order
+    return order, mission_intent_payload
 
 
 def run_auto_dispatch(auth: AuthContext) -> dict[str, int | list[dict[str, str]]]:

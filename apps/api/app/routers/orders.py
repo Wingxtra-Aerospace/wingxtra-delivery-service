@@ -165,7 +165,8 @@ async def submit_mission_endpoint(
         if idem.replay and idem.response_payload:
             return MissionSubmitResponse.model_validate(idem.response_payload)
 
-    order = submit_mission(auth, order_id, publisher=publisher)
+    order, mission_intent_payload = submit_mission(auth, order_id)
+    publisher.publish_mission_intent(mission_intent_payload)
     jobs = [job for job in store.jobs if job.order_id == order_id]
     mission_intent_id = jobs[-1].mission_intent_id or ""
     response_payload = MissionSubmitResponse(

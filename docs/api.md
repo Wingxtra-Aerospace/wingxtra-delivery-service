@@ -54,3 +54,5 @@ Dispatch run assigns at most one order per available drone and returns both `ass
 
 Order creation emits timeline events in order: `CREATED`, `VALIDATED`, `QUEUED`.
 Manual assignment appends `ASSIGNED` after those lifecycle events.
+
+Orders created via `POST /api/v1/orders` are persisted with UUID primary keys in the API database.

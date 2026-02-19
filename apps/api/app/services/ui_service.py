@@ -5,6 +5,8 @@ from fastapi import HTTPException, status
 
 from app.auth.dependencies import AuthContext
 from app.config import settings
+from app.db import SessionLocal
+from app.models.db_models import OrderRecord
 from app.models.domain import Event, Job, Order, ProofOfDelivery, new_id, now_utc
 from app.observability import log_event, observe_timing
 from app.services.store import store
@@ -79,7 +81,21 @@ def list_orders(
     from_date: datetime | None,
     to_date: datetime | None,
 ) -> tuple[list[Order], int]:
-    orders = list(store.orders.values())
+    with SessionLocal() as session:
+        rows = session.query(OrderRecord).order_by(OrderRecord.created_at.asc()).all()
+
+    orders = [
+        Order(
+            id=row.id,
+            public_tracking_id=row.public_tracking_id,
+            merchant_id=row.merchant_id,
+            customer_name=row.customer_name,
+            status=row.status,
+            created_at=row.created_at,
+            updated_at=row.updated_at,
+        )
+        for row in rows
+    ]
     if auth.role == "MERCHANT":
         orders = [order for order in orders if order.merchant_id == auth.user_id]
 
@@ -126,6 +142,20 @@ def create_order(
         updated_at=now,
     )
     store.orders[order.id] = order
+    with SessionLocal() as session:
+        session.add(
+            OrderRecord(
+                id=order.id,
+                public_tracking_id=order.public_tracking_id,
+                merchant_id=order.merchant_id,
+                customer_name=order.customer_name,
+                status=order.status,
+                created_at=order.created_at,
+                updated_at=order.updated_at,
+            )
+        )
+        session.commit()
+
     append_event(order.id, "CREATED", "Order created")
     append_event(order.id, "VALIDATED", "Order validated")
     append_event(order.id, "QUEUED", "Order queued for dispatch")
@@ -135,6 +165,21 @@ def create_order(
 
 def get_order(auth: AuthContext, order_id: str) -> Order:
     order = store.orders.get(order_id) or _ensure_test_placeholder_order(order_id)
+    if order is None:
+        with SessionLocal() as session:
+            row = session.get(OrderRecord, order_id)
+            if row is not None:
+                order = Order(
+                    id=row.id,
+                    public_tracking_id=row.public_tracking_id,
+                    merchant_id=row.merchant_id,
+                    customer_name=row.customer_name,
+                    status=row.status,
+                    created_at=row.created_at,
+                    updated_at=row.updated_at,
+                )
+                store.orders[order.id] = order
+
     if not order:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
     _assert_can_access_order(auth, order)
@@ -164,6 +209,12 @@ def cancel_order(auth: AuthContext, order_id: str) -> Order:
         )
     order.status = "CANCELED"
     order.updated_at = now_utc()
+    with SessionLocal() as session:
+        row = session.get(OrderRecord, order_id)
+        if row is not None:
+            row.status = order.status
+            row.updated_at = order.updated_at
+            session.commit()
     append_event(order_id, "CANCELED", "Order canceled by operator")
     log_event("order_canceled", order_id=order.id)
     return order
@@ -202,6 +253,12 @@ def manual_assign(auth: AuthContext, order_id: str, drone_id: str) -> Order:
     with observe_timing("dispatch_assignment_seconds"):
         order.status = "ASSIGNED"
         order.updated_at = now_utc()
+        with SessionLocal() as session:
+            row = session.get(OrderRecord, order_id)
+            if row is not None:
+                row.status = order.status
+                row.updated_at = order.updated_at
+                session.commit()
         job = Job(
             id=new_id("job-"),
             order_id=order_id,
@@ -229,6 +286,23 @@ def list_events(auth: AuthContext, order_id: str) -> list[Event]:
 
 
 def tracking_view(public_tracking_id: str) -> Order:
+    with SessionLocal() as session:
+        row = (
+            session.query(OrderRecord)
+            .filter(OrderRecord.public_tracking_id == public_tracking_id)
+            .one_or_none()
+        )
+    if row is not None:
+        return Order(
+            id=row.id,
+            public_tracking_id=row.public_tracking_id,
+            merchant_id=row.merchant_id,
+            customer_name=row.customer_name,
+            status=row.status,
+            created_at=row.created_at,
+            updated_at=row.updated_at,
+        )
+
     for order in store.orders.values():
         if order.public_tracking_id == public_tracking_id:
             return order
@@ -259,6 +333,12 @@ def submit_mission(auth: AuthContext, order_id: str) -> tuple[Order, dict[str, s
 
         order.status = "MISSION_SUBMITTED"
         order.updated_at = now_utc()
+        with SessionLocal() as session:
+            row = session.get(OrderRecord, order_id)
+            if row is not None:
+                row.status = order.status
+                row.updated_at = order.updated_at
+                session.commit()
 
     mission_intent_payload = {
         "order_id": order.id,

@@ -105,8 +105,13 @@ def get_order(db: Session, order_id: uuid.UUID) -> Order:
 
 def list_orders(db: Session, status_filter: OrderStatus | None) -> list[Order]:
     query = select(Order)
-    if status_filter:
-        query = query.where(Order.status == status_filter)
+    if status_filter is not None:
+        normalized_status = (
+            status_filter
+            if isinstance(status_filter, OrderStatus)
+            else OrderStatus(str(status_filter))
+        )
+        query = query.where(Order.status == normalized_status)
     return list(db.scalars(query.order_by(Order.created_at.desc())))
 
 

@@ -1,12 +1,38 @@
 import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy.orm import sessionmaker
 
 import app.models  # noqa: F401
 from app.db.base import Base
-from app.db.session import engine
+from app.db.session import engine as app_engine
+from app.db.session import get_db
+from app.main import app
 
 
 @pytest.fixture(scope="session", autouse=True)
-def _create_test_schema():
-    Base.metadata.create_all(bind=engine)
+def setup_test_schema():
+    Base.metadata.drop_all(bind=app_engine)
+    Base.metadata.create_all(bind=app_engine)
     yield
-    Base.metadata.drop_all(bind=engine)
+    Base.metadata.drop_all(bind=app_engine)
+
+
+@pytest.fixture
+def db_session():
+    testing_session_local = sessionmaker(autocommit=False, autoflush=False, bind=app_engine)
+    db = testing_session_local()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+@pytest.fixture
+def client(db_session):
+    def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    with TestClient(app) as test_client:
+        yield test_client
+    app.dependency_overrides.clear()

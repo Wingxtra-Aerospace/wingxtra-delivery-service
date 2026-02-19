@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, Header, Query, Request
+from sqlalchemy.orm import Session
 
 from app.auth.dependencies import AuthContext, rate_limit_order_creation, require_roles
 from app.integrations.gcs_bridge_client import get_gcs_bridge_client
@@ -200,9 +201,11 @@ def create_pod_endpoint(
     order_id: str,
     payload: PodCreateRequest,
     auth: AuthContext = Depends(require_roles("OPS", "ADMIN")),
+    db: Session = Depends(get_db),
 ) -> PodResponse:
     pod = create_pod(
         auth,
+        db=db,
         order_id=order_id,
         method=payload.method,
         otp_code=payload.otp_code,

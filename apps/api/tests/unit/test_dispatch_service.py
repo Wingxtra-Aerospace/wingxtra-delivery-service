@@ -50,3 +50,20 @@ def test_manual_assign_creates_assignment_job(db_session):
     job = manual_assign_order(db_session, client, order.id, "D1")
 
     assert job.assigned_drone_id == "D1"
+
+
+def test_auto_dispatch_can_assign_multiple_orders_when_max_assignments_increased(db_session):
+    first_order = create_order(db_session, _payload())
+    second_order = create_order(db_session, _payload())
+
+    client = FakeFleetApiClient(
+        [
+            FleetDroneTelemetry(drone_id="D1", lat=1, lng=2, battery=95, is_available=True),
+            FleetDroneTelemetry(drone_id="D2", lat=1, lng=2.1, battery=90, is_available=True),
+        ]
+    )
+
+    assignments = run_auto_dispatch(db_session, client, max_assignments=2)
+
+    assert len(assignments) == 2
+    assert {assignment[0].id for assignment in assignments} == {first_order.id, second_order.id}

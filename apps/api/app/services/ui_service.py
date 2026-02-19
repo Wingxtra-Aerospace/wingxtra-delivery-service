@@ -76,7 +76,7 @@ def create_order(auth: AuthContext, customer_name: str | None) -> Order:
     now = now_utc()
     order = Order(
         id=new_id("ord-"),
-        public_tracking_id=new_id("TRK-")[-8:],
+        public_tracking_id=new_id(),
         merchant_id=auth.user_id if auth.role == "MERCHANT" else None,
         customer_name=customer_name,
         status="CREATED",
@@ -125,9 +125,17 @@ def cancel_order(auth: AuthContext, order_id: str) -> Order:
     return order
 
 
+
+
+def _is_valid_drone_id(drone_id: str) -> bool:
+    return drone_id.startswith("DR-") or drone_id.startswith("DRONE-")
+
+
 def manual_assign(auth: AuthContext, order_id: str, drone_id: str) -> Order:
     if auth.role not in {"OPS", "ADMIN"}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
+    if not _is_valid_drone_id(drone_id):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid drone_id")
     order = get_order(auth, order_id)
     if order.status in TERMINAL:
         raise HTTPException(
@@ -190,7 +198,7 @@ def submit_mission(auth: AuthContext, order_id: str) -> Order:
     job = active_jobs[-1]
     with observe_timing("mission_intent_generation_seconds"):
         if not job.mission_intent_id:
-            job.mission_intent_id = new_id("mi-")
+            job.mission_intent_id = new_id("mi_")
 
         order.status = "MISSION_SUBMITTED"
         order.updated_at = now_utc()
@@ -205,15 +213,15 @@ def submit_mission(auth: AuthContext, order_id: str) -> Order:
     return order
 
 
-def run_auto_dispatch(auth: AuthContext) -> dict[str, int]:
+def run_auto_dispatch(auth: AuthContext) -> dict[str, list[dict[str, str]]]:
     if auth.role not in {"OPS", "ADMIN"}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
 
-    assigned = 0
+    assignments: list[dict[str, str]] = []
     for order in store.orders.values():
         if order.status in {"CREATED", "VALIDATED", "QUEUED"}:
-            drone_id = f"AUTO-{len(store.jobs) + 1}"
-            manual_assign(auth, order.id, drone_id)
-            assigned += 1
+            drone_id = f"DR-AUTO-{len(store.jobs) + 1}"
+            assigned_order = manual_assign(auth, order.id, drone_id)
+            assignments.append({"order_id": assigned_order.id, "status": assigned_order.status})
 
-    return {"assigned": assigned}
+    return {"assignments": assignments}

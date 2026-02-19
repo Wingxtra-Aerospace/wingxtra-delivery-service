@@ -83,4 +83,4 @@ class MissionSubmitResponse(ResponseModel):
 
 
 class DispatchRunResponse(ResponseModel):
-    assigned: int
+    assignments: list[OrderActionResponse]

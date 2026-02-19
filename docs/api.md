@@ -40,3 +40,6 @@ Rate limiting:
 
 Observability headers:
 - `X-Request-ID` accepted on requests and echoed on responses.
+
+
+Dispatch run response contains `assignments` list entries with `order_id` and `status`.

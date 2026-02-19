@@ -38,8 +38,9 @@ async def create_order_endpoint(
     payload: OrderCreateRequest,
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     auth: AuthContext = Depends(require_roles("MERCHANT", "OPS", "ADMIN")),
-    _rl: None = Depends(rate_limit_order_creation),
 ) -> OrderDetailResponse:
+    rate_limit_order_creation(request)
+
     if idempotency_key:
         body = await request.json()
         idem = check_idempotency(

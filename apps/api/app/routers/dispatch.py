@@ -12,4 +12,4 @@ def run_dispatch_endpoint(
     auth: AuthContext = Depends(require_roles("OPS", "ADMIN")),
 ) -> DispatchRunResponse:
     result = run_auto_dispatch(auth)
-    return DispatchRunResponse(**result)
+    return DispatchRunResponse.model_validate(result)

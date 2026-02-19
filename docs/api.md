@@ -29,3 +29,8 @@ Idempotency support:
 
 Provide `Idempotency-Key` header.
 Replay with same payload returns same response; reused key with different payload returns `409`.
+
+
+Rate limiting:
+- `GET /api/v1/tracking/{public_tracking_id}` returns `429` when public tracking rate limit is exceeded.
+- `POST /api/v1/orders` returns `429` when order creation rate limit is exceeded.

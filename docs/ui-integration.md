@@ -68,3 +68,8 @@ curl -X POST "http://localhost:8000/api/v1/orders/ord-1/assign" \
 `POST /api/v1/orders/{order_id}/submit-mission-intent`
 
 Idempotent via `Idempotency-Key` header.
+
+
+## Rate limiting
+- Public tracking is limited per client IP via `PUBLIC_TRACKING_RATE_LIMIT_REQUESTS` and `PUBLIC_TRACKING_RATE_LIMIT_WINDOW_S` (returns `429` when exceeded).
+- Order creation is limited per client IP via `ORDER_CREATE_RATE_LIMIT_REQUESTS` and `ORDER_CREATE_RATE_LIMIT_WINDOW_S` (returns `429` when exceeded).

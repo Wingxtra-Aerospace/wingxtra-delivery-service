@@ -2,7 +2,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, Header, Query, Request
 
-from app.auth.dependencies import AuthContext, require_roles
+from app.auth.dependencies import AuthContext, rate_limit_order_creation, require_roles
 from app.schemas.ui import (
     EventResponse,
     EventsTimelineResponse,
@@ -38,6 +38,7 @@ async def create_order_endpoint(
     payload: OrderCreateRequest,
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     auth: AuthContext = Depends(require_roles("MERCHANT", "OPS", "ADMIN")),
+    _rl: None = Depends(rate_limit_order_creation),
 ) -> OrderDetailResponse:
     if idempotency_key:
         body = await request.json()

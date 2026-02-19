@@ -55,23 +55,39 @@ def require_roles(*roles: str) -> Callable[[AuthContext], AuthContext]:
 _RATE_LIMIT_BUCKETS: dict[str, list[float]] = {}
 
 
-def rate_limit_public_tracking(request: Request) -> None:
+def _apply_rate_limit(key: str, max_requests: int, window_s: int, detail: str) -> None:
     import time
 
     now = time.time()
-    window = settings.public_tracking_rate_limit_window_s
-    max_requests = settings.public_tracking_rate_limit_requests
-    key = request.client.host if request.client else "unknown"
     history = _RATE_LIMIT_BUCKETS.get(key, [])
-    history = [value for value in history if value > now - window]
+    history = [value for value in history if value > now - window_s]
+
     if len(history) >= max_requests:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Rate limit exceeded",
-        )
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=detail)
+
     history.append(now)
     _RATE_LIMIT_BUCKETS[key] = history
 
 
-def reset_public_tracking_limits() -> None:
+def rate_limit_public_tracking(request: Request) -> None:
+    key = f"tracking:{request.client.host if request.client else 'unknown'}"
+    _apply_rate_limit(
+        key,
+        settings.public_tracking_rate_limit_requests,
+        settings.public_tracking_rate_limit_window_s,
+        "Public tracking rate limit exceeded",
+    )
+
+
+def rate_limit_order_creation(request: Request) -> None:
+    key = f"order-create:{request.client.host if request.client else 'unknown'}"
+    _apply_rate_limit(
+        key,
+        settings.order_create_rate_limit_requests,
+        settings.order_create_rate_limit_window_s,
+        "Order creation rate limit exceeded",
+    )
+
+
+def reset_rate_limits() -> None:
     _RATE_LIMIT_BUCKETS.clear()

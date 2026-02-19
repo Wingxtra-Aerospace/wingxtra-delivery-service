@@ -9,8 +9,11 @@ class Settings(BaseSettings):
     allowed_roles: str = "CUSTOMER,MERCHANT,OPS,ADMIN"
     gcs_auth_source: str = "gcs"
 
-    public_tracking_rate_limit_requests: int = 30
+    public_tracking_rate_limit_requests: int = 10
     public_tracking_rate_limit_window_s: int = 60
+
+    order_create_rate_limit_requests: int = 5
+    order_create_rate_limit_window_s: int = 60
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

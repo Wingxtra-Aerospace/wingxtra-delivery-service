@@ -38,9 +38,15 @@ Tracking output is sanitized to:
 - `public_tracking_id`
 - `status`
 
-Rate limiting is applied per client IP for public tracking requests:
-- `PUBLIC_TRACKING_RATE_LIMIT_REQUESTS`
-- `PUBLIC_TRACKING_RATE_LIMIT_WINDOW_S`
+Rate limiting is applied per client IP:
+- Public tracking (stricter defaults):
+  - `PUBLIC_TRACKING_RATE_LIMIT_REQUESTS` (default `10`)
+  - `PUBLIC_TRACKING_RATE_LIMIT_WINDOW_S` (default `60`)
+- Order creation:
+  - `ORDER_CREATE_RATE_LIMIT_REQUESTS` (default `5`)
+  - `ORDER_CREATE_RATE_LIMIT_WINDOW_S` (default `60`)
+
+When limits are exceeded, the API returns `429 Too Many Requests`.
 
 ## CORS
 

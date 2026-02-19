@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 
-from app.auth.dependencies import reset_public_tracking_limits
+from app.auth.dependencies import reset_rate_limits
 from app.auth.jwt import issue_jwt
 from app.config import settings
 from app.main import app
@@ -76,7 +76,7 @@ def test_protected_endpoints_require_jwt():
 
 
 def test_public_tracking_rate_limit_enforced():
-    reset_public_tracking_limits()
+    reset_rate_limits()
     for _ in range(settings.public_tracking_rate_limit_requests):
         ok = client.get("/api/v1/tracking/TRK001")
         assert ok.status_code == 200
@@ -120,3 +120,33 @@ def test_idempotency_for_mission_submission_replay_and_conflict():
 
     conflict = client.post("/api/v1/orders/ord-2/submit-mission-intent", headers=idem_headers)
     assert conflict.status_code == 409
+
+
+def test_order_creation_rate_limit_enforced():
+    reset_rate_limits()
+    original_requests = settings.order_create_rate_limit_requests
+    original_window = settings.order_create_rate_limit_window_s
+    settings.order_create_rate_limit_requests = 2
+    settings.order_create_rate_limit_window_s = 60
+
+    try:
+        headers = _headers("MERCHANT", sub="merchant-rate")
+        for i in range(2):
+            ok = client.post(
+                "/api/v1/orders",
+                json={"customer_name": f"Rate Test {i}"},
+                headers=headers,
+            )
+            assert ok.status_code == 200
+
+        limited = client.post(
+            "/api/v1/orders",
+            json={"customer_name": "Rate Test 3"},
+            headers=headers,
+        )
+        assert limited.status_code == 429
+        assert limited.json()["detail"] == "Order creation rate limit exceeded"
+    finally:
+        settings.order_create_rate_limit_requests = original_requests
+        settings.order_create_rate_limit_window_s = original_window
+        reset_rate_limits()

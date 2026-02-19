@@ -4,7 +4,8 @@ from fastapi import APIRouter, Depends, Header, Query, Request
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import AuthContext, rate_limit_order_creation, require_roles
-from app.integrations.gcs_bridge_client import get_gcs_bridge_client
+from app.db.session import get_db
+from app.dependencies import get_gcs_bridge_client
 from app.schemas.ui import (
     EventResponse,
     EventsTimelineResponse,

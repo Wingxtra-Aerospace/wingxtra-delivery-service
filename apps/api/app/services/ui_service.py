@@ -203,3 +203,17 @@ def submit_mission(auth: AuthContext, order_id: str) -> Order:
         drone_id=job.assigned_drone_id,
     )
     return order
+
+
+def run_auto_dispatch(auth: AuthContext) -> dict[str, int]:
+    if auth.role not in {"OPS", "ADMIN"}:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
+
+    assigned = 0
+    for order in store.orders.values():
+        if order.status in {"CREATED", "VALIDATED", "QUEUED"}:
+            drone_id = f"AUTO-{len(store.jobs) + 1}"
+            manual_assign(auth, order.id, drone_id)
+            assigned += 1
+
+    return {"assigned": assigned}

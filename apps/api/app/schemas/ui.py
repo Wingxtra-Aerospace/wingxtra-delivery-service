@@ -76,3 +76,7 @@ class MissionSubmitResponse(BaseModel):
     order_id: str
     mission_intent_id: str
     status: str
+
+
+class DispatchRunResponse(BaseModel):
+    assigned: int

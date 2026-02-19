@@ -12,6 +12,7 @@ Core UI integration endpoints:
 - `POST /api/v1/orders/{order_id}/assign`
 - `POST /api/v1/orders/{order_id}/cancel`
 - `GET /api/v1/jobs`
+- `POST /api/v1/dispatch/run`
 - `GET /api/v1/tracking/{public_tracking_id}`
 - `GET /metrics` (OPS/ADMIN only)
 

@@ -7,6 +7,7 @@ from fastapi.responses import Response
 
 from app.config import allowed_origins, settings
 from app.observability import configure_logging, log_event, metrics_store, set_request_id
+from app.routers.dispatch import router as dispatch_router
 from app.routers.health import router as health_router
 from app.routers.jobs import router as jobs_router
 from app.routers.metrics import router as metrics_router
@@ -46,6 +47,7 @@ async def request_context_middleware(request: Request, call_next) -> Response:
 
 app.include_router(health_router)
 app.include_router(orders_router)
+app.include_router(dispatch_router)
 app.include_router(jobs_router)
 app.include_router(tracking_router)
 app.include_router(metrics_router)

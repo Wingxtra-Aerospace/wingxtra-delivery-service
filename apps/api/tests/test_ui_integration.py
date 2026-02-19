@@ -184,3 +184,18 @@ def test_metrics_endpoint_exposes_dispatch_and_mission_timings():
     assert "timings" in payload
     assert "dispatch_assignment_seconds" in payload["timings"]
     assert "mission_intent_generation_seconds" in payload["timings"]
+
+
+def test_auto_dispatch_and_manual_assign_routes_exist():
+    headers = _headers("OPS", sub="ops-dispatch")
+
+    run = client.post("/api/v1/dispatch/run", headers=headers)
+    assert run.status_code == 200
+    assert "assigned" in run.json()
+
+    assign = client.post(
+        "/api/v1/orders/ord-1/assign",
+        json={"drone_id": "DR-ROUTE"},
+        headers=headers,
+    )
+    assert assign.status_code == 200

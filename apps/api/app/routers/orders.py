@@ -4,9 +4,12 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.integrations.fleet_api_client import FleetApiClientProtocol, get_fleet_api_client
 from app.models.order import OrderStatus
+from app.schemas.dispatch import ManualAssignRequest, ManualAssignResponse
 from app.schemas.events import DeliveryEventListResponse, DeliveryEventResponse
 from app.schemas.order import OrderCancelResponse, OrderCreate, OrderListResponse, OrderResponse
+from app.services.dispatch_service import manual_assign_order
 from app.services.orders_service import (
     cancel_order,
     create_order,
@@ -45,6 +48,20 @@ def cancel_order_endpoint(
 ) -> OrderCancelResponse:
     order = cancel_order(db, order_id)
     return OrderCancelResponse(id=order.id, status=order.status)
+
+
+@router.post("/{order_id}/assign", response_model=ManualAssignResponse)
+def manual_assign_order_endpoint(
+    order_id: uuid.UUID,
+    payload: ManualAssignRequest,
+    db: Session = Depends(get_db),
+    fleet_client: FleetApiClientProtocol = Depends(get_fleet_api_client),
+) -> ManualAssignResponse:
+    job = manual_assign_order(db, fleet_client, order_id, payload.drone_id)
+    return ManualAssignResponse(
+        order_id=job.order_id,
+        assigned_drone_id=job.assigned_drone_id or "",
+    )
 
 
 @router.get("/{order_id}/events", response_model=DeliveryEventListResponse)

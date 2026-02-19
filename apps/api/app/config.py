@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     debug: bool = True
 
     database_url: str = "postgresql+psycopg://postgres:postgres@localhost:5432/wingxtra"
+    fleet_api_base_url: str = "http://localhost:9000"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

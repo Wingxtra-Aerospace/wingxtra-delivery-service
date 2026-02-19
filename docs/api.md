@@ -12,18 +12,6 @@ Returns service health.
 ### `POST /api/v1/orders`
 Creates a delivery order in `CREATED` state and appends a `CREATED` delivery event.
 
-**Request body**
-- `customer_name` *(string, optional)*
-- `customer_phone` *(string, optional)*
-- `pickup_lat` *(float, required, -90..90)*
-- `pickup_lng` *(float, required, -180..180)*
-- `dropoff_lat` *(float, required, -90..90)*
-- `dropoff_lng` *(float, required, -180..180)*
-- `dropoff_accuracy_m` *(float, optional, >= 0)*
-- `payload_weight_kg` *(float, required, > 0)*
-- `payload_type` *(string, required, 1..100 chars)*
-- `priority` *(enum: `NORMAL|URGENT|MEDICAL`, default `NORMAL`)*
-
 ### `GET /api/v1/orders/{order_id}`
 Returns one order by UUID.
 
@@ -36,24 +24,42 @@ Query params:
 ### `POST /api/v1/orders/{order_id}/cancel`
 Cancels an order only when state-machine transition is valid.
 
-- **Response 200** when canceled.
-- **Response 409** for invalid transition (for example from terminal states like `DELIVERED`).
+### `POST /api/v1/orders/{order_id}/assign`
+Manually assigns a drone to an order.
+
+**Request body**
+```json
+{
+  "drone_id": "DRONE-123"
+}
+```
+
+Behavior:
+- Order is prepared through `CREATED -> VALIDATED -> QUEUED` when needed.
+- Drone must be available and have battery >= 30% from Fleet API.
+- On success, order transitions to `ASSIGNED`, assignment job is created, and event timeline is appended.
 
 ### `GET /api/v1/orders/{order_id}/events`
 Returns immutable timeline events for one order, ordered by event creation time (ascending).
 
+## Dispatch
+
+### `POST /api/v1/dispatch/run`
+Runs automatic dispatch for dispatchable orders (`CREATED`, `VALIDATED`, `QUEUED`).
+
+Behavior:
+- Reads latest drone telemetry from Fleet API (`GET /api/v1/telemetry/latest` on Fleet API service).
+- Filters to available drones with battery >= 30%.
+- Scores candidates by pickup distance (with minor battery bonus) and assigns best drone.
+- Creates `delivery_jobs` records and appends state transition events (`VALIDATED`, `QUEUED`, `ASSIGNED`) as needed.
+
 **Response 200**
 ```json
 {
-  "items": [
+  "assignments": [
     {
-      "id": "...",
-      "order_id": "...",
-      "job_id": null,
-      "type": "CREATED",
-      "message": "Order created",
-      "payload": {},
-      "created_at": "..."
+      "order_id": "<uuid>",
+      "assigned_drone_id": "DRONE-123"
     }
   ]
 }
@@ -63,10 +69,3 @@ Returns immutable timeline events for one order, ordered by event creation time 
 
 ### `GET /api/v1/tracking/{public_tracking_id}`
 Returns public-safe tracking data.
-
-**Response 200**
-- `order_id`
-- `public_tracking_id`
-- `status`
-- `created_at`
-- `updated_at`

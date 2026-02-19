@@ -1,6 +1,16 @@
 from uuid import UUID
 
+from app.integrations.fleet_api_client import FleetDroneTelemetry, get_fleet_api_client
+from app.main import app
 from app.models.order import Order, OrderStatus
+
+
+class FakeFleetApiClient:
+    def __init__(self, drones: list[FleetDroneTelemetry]) -> None:
+        self._drones = drones
+
+    def get_latest_telemetry(self) -> list[FleetDroneTelemetry]:
+        return self._drones
 
 
 def _create_order(client):
@@ -17,6 +27,10 @@ def _create_order(client):
         "priority": "NORMAL",
     }
     return client.post("/api/v1/orders", json=payload)
+
+
+def _set_fleet_override(drones: list[FleetDroneTelemetry]) -> None:
+    app.dependency_overrides[get_fleet_api_client] = lambda: FakeFleetApiClient(drones)
 
 
 def test_create_get_list_cancel_tracking_and_events(client):
@@ -51,6 +65,53 @@ def test_create_get_list_cancel_tracking_and_events(client):
         "CREATED",
         "CANCELED",
     ]
+
+
+def test_auto_dispatch_and_manual_assign(client):
+    _set_fleet_override(
+        [
+            FleetDroneTelemetry(
+                drone_id="DRONE-1", lat=6.45, lng=3.39, battery=95, is_available=True
+            ),
+            FleetDroneTelemetry(
+                drone_id="DRONE-2", lat=8.0, lng=5.0, battery=60, is_available=True
+            ),
+        ]
+    )
+
+    _create_order(client)
+    _create_order(client)
+
+    auto_response = client.post("/api/v1/dispatch/run")
+    assert auto_response.status_code == 200
+    assignments = auto_response.json()["assignments"]
+    assert len(assignments) == 2
+
+    create_response = _create_order(client)
+    order3 = create_response.json()
+    manual_response = client.post(
+        f"/api/v1/orders/{order3['id']}/assign",
+        json={"drone_id": "DRONE-1"},
+    )
+    assert manual_response.status_code == 200
+    assert manual_response.json()["order_id"] == order3["id"]
+
+    events = client.get(f"/api/v1/orders/{order3['id']}/events").json()["items"]
+    assert [event["type"] for event in events] == ["CREATED", "VALIDATED", "QUEUED", "ASSIGNED"]
+
+
+def test_manual_assign_rejects_invalid_drone(client):
+    _set_fleet_override(
+        [
+            FleetDroneTelemetry(
+                drone_id="DRONE-LOW", lat=6.45, lng=3.39, battery=10, is_available=True
+            ),
+        ]
+    )
+
+    order = _create_order(client).json()
+    response = client.post(f"/api/v1/orders/{order['id']}/assign", json={"drone_id": "DRONE-LOW"})
+    assert response.status_code == 400
 
 
 def test_cancel_rejected_for_terminal_state(client, db_session):

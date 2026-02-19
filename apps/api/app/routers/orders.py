@@ -5,8 +5,15 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.models.order import OrderStatus
+from app.schemas.events import DeliveryEventListResponse, DeliveryEventResponse
 from app.schemas.order import OrderCancelResponse, OrderCreate, OrderListResponse, OrderResponse
-from app.services.orders_service import cancel_order, create_order, get_order, list_orders
+from app.services.orders_service import (
+    cancel_order,
+    create_order,
+    get_order,
+    list_order_events,
+    list_orders,
+)
 
 router = APIRouter(prefix="/api/v1/orders", tags=["orders"])
 
@@ -33,7 +40,20 @@ def list_orders_endpoint(
 
 @router.post("/{order_id}/cancel", response_model=OrderCancelResponse)
 def cancel_order_endpoint(
-    order_id: uuid.UUID, db: Session = Depends(get_db)
+    order_id: uuid.UUID,
+    db: Session = Depends(get_db),
 ) -> OrderCancelResponse:
     order = cancel_order(db, order_id)
     return OrderCancelResponse(id=order.id, status=order.status)
+
+
+@router.get("/{order_id}/events", response_model=DeliveryEventListResponse)
+def list_order_events_endpoint(
+    order_id: uuid.UUID,
+    db: Session = Depends(get_db),
+) -> DeliveryEventListResponse:
+    events = [
+        DeliveryEventResponse.model_validate(event)
+        for event in list_order_events(db, order_id)
+    ]
+    return DeliveryEventListResponse(items=events)

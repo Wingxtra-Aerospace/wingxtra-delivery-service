@@ -7,17 +7,10 @@ Base URL: `/`
 ### `GET /health`
 Returns service health.
 
-**Response 200**
-```json
-{
-  "status": "ok"
-}
-```
-
 ## Orders
 
 ### `POST /api/v1/orders`
-Creates a delivery order.
+Creates a delivery order in `CREATED` state and appends a `CREATED` delivery event.
 
 **Request body**
 - `customer_name` *(string, optional)*
@@ -31,24 +24,23 @@ Creates a delivery order.
 - `payload_type` *(string, required, 1..100 chars)*
 - `priority` *(enum: `NORMAL|URGENT|MEDICAL`, default `NORMAL`)*
 
-**Response 201**
-Returns the created order with:
-- `id` (UUID)
-- `public_tracking_id`
-- `status` (currently `CREATED`)
-- timestamps
-
 ### `GET /api/v1/orders/{order_id}`
 Returns one order by UUID.
-
-- **Response 200** order payload.
-- **Response 404** when order does not exist.
 
 ### `GET /api/v1/orders`
 List orders.
 
 Query params:
-- `status` *(optional enum `CREATED|CANCELED`)*
+- `status` *(optional enum: `CREATED|VALIDATED|QUEUED|ASSIGNED|MISSION_SUBMITTED|LAUNCHED|ENROUTE|ARRIVED|DELIVERING|DELIVERED|CANCELED|FAILED|ABORTED`)*
+
+### `POST /api/v1/orders/{order_id}/cancel`
+Cancels an order only when state-machine transition is valid.
+
+- **Response 200** when canceled.
+- **Response 409** for invalid transition (for example from terminal states like `DELIVERED`).
+
+### `GET /api/v1/orders/{order_id}/events`
+Returns immutable timeline events for one order, ordered by event creation time (ascending).
 
 **Response 200**
 ```json
@@ -56,23 +48,16 @@ Query params:
   "items": [
     {
       "id": "...",
-      "public_tracking_id": "..."
+      "order_id": "...",
+      "job_id": null,
+      "type": "CREATED",
+      "message": "Order created",
+      "payload": {},
+      "created_at": "..."
     }
   ]
 }
 ```
-
-### `POST /api/v1/orders/{order_id}/cancel`
-Cancels an order.
-
-- **Response 200**
-```json
-{
-  "id": "<order-uuid>",
-  "status": "CANCELED"
-}
-```
-- **Response 404** when order does not exist.
 
 ## Public Tracking
 
@@ -85,5 +70,3 @@ Returns public-safe tracking data.
 - `status`
 - `created_at`
 - `updated_at`
-
-**Response 404** when tracking id does not exist.

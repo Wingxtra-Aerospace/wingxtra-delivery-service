@@ -1,5 +1,7 @@
 from uuid import UUID
 
+from app.models.order import Order, OrderStatus
+
 
 def _create_order(client):
     payload = {
@@ -17,7 +19,7 @@ def _create_order(client):
     return client.post("/api/v1/orders", json=payload)
 
 
-def test_create_get_list_cancel_and_tracking(client):
+def test_create_get_list_cancel_tracking_and_events(client):
     create_response = _create_order(client)
     assert create_response.status_code == 201
     created = create_response.json()
@@ -35,9 +37,32 @@ def test_create_get_list_cancel_and_tracking(client):
     assert tracking_response.status_code == 200
     assert tracking_response.json()["order_id"] == created["id"]
 
+    events_before_cancel = client.get(f"/api/v1/orders/{created['id']}/events")
+    assert events_before_cancel.status_code == 200
+    assert [event["type"] for event in events_before_cancel.json()["items"]] == ["CREATED"]
+
     cancel_response = client.post(f"/api/v1/orders/{created['id']}/cancel")
     assert cancel_response.status_code == 200
     assert cancel_response.json()["status"] == "CANCELED"
+
+    events_after_cancel = client.get(f"/api/v1/orders/{created['id']}/events")
+    assert events_after_cancel.status_code == 200
+    assert [event["type"] for event in events_after_cancel.json()["items"]] == [
+        "CREATED",
+        "CANCELED",
+    ]
+
+
+def test_cancel_rejected_for_terminal_state(client, db_session):
+    create_response = _create_order(client)
+    created = create_response.json()
+
+    order = db_session.get(Order, UUID(created["id"]))
+    order.status = OrderStatus.DELIVERED
+    db_session.commit()
+
+    response = client.post(f"/api/v1/orders/{created['id']}/cancel")
+    assert response.status_code == 409
 
 
 def test_get_order_not_found(client):

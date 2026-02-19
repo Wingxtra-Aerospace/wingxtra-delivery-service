@@ -17,11 +17,41 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 order_priority = sa.Enum("NORMAL", "URGENT", "MEDICAL", name="order_priority")
-order_status = sa.Enum("CREATED", "CANCELED", name="order_status")
+order_status = sa.Enum(
+    "CREATED",
+    "VALIDATED",
+    "QUEUED",
+    "ASSIGNED",
+    "MISSION_SUBMITTED",
+    "LAUNCHED",
+    "ENROUTE",
+    "ARRIVED",
+    "DELIVERING",
+    "DELIVERED",
+    "CANCELED",
+    "FAILED",
+    "ABORTED",
+    name="order_status",
+)
 delivery_job_status = sa.Enum(
     "PENDING", "ACTIVE", "COMPLETED", "FAILED", name="delivery_job_status"
 )
-delivery_event_type = sa.Enum("CREATED", "CANCELED", name="delivery_event_type")
+delivery_event_type = sa.Enum(
+    "CREATED",
+    "VALIDATED",
+    "QUEUED",
+    "ASSIGNED",
+    "MISSION_SUBMITTED",
+    "LAUNCHED",
+    "ENROUTE",
+    "ARRIVED",
+    "DELIVERING",
+    "DELIVERED",
+    "CANCELED",
+    "FAILED",
+    "ABORTED",
+    name="delivery_event_type",
+)
 
 
 def upgrade() -> None:

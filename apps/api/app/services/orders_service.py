@@ -6,9 +6,10 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.delivery_event import DeliveryEvent, DeliveryEventType
+from app.models.delivery_event import DeliveryEvent
 from app.models.order import Order, OrderStatus
 from app.schemas.order import OrderCreate
+from app.services.state_machine import ensure_valid_transition, event_type_for_status
 
 _TRACKING_ALPHABET = string.ascii_uppercase + string.digits
 
@@ -23,6 +24,51 @@ def _generate_unique_tracking_id(db: Session) -> str:
         exists = db.scalar(select(Order.id).where(Order.public_tracking_id == tracking_id))
         if not exists:
             return tracking_id
+
+
+def _append_state_event(
+    db: Session,
+    order_id: uuid.UUID,
+    state: OrderStatus,
+    message: str,
+    payload: dict | None = None,
+) -> None:
+    db.add(
+        DeliveryEvent(
+            order_id=order_id,
+            type=event_type_for_status(state),
+            message=message,
+            payload=payload or {},
+        )
+    )
+
+
+def transition_order_status(
+    db: Session,
+    order: Order,
+    next_status: OrderStatus,
+    message: str,
+    payload: dict | None = None,
+) -> Order:
+    previous_status = order.status
+    ensure_valid_transition(previous_status, next_status)
+
+    if previous_status == next_status:
+        return order
+
+    order.status = next_status
+    _append_state_event(
+        db,
+        order.id,
+        next_status,
+        message,
+        {
+            "from_status": previous_status.value,
+            "to_status": next_status.value,
+            **(payload or {}),
+        },
+    )
+    return order
 
 
 def create_order(db: Session, payload: OrderCreate) -> Order:
@@ -43,14 +89,8 @@ def create_order(db: Session, payload: OrderCreate) -> Order:
     db.add(order)
     db.flush()
 
-    db.add(
-        DeliveryEvent(
-            order_id=order.id,
-            type=DeliveryEventType.CREATED,
-            message="Order created",
-            payload={},
-        )
-    )
+    _append_state_event(db, order.id, OrderStatus.CREATED, "Order created")
+
     db.commit()
     db.refresh(order)
     return order
@@ -70,20 +110,22 @@ def list_orders(db: Session, status_filter: OrderStatus | None) -> list[Order]:
     return list(db.scalars(query.order_by(Order.created_at.desc())))
 
 
+def list_order_events(db: Session, order_id: uuid.UUID) -> list[DeliveryEvent]:
+    get_order(db, order_id)
+    events = db.scalars(
+        select(DeliveryEvent)
+        .where(DeliveryEvent.order_id == order_id)
+        .order_by(DeliveryEvent.created_at.asc())
+    )
+    return list(events)
+
+
 def cancel_order(db: Session, order_id: uuid.UUID) -> Order:
     order = get_order(db, order_id)
     if order.status == OrderStatus.CANCELED:
         return order
 
-    order.status = OrderStatus.CANCELED
-    db.add(
-        DeliveryEvent(
-            order_id=order.id,
-            type=DeliveryEventType.CANCELED,
-            message="Order canceled",
-            payload={},
-        )
-    )
+    transition_order_status(db, order, OrderStatus.CANCELED, "Order canceled")
     db.commit()
     db.refresh(order)
     return order

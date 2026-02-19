@@ -10,7 +10,18 @@ from app.db.base import Base
 
 class DeliveryEventType(str, enum.Enum):
     CREATED = "CREATED"
+    VALIDATED = "VALIDATED"
+    QUEUED = "QUEUED"
+    ASSIGNED = "ASSIGNED"
+    MISSION_SUBMITTED = "MISSION_SUBMITTED"
+    LAUNCHED = "LAUNCHED"
+    ENROUTE = "ENROUTE"
+    ARRIVED = "ARRIVED"
+    DELIVERING = "DELIVERING"
+    DELIVERED = "DELIVERED"
     CANCELED = "CANCELED"
+    FAILED = "FAILED"
+    ABORTED = "ABORTED"
 
 
 class DeliveryEvent(Base):

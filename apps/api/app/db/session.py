@@ -1,5 +1,3 @@
-from collections.abc import Generator
-
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -16,10 +14,10 @@ if is_sqlite_memory:
 engine = create_engine(settings.database_url, **engine_kwargs)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+if database_url.startswith("sqlite"):
+    connect_args = {"check_same_thread": False}
+    # If it's in-memory SQLite, force a single shared connection
+    if ":memory:" in database_url or database_url.endswith("sqlite+pysqlite://"):
+        engine_kwargs["poolclass"] = StaticPool
 
-def get_db() -> Generator[Session, None, None]:
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+engine = create_engine(database_url, connect_args=connect_args, **engine_kwargs)

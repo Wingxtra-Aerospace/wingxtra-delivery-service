@@ -1,9 +1,13 @@
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
-class PaginationMeta(BaseModel):
+class ResponseModel(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PaginationMeta(ResponseModel):
     page: int
     page_size: int
     total: int
@@ -13,7 +17,7 @@ class OrderCreateRequest(BaseModel):
     customer_name: str | None = None
 
 
-class OrderSummary(BaseModel):
+class OrderSummary(ResponseModel):
     id: str
     public_tracking_id: str
     merchant_id: str | None
@@ -23,7 +27,7 @@ class OrderSummary(BaseModel):
     updated_at: datetime
 
 
-class OrdersListResponse(BaseModel):
+class OrdersListResponse(ResponseModel):
     items: list[OrderSummary]
     pagination: PaginationMeta
 
@@ -32,7 +36,7 @@ class OrderDetailResponse(OrderSummary):
     pass
 
 
-class EventResponse(BaseModel):
+class EventResponse(ResponseModel):
     id: str
     order_id: str
     type: str
@@ -40,7 +44,7 @@ class EventResponse(BaseModel):
     created_at: datetime
 
 
-class EventsTimelineResponse(BaseModel):
+class EventsTimelineResponse(ResponseModel):
     items: list[EventResponse]
 
 
@@ -48,12 +52,12 @@ class ManualAssignRequest(BaseModel):
     drone_id: str = Field(min_length=1)
 
 
-class OrderActionResponse(BaseModel):
+class OrderActionResponse(ResponseModel):
     order_id: str
     status: str
 
 
-class JobResponse(BaseModel):
+class JobResponse(ResponseModel):
     id: str
     order_id: str
     assigned_drone_id: str
@@ -62,21 +66,21 @@ class JobResponse(BaseModel):
     created_at: datetime
 
 
-class JobsListResponse(BaseModel):
+class JobsListResponse(ResponseModel):
     items: list[JobResponse]
 
 
-class TrackingViewResponse(BaseModel):
+class TrackingViewResponse(ResponseModel):
     order_id: str
     public_tracking_id: str
     status: str
 
 
-class MissionSubmitResponse(BaseModel):
+class MissionSubmitResponse(ResponseModel):
     order_id: str
     mission_intent_id: str
     status: str
 
 
-class DispatchRunResponse(BaseModel):
+class DispatchRunResponse(ResponseModel):
     assigned: int

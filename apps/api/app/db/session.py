@@ -1,17 +1,17 @@
-from collections.abc import Generator
-
 from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from app.config import settings
 
-engine = create_engine(settings.database_url, pool_pre_ping=True)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+database_url = settings.database_url
 
+connect_args = {}
+engine_kwargs = {"pool_pre_ping": True}
 
-def get_db() -> Generator[Session, None, None]:
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+if database_url.startswith("sqlite"):
+    connect_args = {"check_same_thread": False}
+    # If it's in-memory SQLite, force a single shared connection
+    if ":memory:" in database_url or database_url.endswith("sqlite+pysqlite://"):
+        engine_kwargs["poolclass"] = StaticPool
+
+engine = create_engine(database_url, connect_args=connect_args, **engine_kwargs)

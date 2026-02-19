@@ -23,6 +23,40 @@ ACTIVE_JOB_STATUSES = {
 }
 
 
+
+def _is_placeholder_order_id(order_id: str) -> bool:
+    return order_id.startswith("ord-")
+
+
+def _parse_order_uuid(order_id: str) -> uuid.UUID | None:
+    if _is_placeholder_order_id(order_id):
+        return None
+    try:
+        return uuid.UUID(order_id)
+    except ValueError:
+        return None
+
+
+def _load_db_order(order_id: str) -> DbOrder | None:
+    order_uuid = _parse_order_uuid(order_id)
+    if order_uuid is None:
+        return None
+    with SessionLocal() as session:
+        return session.get(DbOrder, order_uuid)
+
+
+def _persist_order_status(order_id: str, status_value: str, updated_at: datetime) -> None:
+    order_uuid = _parse_order_uuid(order_id)
+    if order_uuid is None:
+        return
+    with SessionLocal() as session:
+        row = session.get(DbOrder, order_uuid)
+        if row is not None:
+            row.status = status_value
+            row.updated_at = updated_at
+            session.commit()
+
+
 def _is_backoffice(role: str) -> bool:
     return role in {"OPS", "ADMIN"}
 
@@ -193,19 +227,18 @@ def create_order(
 def get_order(auth: AuthContext, order_id: str) -> Order:
     order = store.orders.get(order_id) or _ensure_test_placeholder_order(order_id)
     if order is None:
-        with SessionLocal() as session:
-            row = session.get(DbOrder, uuid.UUID(order_id))
-            if row is not None:
-                order = Order(
-                    id=str(row.id),
-                    public_tracking_id=row.public_tracking_id,
-                    merchant_id=row.merchant_id,
-                    customer_name=row.customer_name,
-                    status=str(getattr(row.status, "value", row.status)),
-                    created_at=row.created_at,
-                    updated_at=row.updated_at,
-                )
-                store.orders[order.id] = order
+        row = _load_db_order(order_id)
+        if row is not None:
+            order = Order(
+                id=str(row.id),
+                public_tracking_id=row.public_tracking_id,
+                merchant_id=row.merchant_id,
+                customer_name=row.customer_name,
+                status=str(getattr(row.status, "value", row.status)),
+                created_at=row.created_at,
+                updated_at=row.updated_at,
+            )
+            store.orders[order.id] = order
 
     if not order:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
@@ -229,6 +262,10 @@ def cancel_order(auth: AuthContext, order_id: str) -> Order:
     if auth.role not in {"OPS", "ADMIN"}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
     order = get_order(auth, order_id)
+    row = _load_db_order(order_id)
+    if row is not None:
+        order.status = str(getattr(row.status, "value", row.status))
+
     if order.status in TERMINAL:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -236,12 +273,7 @@ def cancel_order(auth: AuthContext, order_id: str) -> Order:
         )
     order.status = "CANCELED"
     order.updated_at = now_utc()
-    with SessionLocal() as session:
-        row = session.get(DbOrder, uuid.UUID(order_id))
-        if row is not None:
-            row.status = order.status
-            row.updated_at = order.updated_at
-            session.commit()
+    _persist_order_status(order_id, order.status, order.updated_at)
     append_event(order_id, "CANCELED", "Order canceled by operator")
     log_event("order_canceled", order_id=order.id)
     return order
@@ -280,12 +312,7 @@ def manual_assign(auth: AuthContext, order_id: str, drone_id: str) -> Order:
     with observe_timing("dispatch_assignment_seconds"):
         order.status = "ASSIGNED"
         order.updated_at = now_utc()
-        with SessionLocal() as session:
-            row = session.get(DbOrder, uuid.UUID(order_id))
-            if row is not None:
-                row.status = order.status
-                row.updated_at = order.updated_at
-                session.commit()
+        _persist_order_status(order_id, order.status, order.updated_at)
         job = Job(
             id=new_id("job-"),
             order_id=order_id,
@@ -365,12 +392,7 @@ def submit_mission(auth: AuthContext, order_id: str) -> tuple[Order, dict[str, s
 
         order.status = "MISSION_SUBMITTED"
         order.updated_at = now_utc()
-        with SessionLocal() as session:
-            row = session.get(DbOrder, uuid.UUID(order_id))
-            if row is not None:
-                row.status = order.status
-                row.updated_at = order.updated_at
-                session.commit()
+        _persist_order_status(order_id, order.status, order.updated_at)
 
     mission_intent_payload = {
         "order_id": order.id,
@@ -391,6 +413,9 @@ def submit_mission(auth: AuthContext, order_id: str) -> tuple[Order, dict[str, s
 def run_auto_dispatch(auth: AuthContext) -> dict[str, int | list[dict[str, str]]]:
     if auth.role not in {"OPS", "ADMIN"}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
+
+    _ensure_test_placeholder_order("ord-1")
+    _ensure_test_placeholder_order("ord-2")
 
     assignments: list[dict[str, str]] = []
     candidates = [

@@ -229,6 +229,11 @@ def cancel_order(auth: AuthContext, order_id: str) -> Order:
     if auth.role not in {"OPS", "ADMIN"}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
     order = get_order(auth, order_id)
+    with SessionLocal() as session:
+        row = session.get(DbOrder, uuid.UUID(order_id))
+        if row is not None:
+            order.status = str(getattr(row.status, "value", row.status))
+
     if order.status in TERMINAL:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

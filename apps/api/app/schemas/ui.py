@@ -14,7 +14,10 @@ class PaginationMeta(ResponseModel):
 
 
 class OrderCreateRequest(BaseModel):
-    customer_name: str = Field(min_length=1)
+    customer_name: str | None = None
+    lat: float | None = Field(default=None, ge=-90, le=90)
+    weight: float | None = Field(default=None, gt=0)
+    payload_type: str | None = Field(default=None, min_length=1)
 
 
 class OrderSummary(ResponseModel):

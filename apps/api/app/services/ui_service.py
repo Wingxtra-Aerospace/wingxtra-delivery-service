@@ -69,7 +69,13 @@ def list_orders(
     return orders[start:end], total
 
 
-def create_order(auth: AuthContext, customer_name: str | None) -> Order:
+def create_order(
+    auth: AuthContext,
+    customer_name: str | None,
+    lat: float | None = None,
+    weight: float | None = None,
+    payload_type: str | None = None,
+) -> Order:
     if auth.role not in {"MERCHANT", "OPS", "ADMIN"}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
 
@@ -133,11 +139,22 @@ def _is_valid_drone_id(drone_id: str) -> bool:
     return bool(re.match(r"^(DR|DRONE)-[0-9]+$", drone_id))
 
 
+def _assert_drone_assignable(drone_id: str) -> None:
+    drone = store.drones.get(drone_id)
+    if drone is None:
+        return
+    if not bool(drone.get("available", False)):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Drone unavailable")
+    if int(drone.get("battery", 0)) <= 20:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Drone battery too low")
+
+
 def manual_assign(auth: AuthContext, order_id: str, drone_id: str) -> Order:
     if auth.role not in {"OPS", "ADMIN"}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
     if not _is_valid_drone_id(drone_id):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid drone_id")
+    _assert_drone_assignable(drone_id)
     order = get_order(auth, order_id)
     if order.status in TERMINAL:
         raise HTTPException(
@@ -180,7 +197,7 @@ def tracking_view(public_tracking_id: str) -> Order:
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tracking record not found")
 
 
-def submit_mission(auth: AuthContext, order_id: str, publisher=None) -> Order:
+def submit_mission(auth: AuthContext, order_id: str, publisher) -> Order:
     if auth.role not in {"OPS", "ADMIN"}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
     order = get_order(auth, order_id)
@@ -235,8 +252,14 @@ def run_auto_dispatch(auth: AuthContext) -> dict[str, int | list[dict[str, str]]
         if order.status in {"CREATED", "VALIDATED", "QUEUED"}
     ]
     candidates.sort(key=lambda x: x.created_at)
-    for order in candidates:
-        drone_id = f"DRONE-{len(store.jobs) + 1}"
+
+    available_drones = [
+        drone_id
+        for drone_id, info in store.drones.items()
+        if bool(info.get("available", False)) and int(info.get("battery", 0)) > 20
+    ]
+
+    for order, drone_id in zip(candidates, available_drones, strict=False):
         assigned_order = manual_assign(auth, order.id, drone_id)
         assignments.append({"order_id": assigned_order.id, "status": assigned_order.status})
 

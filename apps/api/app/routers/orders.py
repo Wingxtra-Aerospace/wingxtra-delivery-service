@@ -3,7 +3,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, Header, Query, Request
 
 from app.auth.dependencies import AuthContext, rate_limit_order_creation, require_roles
-from app.dependencies import get_mission_publisher
+from app.dependencies import get_gcs_bridge_client
 from app.schemas.ui import (
     EventResponse,
     EventsTimelineResponse,
@@ -56,7 +56,13 @@ async def create_order_endpoint(
         if idem.replay and idem.response_payload:
             return OrderDetailResponse.model_validate(idem.response_payload)
 
-    order = create_order(auth, payload.customer_name)
+    order = create_order(
+        auth,
+        payload.customer_name,
+        lat=payload.lat,
+        weight=payload.weight,
+        payload_type=payload.payload_type,
+    )
     response_payload = OrderDetailResponse.model_validate(order).model_dump(mode="json")
 
     if idempotency_key:
@@ -146,7 +152,7 @@ async def submit_mission_endpoint(
     request: Request,
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     auth: AuthContext = Depends(require_roles("OPS", "ADMIN")),
-    publisher=Depends(get_mission_publisher),
+    publisher=Depends(get_gcs_bridge_client),
 ) -> MissionSubmitResponse:
     request_payload = {"order_id": order_id}
     if idempotency_key:

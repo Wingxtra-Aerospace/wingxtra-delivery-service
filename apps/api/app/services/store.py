@@ -10,6 +10,7 @@ class InMemoryStore:
         self.jobs: list[Job] = []
         self.idempotency_records: dict[tuple[str, str, str], dict] = {}
         self.pods: dict[str, ProofOfDelivery] = {}
+        self.drones: dict[str, dict[str, int | bool]] = {}
 
 
 store = InMemoryStore()
@@ -48,3 +49,12 @@ def seed_data() -> None:
             created_at=created,
         )
     )
+
+
+store.drones.update(
+    {
+        "DR-1": {"available": True, "battery": 95},
+        "DR-2": {"available": True, "battery": 10},
+        "DR-3": {"available": True, "battery": 80},
+    }
+)

@@ -44,3 +44,8 @@ Observability headers:
 
 
 Dispatch run response contains `assigned` and `assignments` list entries with `order_id` and `status`.
+
+
+Manual assignment validates drone availability and battery threshold. Low-battery or unavailable drones return `400`.
+Order create validation enforces optional bounds: `lat` in [-90, 90], `weight` > 0, non-empty `payload_type` (invalid values return `422`).
+Dispatch run assigns at most one order per available drone and returns both `assigned` and `assignments`.

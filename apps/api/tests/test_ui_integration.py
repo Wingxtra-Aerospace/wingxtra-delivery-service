@@ -57,7 +57,7 @@ def test_jobs_forbidden_for_merchant_and_allowed_for_admin():
 def test_gcs_authenticated_requests_map_to_ops_role():
     response = client.post(
         "/api/v1/orders/ord-1/assign",
-        json={"drone_id": "DR-2"},
+        json={"drone_id": "DR-3"},
         headers=_headers(role="CUSTOMER", sub="gcs-user", source="gcs"),
     )
     assert response.status_code == 200

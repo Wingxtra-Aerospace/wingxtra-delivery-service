@@ -3,6 +3,7 @@ import uuid
 from datetime import datetime
 
 from fastapi import HTTPException, status
+from sqlalchemy.orm import Session
 
 from app.auth.dependencies import AuthContext
 from app.config import settings
@@ -415,6 +416,7 @@ def run_auto_dispatch(auth: AuthContext) -> dict[str, int | list[dict[str, str]]
 
 def create_pod(
     auth: AuthContext,
+    db: Session,
     order_id: str,
     method: str,
     otp_code: str | None,
@@ -423,7 +425,14 @@ def create_pod(
 ) -> ProofOfDelivery:
     if auth.role not in {"OPS", "ADMIN"}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
+
+    row = db.get(DbOrder, uuid.UUID(order_id))
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
+
     order = get_order(auth, order_id)
+    order.status = str(getattr(row.status, "value", row.status))
+    order.updated_at = row.updated_at
     if order.status != "DELIVERED":
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

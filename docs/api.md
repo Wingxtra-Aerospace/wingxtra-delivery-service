@@ -1,0 +1,46 @@
+# API
+
+OpenAPI is provided by FastAPI:
+- Swagger UI: `/docs`
+- OpenAPI JSON: `/openapi.json`
+
+Core UI integration endpoints:
+- `POST /api/v1/orders`
+- `GET /api/v1/orders` (pagination + filtering)
+- `GET /api/v1/orders/{order_id}`
+- `GET /api/v1/orders/{order_id}/events`
+- `POST /api/v1/orders/{order_id}/assign`
+- `POST /api/v1/orders/{order_id}/cancel`
+- `POST /api/v1/orders/{order_id}/pod`
+- `GET /api/v1/jobs`
+- `POST /api/v1/dispatch/run`
+- `GET /api/v1/tracking/{public_tracking_id}`
+- `GET /metrics` (OPS/ADMIN only)
+
+
+Security headers for Ops endpoints:
+- `Authorization: Bearer <token>`
+- `X-Wingxtra-Source: gcs`
+
+
+JWT bearer required for protected endpoints.
+
+
+Idempotency support:
+- `POST /api/v1/orders`
+- `POST /api/v1/orders/{order_id}/submit-mission-intent`
+
+Provide `Idempotency-Key` header.
+Replay with same payload returns same response; reused key with different payload returns `409`.
+
+
+Rate limiting:
+- `GET /api/v1/tracking/{public_tracking_id}` returns `429` when public tracking rate limit is exceeded.
+- `POST /api/v1/orders` returns `429` when order creation rate limit is exceeded.
+
+
+Observability headers:
+- `X-Request-ID` accepted on requests and echoed on responses.
+
+
+Dispatch run response contains `assigned` and `assignments` list entries with `order_id` and `status`.

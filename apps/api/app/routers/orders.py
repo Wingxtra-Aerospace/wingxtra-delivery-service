@@ -3,9 +3,8 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, Header, Query, Request
 from sqlalchemy.orm import Session
 
-from app.db.session import get_db
-
 from app.auth.dependencies import AuthContext, rate_limit_order_creation, require_roles
+from app.db.session import get_db
 from app.integrations.gcs_bridge_client import get_gcs_bridge_client
 from app.schemas.ui import (
     EventResponse,

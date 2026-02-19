@@ -4,6 +4,7 @@ from fastapi import HTTPException, status
 
 from app.auth.dependencies import AuthContext
 from app.models.domain import Event, Job, Order, new_id, now_utc
+from app.observability import log_event, observe_timing
 from app.services.store import store
 
 TERMINAL = {"CANCELED", "FAILED", "ABORTED", "DELIVERED"}
@@ -84,6 +85,7 @@ def create_order(auth: AuthContext, customer_name: str | None) -> Order:
     )
     store.orders[order.id] = order
     append_event(order.id, "CREATED", "Order created")
+    log_event("order_created", order_id=order.id)
     return order
 
 
@@ -119,6 +121,7 @@ def cancel_order(auth: AuthContext, order_id: str) -> Order:
     order.status = "CANCELED"
     order.updated_at = now_utc()
     append_event(order_id, "CANCELED", "Order canceled by operator")
+    log_event("order_canceled", order_id=order.id)
     return order
 
 
@@ -131,18 +134,19 @@ def manual_assign(auth: AuthContext, order_id: str, drone_id: str) -> Order:
             status_code=status.HTTP_409_CONFLICT,
             detail="Order cannot be reassigned",
         )
-    order.status = "ASSIGNED"
-    order.updated_at = now_utc()
-    store.jobs.append(
-        Job(
+    with observe_timing("dispatch_assignment_seconds"):
+        order.status = "ASSIGNED"
+        order.updated_at = now_utc()
+        job = Job(
             id=new_id("job-"),
             order_id=order_id,
             assigned_drone_id=drone_id,
             status="ACTIVE",
             created_at=now_utc(),
         )
-    )
+        store.jobs.append(job)
     append_event(order_id, "ASSIGNED", f"Order assigned to {drone_id}")
+    log_event("order_assigned", order_id=order.id, job_id=job.id, drone_id=drone_id)
     return order
 
 
@@ -184,10 +188,18 @@ def submit_mission(auth: AuthContext, order_id: str) -> Order:
         )
 
     job = active_jobs[-1]
-    if not job.mission_intent_id:
-        job.mission_intent_id = new_id("mi-")
+    with observe_timing("mission_intent_generation_seconds"):
+        if not job.mission_intent_id:
+            job.mission_intent_id = new_id("mi-")
 
-    order.status = "MISSION_SUBMITTED"
-    order.updated_at = now_utc()
+        order.status = "MISSION_SUBMITTED"
+        order.updated_at = now_utc()
+
     append_event(order_id, "MISSION_SUBMITTED", "Mission submitted")
+    log_event(
+        "mission_intent_submitted",
+        order_id=order.id,
+        job_id=job.id,
+        drone_id=job.assigned_drone_id,
+    )
     return order

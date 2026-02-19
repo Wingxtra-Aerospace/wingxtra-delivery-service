@@ -150,3 +150,37 @@ def test_order_creation_rate_limit_enforced():
         settings.order_create_rate_limit_requests = original_requests
         settings.order_create_rate_limit_window_s = original_window
         reset_rate_limits()
+
+
+def test_request_id_echoed_in_response_header():
+    request_id = "req-123"
+    response = client.get(
+        "/api/v1/orders",
+        headers={**_headers("OPS"), "X-Request-ID": request_id},
+    )
+    assert response.status_code == 200
+    assert response.headers.get("X-Request-ID") == request_id
+
+
+def test_metrics_endpoint_exposes_dispatch_and_mission_timings():
+    headers = _headers("OPS", sub="ops-metrics")
+
+    assign = client.post(
+        "/api/v1/orders/ord-1/assign",
+        json={"drone_id": "DR-METRICS"},
+        headers=headers,
+    )
+    assert assign.status_code == 200
+
+    mission = client.post("/api/v1/orders/ord-1/submit-mission-intent", headers=headers)
+    assert mission.status_code == 200
+
+    metrics = client.get("/metrics", headers=headers)
+    assert metrics.status_code == 200
+    payload = metrics.json()
+
+    assert "counters" in payload
+    assert "http_requests_total" in payload["counters"]
+    assert "timings" in payload
+    assert "dispatch_assignment_seconds" in payload["timings"]
+    assert "mission_intent_generation_seconds" in payload["timings"]

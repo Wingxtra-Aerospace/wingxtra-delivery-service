@@ -235,18 +235,19 @@ def create_order(
 def get_order(auth: AuthContext, order_id: str) -> Order:
     order = store.orders.get(order_id) or _ensure_test_placeholder_order(order_id)
     if order is None:
-        row = _load_db_order(order_id)
-        if row is not None:
-            order = Order(
-                id=str(row.id),
-                public_tracking_id=row.public_tracking_id,
-                merchant_id=row.merchant_id,
-                customer_name=row.customer_name,
-                status=str(getattr(row.status, "value", row.status)),
-                created_at=row.created_at,
-                updated_at=row.updated_at,
-            )
-            store.orders[order.id] = order
+        with SessionLocal() as session:
+            row = session.get(DbOrder, uuid.UUID(order_id))
+            if row is not None:
+                order = Order(
+                    id=str(row.id),
+                    public_tracking_id=row.public_tracking_id,
+                    merchant_id=row.merchant_id,
+                    customer_name=row.customer_name,
+                    status=str(getattr(row.status, "value", row.status)),
+                    created_at=row.created_at,
+                    updated_at=row.updated_at,
+                )
+                store.orders[order.id] = order
 
     if not order:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
@@ -281,7 +282,12 @@ def cancel_order(auth: AuthContext, order_id: str) -> Order:
         )
     order.status = "CANCELED"
     order.updated_at = now_utc()
-    _persist_order_status(order_id, order.status, order.updated_at)
+    with SessionLocal() as session:
+        row = session.get(DbOrder, uuid.UUID(order_id))
+        if row is not None:
+            row.status = order.status
+            row.updated_at = order.updated_at
+            session.commit()
     append_event(order_id, "CANCELED", "Order canceled by operator")
     log_event("order_canceled", order_id=order.id)
     return order
@@ -320,7 +326,12 @@ def manual_assign(auth: AuthContext, order_id: str, drone_id: str) -> Order:
     with observe_timing("dispatch_assignment_seconds"):
         order.status = "ASSIGNED"
         order.updated_at = now_utc()
-        _persist_order_status(order_id, order.status, order.updated_at)
+        with SessionLocal() as session:
+            row = session.get(DbOrder, uuid.UUID(order_id))
+            if row is not None:
+                row.status = order.status
+                row.updated_at = order.updated_at
+                session.commit()
         job = Job(
             id=new_id("job-"),
             order_id=order_id,
@@ -400,7 +411,12 @@ def submit_mission(auth: AuthContext, order_id: str) -> tuple[Order, dict[str, s
 
         order.status = "MISSION_SUBMITTED"
         order.updated_at = now_utc()
-        _persist_order_status(order_id, order.status, order.updated_at)
+        with SessionLocal() as session:
+            row = session.get(DbOrder, uuid.UUID(order_id))
+            if row is not None:
+                row.status = order.status
+                row.updated_at = order.updated_at
+                session.commit()
 
     mission_intent_payload = {
         "order_id": order.id,

@@ -17,18 +17,22 @@ def setup_test_schema():
     Base.metadata.drop_all(bind=app_engine)
 
 
+
+
+@pytest.fixture(autouse=True)
+def reset_db():
+    Base.metadata.drop_all(bind=app_engine)
+    Base.metadata.create_all(bind=app_engine)
+    yield
+
 @pytest.fixture
 def db_session():
-    connection = app_engine.connect()
-    transaction = connection.begin()
-    testing_session_local = sessionmaker(autocommit=False, autoflush=False, bind=connection)
+    testing_session_local = sessionmaker(autocommit=False, autoflush=False, bind=app_engine)
     db = testing_session_local()
     try:
         yield db
     finally:
         db.close()
-        transaction.rollback()
-        connection.close()
 
 
 @pytest.fixture

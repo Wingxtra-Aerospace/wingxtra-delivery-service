@@ -5,7 +5,7 @@ from fastapi import HTTPException, status
 
 from app.auth.dependencies import AuthContext
 from app.config import settings
-from app.db import SessionLocal
+from app.db.session import SessionLocal
 from app.models.db_models import OrderRecord
 from app.models.domain import Event, Job, Order, ProofOfDelivery, new_id, now_utc
 from app.observability import log_event, observe_timing

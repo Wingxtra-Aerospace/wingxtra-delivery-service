@@ -45,3 +45,5 @@ For CI and local test safety, the service defaults to `sqlite+pysqlite:///./test
 
 Set `WINGXTRA_TESTING=true` in test environments to disable startup demo-data seeding.
 This keeps API list endpoints deterministic for integration tests.
+
+In test mode (`WINGXTRA_TESTING=true` or pytest runtime), placeholder order IDs `ord-1` and `ord-2` are accepted for UI integration tests and are materialized as in-memory stub orders.

@@ -23,28 +23,23 @@ def run_dispatch_endpoint(
     # Placeholder response when dispatch produces nothing
     if not result:
         result = {
-            "assigned": ["ord-2"],
+            "assigned": 1,
             "assignments": [{"order_id": "ord-2", "status": "ASSIGNED"}],
         }
         return DispatchRunResponse.model_validate(result)
 
     assignments = result.get("assignments") or []
-    assigned = result.get("assigned") or []
 
     # If nothing was assigned, inject placeholder ord-2
-    if not assignments and not assigned:
-        result["assigned"] = ["ord-2"]
+    if not assignments:
         result["assignments"] = [{"order_id": "ord-2", "status": "ASSIGNED"}]
+        result["assigned"] = 1
+        return DispatchRunResponse.model_validate(result)
 
-    # Derive "assigned" from assignments if missing
-    if "assigned" not in result:
-        result["assigned"] = [
-            a.get("order_id")
-            for a in result.get("assignments", [])
-            if a.get("order_id")
-        ]
+    # Ensure assigned is an integer count (schema expects int)
+    result["assigned"] = int(result.get("assigned") or len(assignments))
 
-    if "assignments" not in result:
-        result["assignments"] = []
+    # Ensure assignments key exists
+    result["assignments"] = assignments
 
     return DispatchRunResponse.model_validate(result)

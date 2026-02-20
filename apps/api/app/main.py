@@ -1,15 +1,15 @@
-import os
 import time
 from uuid import uuid4
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.utils import get_openapi
 from fastapi.responses import Response
 
 from app.config import allowed_origins, settings
 from app.db.base import Base
 from app.db.session import engine
-from app.observability import configure_logging, log_event, metrics_store, set_request_id
+from app.observability import log_event, metrics_store, set_request_id
 from app.routers.dispatch import router as dispatch_router
 from app.routers.health import router as health_router
 from app.routers.jobs import router as jobs_router
@@ -23,6 +23,40 @@ app = FastAPI(
     version="0.1.0",
     description="Wingxtra Delivery API UI integration support endpoints",
 )
+
+
+def custom_openapi():
+    """
+    Adds HTTP Bearer (JWT) auth to the OpenAPI schema so Swagger UI shows an
+    'Authorize' button and automatically sends the Authorization: Bearer <token> header.
+    """
+    if app.openapi_schema:
+        return app.openapi_schema
+
+    openapi_schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        description=app.description,
+        routes=app.routes,
+    )
+
+    components = openapi_schema.setdefault("components", {})
+    security_schemes = components.setdefault("securitySchemes", {})
+    security_schemes["BearerAuth"] = {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+    }
+
+    # Apply globally (endpoints that don't require auth will still work as coded,
+    # but Swagger will send the header once you authorize.)
+    openapi_schema["security"] = [{"BearerAuth": []}]
+
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+
+app.openapi = custom_openapi
 
 app.add_middleware(
     CORSMiddleware,
@@ -48,6 +82,7 @@ async def request_context_middleware(request: Request, call_next) -> Response:
     log_event("http_request", order_id=request.path_params.get("order_id"))
     return response
 
+
 app.include_router(health_router)
 app.include_router(orders_router)
 app.include_router(dispatch_router)
@@ -58,7 +93,7 @@ app.include_router(metrics_router)
 
 @app.on_event("startup")
 def startup_seed() -> None:
-    configure_logging()
+    import app.models  # noqa: F401 (register all SQLAlchemy models)
+
     Base.metadata.create_all(bind=engine)
-    if not settings.testing and "PYTEST_CURRENT_TEST" not in os.environ:
-        seed_data()
+    seed_data()

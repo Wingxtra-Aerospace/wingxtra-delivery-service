@@ -27,6 +27,7 @@ from app.schemas.ui import (
     PaginationMeta,
     PodCreateRequest,
     PodResponse,
+    TrackingViewResponse,
 )
 from app.services.idempotency_service import (
     build_scope,
@@ -408,15 +409,19 @@ def create_pod_endpoint(
     return PodResponse.model_validate(response_payload)
 
 
-@router.get("/track/{public_tracking_id}", summary="Public tracking")
+@router.get(
+    "/track/{public_tracking_id}",
+    response_model=TrackingViewResponse,
+    summary="Public tracking",
+)
 def public_tracking_endpoint(
     public_tracking_id: str,
     db: Session = Depends(get_db),
-) -> dict:
-    return tracking_view(db, public_tracking_id)
+) -> TrackingViewResponse:
+    return TrackingViewResponse.model_validate(tracking_view(db, public_tracking_id))
 
 
-@router.get("/{order_id}/pod", summary="Get proof of delivery")
+@router.get("/{order_id}/pod", response_model=PodResponse, summary="Get proof of delivery")
 def get_pod_endpoint(
     order_id: str,
     db: Session = Depends(get_db),

@@ -362,6 +362,24 @@ def test_idempotency_for_assign_and_pod_replay_and_conflict(db_session):
     assert conflict_pod.status_code == 409
 
 
+def test_get_pod_returns_nullable_method_when_record_missing():
+    order = client.post(
+        "/api/v1/orders",
+        json={"customer_name": "No POD yet"},
+        headers=_headers("OPS", sub="ops-pod-read"),
+    ).json()
+
+    response = client.get(
+        f"/api/v1/orders/{order['id']}/pod",
+        headers=_headers("OPS", sub="ops-pod-read"),
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["order_id"] == order["id"]
+    assert payload["method"] is None
+
+
 def test_mission_submit_translates_integration_errors():
     class FailingPublisher:
         def publish_mission_intent(self, mission_intent: dict) -> None:

@@ -73,6 +73,13 @@ def test_public_tracking_is_unauthenticated_and_sanitized():
     assert set(payload.keys()) == {"order_id", "public_tracking_id", "status"}
 
 
+def test_orders_track_endpoint_is_unauthenticated_and_sanitized():
+    tracking = client.get("/api/v1/orders/track/11111111-1111-4111-8111-111111111111")
+    assert tracking.status_code == 200
+    payload = tracking.json()
+    assert set(payload.keys()) == {"order_id", "public_tracking_id", "status"}
+
+
 def test_protected_endpoints_allow_test_bypass_without_jwt():
     response = client.get("/api/v1/orders")
     assert response.status_code == 200

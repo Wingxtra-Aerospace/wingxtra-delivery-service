@@ -412,6 +412,7 @@ def create_pod_endpoint(
 @router.get(
     "/track/{public_tracking_id}",
     response_model=TrackingViewResponse,
+    response_model_exclude_none=True,
     summary="Public tracking",
 )
 def public_tracking_endpoint(

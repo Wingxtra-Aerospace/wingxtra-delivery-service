@@ -14,6 +14,7 @@ Core UI integration endpoints:
 - `POST /api/v1/orders/{order_id}/cancel`
 - `POST /api/v1/orders/{order_id}/pod`
 - `GET /api/v1/orders/{order_id}/pod`
+- `GET /api/v1/orders/track/{public_tracking_id}`
 - `GET /api/v1/jobs`
 - `POST /api/v1/dispatch/run`
 - `GET /api/v1/tracking/{public_tracking_id}`
@@ -48,7 +49,9 @@ Rate limiting:
 - `GET /api/v1/tracking/{public_tracking_id}` returns `429` when public tracking rate limit is exceeded.
 - `POST /api/v1/orders` returns `429` when order creation rate limit is exceeded.
 
-Public tracking response is sanitized to: `order_id`, `public_tracking_id`, `status`. When proof-of-delivery exists, it also includes `pod_summary` (including at least `method`).
+Public tracking response is sanitized to: `order_id`, `public_tracking_id`, `status`. When proof-of-delivery exists, it also includes `pod_summary` (including at least `method`). This sanitized contract applies to both `GET /api/v1/tracking/{public_tracking_id}` and `GET /api/v1/orders/track/{public_tracking_id}`.
+
+POD read endpoint (`GET /api/v1/orders/{order_id}/pod`) returns `PodResponse`; when no POD record exists yet, `method` is `null`.
 
 POD read endpoint (`GET /api/v1/orders/{order_id}/pod`) returns `PodResponse`; when no POD record exists yet, `method` is `null`.
 

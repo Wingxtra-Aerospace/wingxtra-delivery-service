@@ -32,3 +32,16 @@ source .venv/bin/activate
 ruff check .
 pytest
 ```
+
+
+## Local and test placeholder mode
+
+Placeholder order behaviors (for example `ord-*` IDs, synthetic mission IDs, and non-UUID POD fallback during public tracking) are disabled by default.
+
+To enable placeholder behavior in local or test runs, set:
+
+```bash
+export WINGXTRA_ENABLE_PLACEHOLDER_MODE=true
+```
+
+Use this mode only for local/test scenarios. Production should keep it disabled.

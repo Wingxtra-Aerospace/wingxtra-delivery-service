@@ -210,7 +210,7 @@ def cancel_endpoint(
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(require_backoffice_write),
 ) -> OrderActionResponse:
-    if _is_placeholder_order_id(order_id):
+    if settings.enable_placeholder_mode and _is_placeholder_order_id(order_id):
         return OrderActionResponse(order_id=order_id, status="CANCELED")
 
     order = cancel_order(auth, db, order_id)

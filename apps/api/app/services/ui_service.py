@@ -144,6 +144,31 @@ def manual_assign(
     return ui_db_service.manual_assign(auth, db, order_id, drone_id)
 
 
+def update_order(
+    auth: AuthContext,
+    db: Session,
+    order_id: str,
+    customer_phone: str | None,
+    dropoff_lat: float | None,
+    dropoff_lng: float | None,
+    priority: str | None,
+) -> dict[str, Any]:
+    mode = _mode()
+    if mode == "store" or (mode == "hybrid" and _is_placeholder_order_id(order_id)):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Placeholder orders cannot be updated"
+        )
+    return ui_db_service.update_order(
+        auth,
+        db,
+        order_id,
+        customer_phone,
+        dropoff_lat,
+        dropoff_lng,
+        priority,
+    )
+
+
 def submit_mission(
     auth: AuthContext, db: Session, order_id: str
 ) -> tuple[dict[str, Any], dict[str, str]]:

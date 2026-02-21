@@ -42,6 +42,7 @@ Timing metrics currently captured:
 External integration clients now enforce explicit retry/backoff limits and return structured domain errors:
 
 - `fleet_api_client`
+  - base URL via `FLEET_API_BASE_URL` (required for dispatch/assignment that query telemetry)
   - timeout via `FLEET_API_TIMEOUT_S`
   - retries via `FLEET_API_MAX_RETRIES`
   - exponential backoff base via `FLEET_API_BACKOFF_S`
@@ -61,6 +62,9 @@ Error translation for API callers:
 Set `WINGXTRA_DATABASE_URL` to configure the SQLAlchemy connection URL.
 For CI and local test safety, the service defaults to `sqlite+pysqlite:///./test.db` when unset.
 
+CI now runs API tests against Postgres (service container in `.github/workflows/api.yml`) to improve environment parity with production.
+SQLite remains supported for local/dev safety when `WINGXTRA_DATABASE_URL` is unset.
+
 Set `WINGXTRA_TESTING=true` in test environments to disable startup demo-data seeding.
 This keeps API list endpoints deterministic for integration tests.
 
@@ -69,3 +73,17 @@ Set `WINGXTRA_UI_SERVICE_MODE` to explicitly select the UI service strategy:
 - `db`: only database-backed order and tracking flows.
 - `store`: only in-memory placeholder/test flows.
 - `hybrid` (default): DB-backed API flows with placeholder/store adapters enabled for UI test IDs like `ord-1` and `ord-2`.
+
+
+## Local infrastructure (Docker Compose)
+
+`docker-compose.yml` now provisions both:
+
+- `postgres` (primary API datastore)
+- `redis` (available for local background queues, idempotency/rate-limit backends, and caching as hardening evolves)
+
+Example start command:
+
+```bash
+docker compose up -d
+```

@@ -1,10 +1,12 @@
 import hashlib
 import json
+import time
 from dataclasses import dataclass
 from typing import Any
 
 from fastapi import HTTPException, status
 
+from app.config import settings
 from app.services.store import store
 
 
@@ -19,6 +21,16 @@ def _hash_payload(payload: Any) -> str:
     return hashlib.sha256(canonical.encode()).hexdigest()
 
 
+def _purge_expired_records(now_s: float) -> None:
+    expired_keys = [
+        key
+        for key, value in store.idempotency_records.items()
+        if float(value.get("expires_at", 0)) <= now_s
+    ]
+    for key in expired_keys:
+        store.idempotency_records.pop(key, None)
+
+
 def check_idempotency(
     *,
     user_id: str,
@@ -26,6 +38,9 @@ def check_idempotency(
     idempotency_key: str,
     request_payload: Any,
 ) -> IdempotencyResult:
+    now_s = time.time()
+    _purge_expired_records(now_s)
+
     payload_hash = _hash_payload(request_payload)
     record_key = (user_id, route, idempotency_key)
     record = store.idempotency_records.get(record_key)
@@ -56,9 +71,13 @@ def save_idempotency_result(
     request_payload: Any,
     response_payload: dict[str, Any],
 ) -> None:
+    now_s = time.time()
+    _purge_expired_records(now_s)
+
     payload_hash = _hash_payload(request_payload)
     record_key = (user_id, route, idempotency_key)
     store.idempotency_records[record_key] = {
         "request_hash": payload_hash,
         "response_payload": response_payload,
+        "expires_at": now_s + settings.idempotency_ttl_s,
     }

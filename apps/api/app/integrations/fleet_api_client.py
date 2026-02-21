@@ -38,6 +38,9 @@ class FleetApiClient:
         self.backoff_s = backoff_s
 
     def get_latest_telemetry(self) -> list[FleetDroneTelemetry]:
+        if not self.base_url:
+            raise IntegrationUnavailableError("fleet_api", "Fleet API base URL is not configured")
+
         attempts = self.max_retries + 1
         for attempt in range(attempts):
             try:

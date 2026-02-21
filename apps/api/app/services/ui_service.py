@@ -3,6 +3,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import Any
 
+from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import AuthContext
@@ -52,16 +53,9 @@ def list_orders(
         to_date=to_date,
     )
 
-    if mode != "hybrid":
-        return db_items, db_total
-
-    store_items = [
-        ui_store_service.get_order(auth, oid)
-        for oid in sorted(ui_store_service.store.orders.keys())
-        if not status_filter or ui_store_service.store.orders[oid].status == status_filter
-    ]
-    combined = [*store_items, *db_items]
-    return combined[(page - 1) * page_size : page * page_size], len(combined)
+    # In hybrid mode, list endpoint should remain DB-backed to avoid leaking
+    # placeholder store orders into normal operational listing flows.
+    return db_items, db_total
 
 
 def create_order(
@@ -131,8 +125,12 @@ def manual_assign(
     order_id: str,
     drone_id: str | None = None,
 ) -> dict[str, Any]:
+    if drone_id is not None:
+        _assert_drone_assignable(drone_id)
+
     if isinstance(db, str):
         # Legacy call signature: manual_assign(auth, order_id, drone_id)
+        _assert_drone_assignable(order_id)
         return ui_store_service.manual_assign(auth, db, order_id)
 
     mode = _mode()
@@ -165,9 +163,12 @@ def run_auto_dispatch(auth: AuthContext, db: Session) -> dict[str, int | list[di
 
     result = ui_db_service.run_auto_dispatch(auth, db, drones)
     if mode == "hybrid":
-        store_result = ui_store_service.run_auto_dispatch(drones)
-        combined = [*result["assignments"], *store_result["assignments"]]
-        return {"assigned": len(combined), "assignments": combined}
+        # Preserve placeholder dispatch behavior for tests, but don't append it
+        # when real DB orders were already assigned.
+        if int(result["assigned"]) == 0:
+            store_result = ui_store_service.run_auto_dispatch(drones)
+            combined = [*result["assignments"], *store_result["assignments"]]
+            return {"assigned": len(combined), "assignments": combined}
     return result
 
 
@@ -200,3 +201,18 @@ def create_pod(
 
 def get_pod(db: Session, order_id: str):
     return ui_db_service.get_pod(db, order_id)
+
+
+def _assert_drone_assignable(drone_id: str) -> None:
+    drone = ui_store_service.store.drones.get(drone_id)
+    if drone is None:
+        return
+
+    if not bool(drone.get("available", False)):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Drone unavailable")
+
+    if int(drone.get("battery", 0)) <= 20:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Drone battery too low",
+        )

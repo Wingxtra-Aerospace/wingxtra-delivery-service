@@ -1,9 +1,12 @@
+from uuid import UUID
+
 from fastapi.testclient import TestClient
 
 from app.auth.dependencies import reset_rate_limits
 from app.auth.jwt import issue_jwt
 from app.config import settings
 from app.main import app
+from app.models.order import Order, OrderStatus
 
 client = TestClient(app)
 
@@ -300,9 +303,6 @@ def test_idempotency_for_assign_and_pod_replay_and_conflict(db_session):
     assert replay_assign.status_code == 200
     assert replay_assign.json() == first_assign.json()
     assert conflict_assign.status_code == 409
-
-    from uuid import UUID
-    from app.models.order import Order, OrderStatus
 
     db_order = db_session.get(Order, UUID(order["id"]))
     db_order.status = OrderStatus.DELIVERED

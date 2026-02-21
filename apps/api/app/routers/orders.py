@@ -9,6 +9,7 @@ from app.auth.dependencies import (
     require_backoffice_write,
     require_roles,
 )
+from app.config import settings
 from app.db.session import get_db
 from app.integrations.errors import IntegrationBadGatewayError, IntegrationError
 from app.integrations.gcs_bridge_client import get_gcs_bridge_client
@@ -219,7 +220,7 @@ def cancel_endpoint(
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(require_backoffice_write),
 ) -> OrderActionResponse:
-    if settings.enable_placeholder_mode and _is_placeholder_order_id(order_id):
+    if settings.ui_service_mode in {"store", "hybrid"} and _is_placeholder_order_id(order_id):
         return OrderActionResponse(order_id=order_id, status="CANCELED")
 
     order = cancel_order(auth, db, order_id)

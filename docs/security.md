@@ -43,7 +43,7 @@ When proof-of-delivery exists, tracking also includes:
 - `pod_summary` (with at least `method`)
 
 Rate limiting is applied per client IP:
-- Public tracking:
+- Public tracking (`GET /api/v1/tracking/{public_tracking_id}` and `GET /api/v1/orders/track/{public_tracking_id}`):
   - `PUBLIC_TRACKING_RATE_LIMIT_REQUESTS` (default `10`)
   - `PUBLIC_TRACKING_RATE_LIMIT_WINDOW_S` (default `60`)
 - Order creation:
@@ -57,6 +57,7 @@ When limits are exceeded, the API returns `429 Too Many Requests`.
 Supported endpoints:
 - `POST /api/v1/orders`
 - `POST /api/v1/orders/{order_id}/assign`
+- `POST /api/v1/orders/{order_id}/cancel`
 - `POST /api/v1/orders/{order_id}/submit-mission-intent`
 - `POST /api/v1/orders/{order_id}/pod`
 

@@ -121,7 +121,7 @@ class PodCreateRequest(BaseModel):
 
 class PodResponse(ResponseModel):
     order_id: str
-    method: str
+    method: str | None = None
     otp_code: str | None = None
     operator_name: str | None = None
     photo_url: str | None = None

@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.auth.dependencies import (
     AuthContext,
     rate_limit_order_creation,
+    rate_limit_public_tracking,
     require_backoffice_write,
     require_roles,
 )
@@ -27,6 +28,7 @@ from app.schemas.ui import (
     PaginationMeta,
     PodCreateRequest,
     PodResponse,
+    TrackingViewResponse,
 )
 from app.services.idempotency_service import (
     build_scope,
@@ -241,13 +243,47 @@ def assign_endpoint(
 def cancel_endpoint(
     order_id: str,
     db: Session = Depends(get_db),
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     auth: AuthContext = Depends(require_backoffice_write),
 ) -> OrderActionResponse:
-    if settings.ui_service_mode in {"store", "hybrid"} and _is_placeholder_order_id(order_id):
-        return OrderActionResponse(order_id=order_id, status="CANCELED")
+    request_payload = {"order_id": order_id}
+    route_scope = build_scope(
+        "POST:/api/v1/orders/{order_id}/cancel",
+        user_id=auth.user_id,
+        order_id=order_id,
+    )
 
-    order = cancel_order(auth, db, order_id)
-    return OrderActionResponse(order_id=str(order["id"]), status=order["status"])
+    if idempotency_key:
+        idem = check_idempotency(
+            user_id=auth.user_id,
+            route=route_scope,
+            idempotency_key=idempotency_key,
+            request_payload=request_payload,
+        )
+        if idem.replay and idem.response_payload:
+            return OrderActionResponse.model_validate(idem.response_payload)
+
+    if settings.ui_service_mode in {"store", "hybrid"} and _is_placeholder_order_id(order_id):
+        response_payload = OrderActionResponse(order_id=order_id, status="CANCELED").model_dump(
+            mode="json"
+        )
+    else:
+        order = cancel_order(auth, db, order_id)
+        response_payload = OrderActionResponse(
+            order_id=str(order["id"]),
+            status=order["status"],
+        ).model_dump(mode="json")
+
+    if idempotency_key:
+        save_idempotency_result(
+            user_id=auth.user_id,
+            route=route_scope,
+            idempotency_key=idempotency_key,
+            request_payload=request_payload,
+            response_payload=response_payload,
+        )
+
+    return OrderActionResponse.model_validate(response_payload)
 
 
 @router.post(
@@ -374,15 +410,21 @@ def create_pod_endpoint(
     return PodResponse.model_validate(response_payload)
 
 
-@router.get("/track/{public_tracking_id}", summary="Public tracking")
+@router.get(
+    "/track/{public_tracking_id}",
+    response_model=TrackingViewResponse,
+    response_model_exclude_none=True,
+    summary="Public tracking",
+)
 def public_tracking_endpoint(
     public_tracking_id: str,
     db: Session = Depends(get_db),
-) -> dict:
-    return tracking_view(db, public_tracking_id)
+    _rate_limit: None = Depends(rate_limit_public_tracking),
+) -> TrackingViewResponse:
+    return TrackingViewResponse.model_validate(tracking_view(db, public_tracking_id))
 
 
-@router.get("/{order_id}/pod", summary="Get proof of delivery")
+@router.get("/{order_id}/pod", response_model=PodResponse, summary="Get proof of delivery")
 def get_pod_endpoint(
     order_id: str,
     db: Session = Depends(get_db),

@@ -183,6 +183,14 @@ def test_request_id_echoed_in_response_header():
     assert response.headers.get("X-Request-ID") == request_id
 
 
+def test_metrics_endpoint_requires_ops_or_admin_role():
+    forbidden = client.get("/metrics", headers=_headers("MERCHANT", sub="merchant-metrics"))
+    assert forbidden.status_code == 403
+
+    allowed = client.get("/metrics", headers=_headers("OPS", sub="ops-metrics-auth"))
+    assert allowed.status_code == 200
+
+
 def test_metrics_endpoint_exposes_dispatch_and_mission_timings():
     headers = _headers("OPS", sub="ops-metrics")
 

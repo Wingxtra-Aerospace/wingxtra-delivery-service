@@ -19,7 +19,7 @@ Core UI integration endpoints:
 - `POST /api/v1/dispatch/run`
 - `GET /api/v1/tracking/{public_tracking_id}`
 - `GET /health`
-- `GET /metrics`
+- `GET /metrics` (OPS/ADMIN)
 
 
 Health and observability endpoints now publish explicit response schemas in OpenAPI:

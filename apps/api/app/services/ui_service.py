@@ -14,16 +14,14 @@ from app.auth.dependencies import AuthContext
 from app.config import settings
 from app.models.delivery_event import DeliveryEvent, DeliveryEventType
 from app.models.delivery_job import DeliveryJob, DeliveryJobStatus
-from app.models.order import Order, OrderPriority, OrderStatus
-from app.models.proof_of_delivery import ProofOfDelivery, ProofOfDeliveryMethod
-from app.observability import log_event, observe_timing
-from app.services.store import store
-
-# In-memory domain models (store mode)
 from app.models.domain import Event as MemEvent
 from app.models.domain import Job as MemJob
 from app.models.domain import Order as MemOrder
 from app.models.domain import now_utc as mem_now_utc
+from app.models.order import Order, OrderPriority, OrderStatus
+from app.models.proof_of_delivery import ProofOfDelivery, ProofOfDeliveryMethod
+from app.observability import log_event, observe_timing
+from app.services.store import store
 
 TERMINAL: set[OrderStatus] = {
     OrderStatus.CANCELED,
@@ -182,16 +180,27 @@ def create_order(
             detail="Insufficient role",
         )
 
-    resolved_pickup_lat = pickup_lat if pickup_lat is not None else (lat if lat is not None else 0.0)
-    resolved_pickup_lng = pickup_lng if pickup_lng is not None else 0.0
-    resolved_dropoff_lat = dropoff_lat if dropoff_lat is not None else resolved_pickup_lat
-    resolved_dropoff_lng = dropoff_lng if dropoff_lng is not None else resolved_pickup_lng
+    if pickup_lat is not None:
+        resolved_pickup_lat = pickup_lat
+    elif lat is not None:
+        resolved_pickup_lat = lat
+    else:
+        resolved_pickup_lat = 0.0
 
-    resolved_payload_weight = (
-        payload_weight_kg
-        if payload_weight_kg is not None
-        else (weight if weight is not None else 1.0)
+    resolved_pickup_lng = pickup_lng if pickup_lng is not None else 0.0
+    resolved_dropoff_lat = (
+        dropoff_lat if dropoff_lat is not None else resolved_pickup_lat
     )
+    resolved_dropoff_lng = (
+        dropoff_lng if dropoff_lng is not None else resolved_pickup_lng
+    )
+
+    if payload_weight_kg is not None:
+        resolved_payload_weight = payload_weight_kg
+    elif weight is not None:
+        resolved_payload_weight = weight
+    else:
+        resolved_payload_weight = 1.0
 
     try:
         prio = OrderPriority(priority) if priority else OrderPriority.NORMAL
@@ -205,6 +214,7 @@ def create_order(
         now = mem_now_utc()
         oid = uuid.uuid4().hex
         tracking_id = uuid.uuid4().hex
+
         order = MemOrder(
             id=oid,
             public_tracking_id=tracking_id,
@@ -223,10 +233,11 @@ def create_order(
                 created_at=now,
             )
         ]
+
         return {
             "id": order.id,
             "public_tracking_id": order.public_tracking_id,
-            "merchant_id": order.merchant_id,
+            "merchant_id": getattr(order, "merchant_id", None),
             "customer_name": order.customer_name,
             "status": order.status,
             "created_at": order.created_at,
@@ -258,7 +269,6 @@ def create_order(
     db.add(o)
     db.flush()
 
-    # Tests expect ONLY CREATED on creation
     _append_event(
         db,
         order_id=o.id,
@@ -268,7 +278,6 @@ def create_order(
 
     db.commit()
     db.refresh(o)
-
     log_event("order_created", order_id=str(o.id))
 
     return {
@@ -299,7 +308,10 @@ def get_order(auth: AuthContext, db: Session, order_id: str) -> dict[str, Any]:
     try:
         oid = uuid.UUID(order_id)
     except ValueError as err:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found") from err
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Order not found",
+        ) from err
 
     row = db.get(Order, oid)
     if row is None:
@@ -337,7 +349,10 @@ def list_events(auth: AuthContext, db: Session, order_id: str) -> list[dict[str,
     try:
         oid = uuid.UUID(order_id)
     except ValueError as err:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found") from err
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Order not found",
+        ) from err
 
     order = db.get(Order, oid)
     if order is None:
@@ -398,7 +413,10 @@ def cancel_order(auth: AuthContext, db: Session, order_id: str) -> dict[str, Any
     try:
         oid = uuid.UUID(order_id)
     except ValueError as err:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found") from err
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Order not found",
+        ) from err
 
     row = db.get(Order, oid)
     if row is None:
@@ -438,7 +456,6 @@ def _is_valid_drone_id(drone_id: str) -> bool:
 
 
 def _available_drone_ids() -> list[str]:
-    # Store drones are authoritative for tests.
     out: list[str] = []
     for drone_id, info in store.drones.items():
         if bool(info.get("available", False)) and int(info.get("battery", 0)) > 20:
@@ -461,7 +478,6 @@ def manual_assign(auth: AuthContext, db: Session, order_id: str, drone_id: str) 
             )
 
         now = mem_now_utc()
-        # Expected events when assigning: VALIDATED, QUEUED, ASSIGNED (in that order)
         store.events.setdefault(order_id, []).append(
             MemEvent(
                 order_id=order_id,
@@ -514,7 +530,10 @@ def manual_assign(auth: AuthContext, db: Session, order_id: str, drone_id: str) 
     try:
         oid = uuid.UUID(order_id)
     except ValueError as err:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found") from err
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Order not found",
+        ) from err
 
     row = db.get(Order, oid)
     if row is None:
@@ -527,7 +546,6 @@ def manual_assign(auth: AuthContext, db: Session, order_id: str, drone_id: str) 
         )
 
     with observe_timing("dispatch_assignment_seconds"):
-        # transition CREATED -> VALIDATED -> QUEUED
         if row.status == OrderStatus.CREATED:
             row.status = OrderStatus.VALIDATED
             _append_event(
@@ -544,7 +562,6 @@ def manual_assign(auth: AuthContext, db: Session, order_id: str, drone_id: str) 
                 message="Order queued for dispatch",
             )
 
-        # Assign
         row.status = OrderStatus.ASSIGNED
         row.updated_at = _now_utc()
 
@@ -592,7 +609,10 @@ def submit_mission(
     if mem is not None:
         job = store.jobs.get(order_id)
         if job is None:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="No delivery job for order")
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="No delivery job for order",
+            )
 
         if not job.mission_intent_id:
             job.mission_intent_id = f"mi_{uuid.uuid4().hex}"
@@ -621,7 +641,10 @@ def submit_mission(
     try:
         oid = uuid.UUID(order_id)
     except ValueError as err:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found") from err
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Order not found",
+        ) from err
 
     row = db.get(Order, oid)
     if row is None:
@@ -640,7 +663,10 @@ def submit_mission(
     )
     job = db.scalar(job_stmt)
     if job is None:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="No delivery job for order")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No delivery job for order",
+        )
 
     with observe_timing("mission_intent_generation_seconds"):
         if not job.mission_intent_id:
@@ -689,7 +715,6 @@ def run_auto_dispatch(auth: AuthContext, db: Session) -> dict[str, int | list[di
 
     assignments: list[dict[str, str]] = []
 
-    # Store-mode dispatch (ord-2 starts QUEUED in seed_data)
     store_queued = [o for o in store.orders.values() if o.status == OrderStatus.QUEUED.value]
     drones = _available_drone_ids()
 
@@ -697,7 +722,6 @@ def run_auto_dispatch(auth: AuthContext, db: Session) -> dict[str, int | list[di
         manual_assign(auth, db, order.id, drone_id)
         assignments.append({"order_id": order.id, "status": OrderStatus.ASSIGNED.value})
 
-    # DB-mode dispatch
     db_drones = _available_drone_ids()
     stmt = select(Order).where(Order.status == OrderStatus.QUEUED).order_by(Order.created_at.asc())
     db_orders = list(db.scalars(stmt))
@@ -710,7 +734,6 @@ def run_auto_dispatch(auth: AuthContext, db: Session) -> dict[str, int | list[di
 
 
 def tracking_view(db: Session, public_tracking_id: str) -> dict[str, Any]:
-    # Look in store first
     for order in store.orders.values():
         if order.public_tracking_id == public_tracking_id:
             return {
@@ -719,7 +742,6 @@ def tracking_view(db: Session, public_tracking_id: str) -> dict[str, Any]:
                 "status": order.status,
             }
 
-    # DB fallback
     row = db.scalar(select(Order).where(Order.public_tracking_id == public_tracking_id))
     if row is None:
         raise HTTPException(
@@ -749,7 +771,10 @@ def create_pod(
     try:
         oid = uuid.UUID(order_id)
     except ValueError as err:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found") from err
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Order not found",
+        ) from err
 
     order = db.get(Order, oid)
     if order is None:

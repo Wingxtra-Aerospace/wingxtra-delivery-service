@@ -466,3 +466,63 @@ def cancel_order(auth: AuthContext, db: Session, order_id: str) -> dict[str, Any
     db.commit()
     db.refresh(row)
     return _order_to_dict(row)
+
+
+def update_order(
+    auth: AuthContext,
+    db: Session,
+    order_id: str,
+    customer_phone: str | None,
+    dropoff_lat: float | None,
+    dropoff_lng: float | None,
+    priority: str | None,
+) -> dict[str, Any]:
+    if auth.role not in {"MERCHANT", "OPS", "ADMIN"}:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
+
+    row = db.get(Order, _resolve_db_uuid(order_id))
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
+
+    _assert_can_access_order(auth, row)
+
+    if row.status in TERMINAL:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Order cannot be updated")
+
+    if customer_phone is None and dropoff_lat is None and dropoff_lng is None and priority is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="No update fields provided"
+        )
+
+    if (dropoff_lat is None) ^ (dropoff_lng is None):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="dropoff_lat and dropoff_lng must be provided together",
+        )
+
+    changed = False
+    if customer_phone is not None:
+        row.customer_phone = customer_phone
+        changed = True
+
+    if dropoff_lat is not None and dropoff_lng is not None:
+        row.dropoff_lat = dropoff_lat
+        row.dropoff_lng = dropoff_lng
+        changed = True
+
+    if priority is not None:
+        try:
+            row.priority = OrderPriority(priority)
+        except ValueError as err:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Invalid priority",
+            ) from err
+        changed = True
+
+    if changed:
+        row.updated_at = _now_utc()
+        db.commit()
+        db.refresh(row)
+
+    return _order_to_dict(row)

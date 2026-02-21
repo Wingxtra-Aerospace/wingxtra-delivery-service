@@ -42,6 +42,7 @@ Timing metrics currently captured:
 External integration clients now enforce explicit retry/backoff limits and return structured domain errors:
 
 - `fleet_api_client`
+  - base URL via `FLEET_API_BASE_URL` (required for dispatch/assignment that query telemetry)
   - timeout via `FLEET_API_TIMEOUT_S`
   - retries via `FLEET_API_MAX_RETRIES`
   - exponential backoff base via `FLEET_API_BACKOFF_S`

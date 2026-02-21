@@ -13,11 +13,17 @@ Core UI integration endpoints:
 - `POST /api/v1/orders/{order_id}/assign`
 - `POST /api/v1/orders/{order_id}/cancel`
 - `POST /api/v1/orders/{order_id}/pod`
+- `GET /api/v1/orders/{order_id}/pod`
 - `GET /api/v1/jobs`
 - `POST /api/v1/dispatch/run`
 - `GET /api/v1/tracking/{public_tracking_id}`
-- `GET /metrics` (OPS/ADMIN only)
+- `GET /health`
+- `GET /metrics`
 
+
+Health and observability endpoints now publish explicit response schemas in OpenAPI:
+- `GET /health` → `HealthResponse` (`status`)
+- `GET /metrics` → `MetricsResponse` (`counters`, `timings`)
 
 Security headers for Ops endpoints:
 - `Authorization: Bearer <token>`
@@ -29,7 +35,10 @@ JWT bearer required for protected endpoints.
 
 Idempotency support:
 - `POST /api/v1/orders`
+- `POST /api/v1/orders/{order_id}/cancel`
 - `POST /api/v1/orders/{order_id}/submit-mission-intent`
+- `POST /api/v1/orders/{order_id}/assign`
+- `POST /api/v1/orders/{order_id}/pod`
 
 Provide `Idempotency-Key` header.
 Replay with same payload returns same response; reused key with different payload returns `409`.
@@ -40,6 +49,8 @@ Rate limiting:
 - `POST /api/v1/orders` returns `429` when order creation rate limit is exceeded.
 
 Public tracking response is sanitized to: `order_id`, `public_tracking_id`, `status`. When proof-of-delivery exists, it also includes `pod_summary` (including at least `method`).
+
+POD read endpoint (`GET /api/v1/orders/{order_id}/pod`) returns `PodResponse`; when no POD record exists yet, `method` is `null`.
 
 
 Observability headers:

@@ -57,6 +57,7 @@ When limits are exceeded, the API returns `429 Too Many Requests`.
 Supported endpoints:
 - `POST /api/v1/orders`
 - `POST /api/v1/orders/{order_id}/assign`
+- `POST /api/v1/orders/{order_id}/cancel`
 - `POST /api/v1/orders/{order_id}/submit-mission-intent`
 - `POST /api/v1/orders/{order_id}/pod`
 

@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.auth.dependencies import (
     AuthContext,
     rate_limit_order_creation,
+    rate_limit_public_tracking,
     require_backoffice_write,
     require_roles,
 )
@@ -418,6 +419,7 @@ def create_pod_endpoint(
 def public_tracking_endpoint(
     public_tracking_id: str,
     db: Session = Depends(get_db),
+    _rate_limit: None = Depends(rate_limit_public_tracking),
 ) -> TrackingViewResponse:
     return TrackingViewResponse.model_validate(tracking_view(db, public_tracking_id))
 

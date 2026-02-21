@@ -53,8 +53,6 @@ Public tracking response is sanitized to: `order_id`, `public_tracking_id`, `sta
 
 POD read endpoint (`GET /api/v1/orders/{order_id}/pod`) returns `PodResponse`; when no POD record exists yet, `method` is `null`.
 
-POD read endpoint (`GET /api/v1/orders/{order_id}/pod`) returns `PodResponse`; when no POD record exists yet, `method` is `null`.
-
 
 Observability headers:
 - `X-Request-ID` accepted on requests and echoed on responses.

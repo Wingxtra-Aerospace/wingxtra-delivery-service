@@ -95,6 +95,17 @@ def test_public_tracking_rate_limit_enforced():
     assert limited.status_code == 429
 
 
+def test_orders_track_endpoint_rate_limit_enforced():
+    reset_rate_limits()
+    for _ in range(settings.public_tracking_rate_limit_requests):
+        ok = client.get("/api/v1/orders/track/11111111-1111-4111-8111-111111111111")
+        assert ok.status_code == 200
+
+    limited = client.get("/api/v1/orders/track/11111111-1111-4111-8111-111111111111")
+    assert limited.status_code == 429
+    assert limited.json()["detail"] == "Public tracking rate limit exceeded"
+
+
 def test_idempotency_for_create_order_replay_and_conflict():
     headers = _headers("MERCHANT", sub="merchant-22")
     headers["Idempotency-Key"] = "idem-create-1"

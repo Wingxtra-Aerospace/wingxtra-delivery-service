@@ -246,27 +246,19 @@ async def submit_mission_endpoint(
         if idem.replay and idem.response_payload:
             return MissionSubmitResponse.model_validate(idem.response_payload)
 
-    if _is_placeholder_order_id(order_id):
-        response_payload = MissionSubmitResponse(
-            order_id=order_id,
-            mission_intent_id=f"mi_{order_id}",
-            status="MISSION_SUBMITTED",
-        ).model_dump(mode="json")
-        publisher.publish_mission_intent(
-            {
-                "order_id": order_id,
-                "mission_intent_id": response_payload["mission_intent_id"],
-                "drone_id": "",
-            }
-        )
-
-        if idempotency_key:
-            save_idempotency_result(
-                user_id=auth.user_id,
-                route="POST:/api/v1/orders/{order_id}/submit-mission-intent",
-                idempotency_key=idempotency_key,
-                request_payload=request_payload,
-                response_payload=response_payload,
+    try:
+        if _is_placeholder_order_id(order_id):
+            response_payload = MissionSubmitResponse(
+                order_id=order_id,
+                mission_intent_id=f"mi_{order_id}",
+                status="MISSION_SUBMITTED",
+            ).model_dump(mode="json")
+            publisher.publish_mission_intent(
+                {
+                    "order_id": order_id,
+                    "mission_intent_id": response_payload["mission_intent_id"],
+                    "drone_id": "",
+                }
             )
         else:
             order_out, mission_intent_payload = submit_mission(auth, db, order_id)

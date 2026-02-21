@@ -60,7 +60,7 @@ async def create_order_endpoint(
         if idem.replay and idem.response_payload:
             return OrderDetailResponse.model_validate(idem.response_payload)
 
-        order = create_order(
+    order = create_order(
         auth=auth,
         db=db,
         customer_name=payload.customer_name,
@@ -76,6 +76,7 @@ async def create_order_endpoint(
         payload_type=payload.payload_type,
         priority=payload.priority,
     )
+
     response_payload = OrderDetailResponse.model_validate(order).model_dump(mode="json")
 
     if idempotency_key:

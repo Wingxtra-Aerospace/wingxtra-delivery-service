@@ -2,6 +2,10 @@
 
 FastAPI backend scaffold for Wingxtra delivery service.
 
+## Prerequisites
+
+- Python 3.11+
+
 ## Local setup
 
 ```bash

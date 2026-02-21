@@ -66,7 +66,7 @@ Behavior:
 - Scope is deterministic per endpoint/user (and per-order where required).
 - Replays with the same payload return the original response payload.
 - Reusing the same key with a different payload returns `409` (`Idempotency key reused with different payload`).
-- Idempotency records are retained in-memory with TTL (`IDEMPOTENCY_TTL_S`, default `86400` seconds).
+- Idempotency records are persisted in the `idempotency_records` database table with TTL (`IDEMPOTENCY_TTL_S`, default `86400` seconds). Expired keys are purged opportunistically during idempotency checks/writes.
 
 ## CORS
 

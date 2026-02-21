@@ -23,7 +23,6 @@ from app.models.proof_of_delivery import ProofOfDelivery, ProofOfDeliveryMethod
 from app.observability import log_event, observe_timing
 from app.services.store import store
 
-
 TERMINAL: set[OrderStatus] = {
     OrderStatus.CANCELED,
     OrderStatus.FAILED,

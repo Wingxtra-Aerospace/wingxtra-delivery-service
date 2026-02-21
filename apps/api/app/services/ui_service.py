@@ -663,9 +663,12 @@ def list_jobs(
     _ensure_test_placeholders_seeded(db)
 
     stmt = select(DeliveryJob).order_by(DeliveryJob.created_at.asc())
-    if active_only:
-        stmt = stmt.where(DeliveryJob.status.in_({DeliveryJobStatus.PENDING, DeliveryJobStatus.ACTIVE}))
-
+if active_only:
+    active_statuses = {
+        DeliveryJobStatus.PENDING,
+        DeliveryJobStatus.ACTIVE,
+    }
+    stmt = stmt.where(DeliveryJob.status.in_(active_statuses))
     rows = list(db.scalars(stmt))
 
     out: list[dict[str, Any]] = []

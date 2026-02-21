@@ -10,11 +10,7 @@ from app.services.orders_service import create_order
 
 class FakeFleetApiClient:
     def get_latest_telemetry(self):
-        return [
-            FleetDroneTelemetry(
-                drone_id="D1", lat=1, lng=2, battery=90, is_available=True
-            )
-        ]
+        return [FleetDroneTelemetry(drone_id="D1", lat=1, lng=2, battery=90, is_available=True)]
 
 
 class FakePublisher:

@@ -149,7 +149,6 @@ def test_submit_mission_intent_rejected_when_not_assigned(client):
     assert response.status_code == 409
 
 
-
 def test_create_pod_and_tracking_summary(client, db_session):
     order = _create_order(client).json()
 

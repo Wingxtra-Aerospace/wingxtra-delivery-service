@@ -19,27 +19,11 @@ def setup_test_schema():
 
 
 @pytest.fixture(autouse=True)
-def enable_placeholder_mode_for_tests():
-    original = settings.enable_placeholder_mode
-    settings.enable_placeholder_mode = True
-    try:
-        yield
-    finally:
-        settings.enable_placeholder_mode = original
-
-
-@pytest.fixture(autouse=True)
 def reset_db():
     Base.metadata.drop_all(bind=app_engine)
     Base.metadata.create_all(bind=app_engine)
     yield
 
-
-@pytest.fixture(autouse=True)
-def reset_rate_limit_buckets():
-    reset_rate_limits()
-    yield
-    reset_rate_limits()
 
 @pytest.fixture
 def db_session():

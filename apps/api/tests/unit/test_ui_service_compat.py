@@ -1,9 +1,9 @@
 from app.auth.dependencies import AuthContext
 from app.services.store import store
-from app.services.ui_store_service import create_order, manual_assign
+from app.services.ui_service import create_order, manual_assign
 
 
-def test_store_service_manual_assign_flow():
+def test_manual_assign_supports_legacy_store_call_signature():
     store.orders.clear()
     store.events.clear()
     store.jobs.clear()
@@ -11,9 +11,9 @@ def test_store_service_manual_assign_flow():
     auth = AuthContext(user_id="ops-1", role="OPS")
     order = create_order(auth, customer_name="compat-order")
 
-    assigned = manual_assign(auth, order["id"], "DR-3")
+    assigned = manual_assign(auth, order.id, "DR-3")
 
-    assert assigned["id"] == order["id"]
+    assert assigned["id"] == order.id
     assert assigned["status"] == "ASSIGNED"
 
 

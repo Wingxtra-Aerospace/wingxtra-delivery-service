@@ -147,8 +147,6 @@ def upgrade() -> None:
         op.f("ix_delivery_events_order_id"), "delivery_events", ["order_id"], unique=False
     )
 
-
-
     op.create_table(
         "proof_of_deliveries",
         sa.Column("id", sa.Uuid(), nullable=False),
@@ -174,6 +172,7 @@ def upgrade() -> None:
         ["order_id"],
         unique=False,
     )
+
 
 def downgrade() -> None:
     op.drop_index(op.f("ix_proof_of_deliveries_order_id"), table_name="proof_of_deliveries")

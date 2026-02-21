@@ -56,7 +56,9 @@ def _assign_order_to_drone(db: Session, order: Order, drone_id: str, reason: str
 
 
 def run_auto_dispatch(
-    db: Session, fleet_client: FleetApiClientProtocol
+    db: Session,
+    fleet_client: FleetApiClientProtocol,
+    max_assignments: int = 1,
 ) -> list[tuple[Order, DeliveryJob]]:
     dispatchable_statuses = [OrderStatus.CREATED, OrderStatus.VALIDATED, OrderStatus.QUEUED]
     orders = list(
@@ -77,6 +79,9 @@ def run_auto_dispatch(
     used_drones: set[str] = set()
 
     for order in orders:
+        if len(assignments) >= max_assignments:
+            break
+
         _prepare_order_for_assignment(db, order)
         if order.status != OrderStatus.QUEUED:
             continue

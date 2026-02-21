@@ -54,14 +54,12 @@ def _is_backoffice(role: str) -> bool:
 
 
 def _public_order_id(order_uuid: uuid.UUID) -> str:
-    # Return ord-1/ord-2 in test mode, else UUID string
     if _test_mode_enabled() and order_uuid in _PLACEHOLDER_REVERSE:
         return _PLACEHOLDER_REVERSE[order_uuid]
     return str(order_uuid)
 
 
 def _resolve_order_id(order_id: str) -> uuid.UUID:
-    # Accept ord-1/ord-2 in test mode; otherwise require UUID.
     if _test_mode_enabled() and order_id in _PLACEHOLDER_IDS:
         return _PLACEHOLDER_IDS[order_id]
     try:
@@ -105,10 +103,6 @@ def _append_event(
 
 
 def _ensure_test_placeholders_seeded(db: Session) -> None:
-    """
-    Create ord-1 / ord-2 as deterministic UUID orders + initial timeline,
-    only in test mode.
-    """
     if not _test_mode_enabled():
         return
 
@@ -254,7 +248,6 @@ def create_order(
             detail="Insufficient role",
         )
 
-    # Resolve pickup lat
     if pickup_lat is not None:
         resolved_pickup_lat = pickup_lat
     elif lat is not None:
@@ -270,7 +263,6 @@ def create_order(
         dropoff_lng if dropoff_lng is not None else resolved_pickup_lng
     )
 
-    # Resolve payload weight
     if payload_weight_kg is not None:
         resolved_payload_weight = payload_weight_kg
     elif weight is not None:
@@ -303,12 +295,15 @@ def create_order(
     )
 
     db.add(o)
+    db.flush()  # ✅ ensures o.id exists before inserting events
+
     _append_event(
         db,
         order_id=o.id,
         event_type=DeliveryEventType.CREATED,
         message="Order created",
     )
+
     db.commit()
     db.refresh(o)
 
@@ -423,7 +418,6 @@ def _is_valid_drone_id(drone_id: str) -> bool:
 
 def _assert_drone_assignable(drone_id: str) -> None:
     drone = store.drones.get(drone_id)
-    # If not in store, allow (integration layer; real fleet validation comes later)
     if drone is None:
         return
     if not bool(drone.get("available", False)):
@@ -458,7 +452,6 @@ def manual_assign(
         )
 
     with observe_timing("dispatch_assignment_seconds"):
-        # Ensure progression to QUEUED
         if row.status == OrderStatus.CREATED:
             row.status = OrderStatus.VALIDATED
             _append_event(
@@ -483,7 +476,6 @@ def manual_assign(
                 message="Order queued for dispatch",
             )
 
-        # Assign
         row.status = OrderStatus.ASSIGNED
         row.updated_at = _now_utc()
 
@@ -493,7 +485,7 @@ def manual_assign(
             status=DeliveryJobStatus.ACTIVE,
         )
         db.add(job)
-        db.flush()  # allocate job.id
+        db.flush()
 
         _append_event(
             db,

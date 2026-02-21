@@ -311,8 +311,12 @@ def test_idempotency_for_assign_and_pod_replay_and_conflict(db_session):
     pod_headers = dict(headers)
     pod_headers["Idempotency-Key"] = "idem-pod-1"
     pod_payload = {"method": "PHOTO", "photo_url": "https://cdn.example/pod.jpg"}
-    first_pod = client.post(f"/api/v1/orders/{order['id']}/pod", json=pod_payload, headers=pod_headers)
-    replay_pod = client.post(f"/api/v1/orders/{order['id']}/pod", json=pod_payload, headers=pod_headers)
+    first_pod = client.post(
+        f"/api/v1/orders/{order['id']}/pod", json=pod_payload, headers=pod_headers
+    )
+    replay_pod = client.post(
+        f"/api/v1/orders/{order['id']}/pod", json=pod_payload, headers=pod_headers
+    )
     conflict_pod = client.post(
         f"/api/v1/orders/{order['id']}/pod",
         json={"method": "OPERATOR_CONFIRM", "operator_name": "ops"},

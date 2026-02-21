@@ -216,13 +216,13 @@ def list_orders(
 
     return items, int(total)
 
+
 def _available_drones() -> list[str]:
     return [
         drone_id
         for drone_id, info in store.drones.items()
         if bool(info.get("available", False)) and int(info.get("battery", 0)) > 20
     ]
-
 
     resolved_pickup_lat = (
         pickup_lat if pickup_lat is not None else (lat if lat is not None else 0.0)
@@ -232,7 +232,17 @@ def _available_drones() -> list[str]:
     resolved_dropoff_lng = dropoff_lng if dropoff_lng is not None else resolved_pickup_lng
 
 
-def list_orders(*, auth: AuthContext, db: Session, page: int, page_size: int, status_filter: str | None, search: str | None, from_date: datetime | None, to_date: datetime | None) -> tuple[list[dict[str, Any]], int]:
+def list_orders(
+    *,
+    auth: AuthContext,
+    db: Session,
+    page: int,
+    page_size: int,
+    status_filter: str | None,
+    search: str | None,
+    from_date: datetime | None,
+    to_date: datetime | None,
+) -> tuple[list[dict[str, Any]], int]:
     if _mode() == "store":
         items = [
             ui_store_service.get_order(auth, oid)
@@ -240,15 +250,54 @@ def list_orders(*, auth: AuthContext, db: Session, page: int, page_size: int, st
             if not status_filter or ui_store_service.store.orders[oid].status == status_filter
         ]
         return items[(page - 1) * page_size : page * page_size], len(items)
-    return ui_db_service.list_orders(auth=auth, db=db, page=page, page_size=page_size, status_filter=status_filter, search=search, from_date=from_date, to_date=to_date)
+    return ui_db_service.list_orders(
+        auth=auth,
+        db=db,
+        page=page,
+        page_size=page_size,
+        status_filter=status_filter,
+        search=search,
+        from_date=from_date,
+        to_date=to_date,
+    )
 
 
-def create_order(auth: AuthContext, customer_name: str | None = None, db: Session | None = None, customer_phone: str | None = None, lat: float | None = None, weight: float | None = None, pickup_lat: float | None = None, pickup_lng: float | None = None, dropoff_lat: float | None = None, dropoff_lng: float | None = None, dropoff_accuracy_m: float | None = None, payload_weight_kg: float | None = None, payload_type: str | None = None, priority: str | None = None) -> dict[str, Any]:
+def create_order(
+    auth: AuthContext,
+    customer_name: str | None = None,
+    db: Session | None = None,
+    customer_phone: str | None = None,
+    lat: float | None = None,
+    weight: float | None = None,
+    pickup_lat: float | None = None,
+    pickup_lng: float | None = None,
+    dropoff_lat: float | None = None,
+    dropoff_lng: float | None = None,
+    dropoff_accuracy_m: float | None = None,
+    payload_weight_kg: float | None = None,
+    payload_type: str | None = None,
+    priority: str | None = None,
+) -> dict[str, Any]:
     if _mode() == "store":
         return ui_store_service.create_order(auth, customer_name=customer_name)
     if db is None:
         raise ValueError("db session is required for db/hybrid mode")
-    return ui_db_service.create_order(auth=auth, db=db, customer_name=customer_name, customer_phone=customer_phone, lat=lat, weight=weight, pickup_lat=pickup_lat, pickup_lng=pickup_lng, dropoff_lat=dropoff_lat, dropoff_lng=dropoff_lng, dropoff_accuracy_m=dropoff_accuracy_m, payload_weight_kg=payload_weight_kg, payload_type=payload_type, priority=priority)
+    return ui_db_service.create_order(
+        auth=auth,
+        db=db,
+        customer_name=customer_name,
+        customer_phone=customer_phone,
+        lat=lat,
+        weight=weight,
+        pickup_lat=pickup_lat,
+        pickup_lng=pickup_lng,
+        dropoff_lat=dropoff_lat,
+        dropoff_lng=dropoff_lng,
+        dropoff_accuracy_m=dropoff_accuracy_m,
+        payload_weight_kg=payload_weight_kg,
+        payload_type=payload_type,
+        priority=priority,
+    )
 
 
 def get_order(auth: AuthContext, db: Session, order_id: str) -> dict[str, Any]:
@@ -273,7 +322,9 @@ def manual_assign(auth: AuthContext, db: Session, order_id: str, drone_id: str) 
     return ui_db_service.manual_assign(auth, db, order_id, drone_id)
 
 
-def submit_mission(auth: AuthContext, db: Session, order_id: str) -> tuple[dict[str, Any], dict[str, str]]:
+def submit_mission(
+    auth: AuthContext, db: Session, order_id: str
+) -> tuple[dict[str, Any], dict[str, str]]:
     return ui_db_service.submit_mission(auth, db, order_id)
 
 
@@ -790,7 +841,15 @@ def create_pod(
         otp_hash = hashlib.sha256(otp_code.encode("utf-8")).hexdigest()
 
 
-def create_pod(auth: AuthContext, db: Session, order_id: str, method: str, otp_code: str | None, operator_name: str | None, photo_url: str | None) -> dict[str, Any]:
+def create_pod(
+    auth: AuthContext,
+    db: Session,
+    order_id: str,
+    method: str,
+    otp_code: str | None,
+    operator_name: str | None,
+    photo_url: str | None,
+) -> dict[str, Any]:
     return ui_db_service.create_pod(auth, db, order_id, method, otp_code, operator_name, photo_url)
 
 

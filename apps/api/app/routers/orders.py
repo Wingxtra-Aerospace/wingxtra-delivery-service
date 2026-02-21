@@ -3,7 +3,12 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
-from app.auth.dependencies import AuthContext, rate_limit_order_creation, require_backoffice_write, require_roles
+from app.auth.dependencies import (
+    AuthContext,
+    rate_limit_order_creation,
+    require_backoffice_write,
+    require_roles,
+)
 from app.db.session import get_db
 from app.integrations.errors import IntegrationBadGatewayError, IntegrationError
 from app.integrations.gcs_bridge_client import get_gcs_bridge_client
@@ -187,10 +192,14 @@ def assign_endpoint(
             return OrderActionResponse.model_validate(idem.response_payload)
 
     if _is_placeholder_order_id(order_id):
-        response_payload = OrderActionResponse(order_id=order_id, status="ASSIGNED").model_dump(mode="json")
+        response_payload = OrderActionResponse(order_id=order_id, status="ASSIGNED").model_dump(
+            mode="json"
+        )
     else:
         order = manual_assign(auth, db, order_id, payload.drone_id)
-        response_payload = OrderActionResponse(order_id=str(order["id"]), status=order["status"]).model_dump(mode="json")
+        response_payload = OrderActionResponse(
+            order_id=str(order["id"]), status=order["status"]
+        ).model_dump(mode="json")
 
     if idempotency_key:
         save_idempotency_result(

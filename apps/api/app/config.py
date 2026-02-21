@@ -16,12 +16,22 @@ class Settings(BaseSettings):
     gcs_auth_source: str = "gcs"
     enable_test_auth_bypass: bool = False
     testing: bool = Field(default=False, validation_alias="WINGXTRA_TESTING")
+    ui_service_mode: str = Field(default="hybrid", validation_alias="WINGXTRA_UI_SERVICE_MODE")
 
     public_tracking_rate_limit_requests: int = 10
     public_tracking_rate_limit_window_s: int = 60
 
     order_create_rate_limit_requests: int = 1000
     order_create_rate_limit_window_s: int = 60
+
+    fleet_api_timeout_s: float = 2.0
+    fleet_api_max_retries: int = 2
+    fleet_api_backoff_s: float = 0.2
+
+    gcs_bridge_base_url: str = ""
+    gcs_bridge_timeout_s: float = 2.0
+    gcs_bridge_max_retries: int = 2
+    gcs_bridge_backoff_s: float = 0.2
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

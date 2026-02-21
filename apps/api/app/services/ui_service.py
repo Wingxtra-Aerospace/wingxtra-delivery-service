@@ -1,14 +1,9 @@
 from __future__ import annotations
 
-import hashlib
-import os
-import re
-import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
 
-from fastapi import HTTPException, status
-from sqlalchemy import String, and_, func, or_, select
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import AuthContext
@@ -221,33 +216,13 @@ def list_orders(
 
     return items, int(total)
 
+def _available_drones() -> list[str]:
+    return [
+        drone_id
+        for drone_id, info in store.drones.items()
+        if bool(info.get("available", False)) and int(info.get("battery", 0)) > 20
+    ]
 
-def create_order(
-    auth: AuthContext,
-    customer_name: str | None = None,
-    db: Session | None = None,
-    customer_phone: str | None = None,
-    lat: float | None = None,
-    weight: float | None = None,
-    pickup_lat: float | None = None,
-    pickup_lng: float | None = None,
-    dropoff_lat: float | None = None,
-    dropoff_lng: float | None = None,
-    dropoff_accuracy_m: float | None = None,
-    payload_weight_kg: float | None = None,
-    payload_type: str | None = None,
-    priority: str | None = None,
-) -> Any:
-    """
-    Supports two call patterns used by tests + API:
-    - Unit tests: create_order(auth, customer_name="X")  -> returns MemOrder (has .id)
-    - API/integration: create_order(auth=..., db=db, customer_name="X", ...) -> returns dict
-    """
-    if auth.role not in {"MERCHANT", "OPS", "ADMIN"}:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient role",
-        )
 
     resolved_pickup_lat = (
         pickup_lat if pickup_lat is not None else (lat if lat is not None else 0.0)
@@ -256,240 +231,62 @@ def create_order(
     resolved_dropoff_lat = dropoff_lat if dropoff_lat is not None else resolved_pickup_lat
     resolved_dropoff_lng = dropoff_lng if dropoff_lng is not None else resolved_pickup_lng
 
-    resolved_payload_weight = (
-        payload_weight_kg
-        if payload_weight_kg is not None
-        else (weight if weight is not None else 1.0)
-    )
 
-    try:
-        prio = OrderPriority(priority) if priority else OrderPriority.NORMAL
-    except ValueError:
-        prio = OrderPriority.NORMAL
+def list_orders(*, auth: AuthContext, db: Session, page: int, page_size: int, status_filter: str | None, search: str | None, from_date: datetime | None, to_date: datetime | None) -> tuple[list[dict[str, Any]], int]:
+    if _mode() == "store":
+        items = [
+            ui_store_service.get_order(auth, oid)
+            for oid in sorted(ui_store_service.store.orders.keys())
+            if not status_filter or ui_store_service.store.orders[oid].status == status_filter
+        ]
+        return items[(page - 1) * page_size : page * page_size], len(items)
+    return ui_db_service.list_orders(auth=auth, db=db, page=page, page_size=page_size, status_filter=status_filter, search=search, from_date=from_date, to_date=to_date)
 
-    now = _now_utc()
 
-    # -------------------------
-    # Store-only path (unit tests)
-    # -------------------------
+def create_order(auth: AuthContext, customer_name: str | None = None, db: Session | None = None, customer_phone: str | None = None, lat: float | None = None, weight: float | None = None, pickup_lat: float | None = None, pickup_lng: float | None = None, dropoff_lat: float | None = None, dropoff_lng: float | None = None, dropoff_accuracy_m: float | None = None, payload_weight_kg: float | None = None, payload_type: str | None = None, priority: str | None = None) -> dict[str, Any]:
+    if _mode() == "store":
+        return ui_store_service.create_order(auth, customer_name=customer_name)
     if db is None:
-        _seed_placeholders_in_store_if_needed()
-        oid = mem_new_id("ord-")
-        tracking_id = uuid.uuid4().hex
-
-        order_obj = MemOrder(
-            id=oid,
-            public_tracking_id=tracking_id,
-            merchant_id=auth.user_id if auth.role == "MERCHANT" else None,
-            customer_name=customer_name,
-            status="CREATED",
-            created_at=mem_now_utc(),
-            updated_at=mem_now_utc(),
-        )
-        store.orders[order_obj.id] = order_obj
-        store.events[order_obj.id].append(
-            MemEvent(
-                id=mem_new_id("evt-"),
-                order_id=order_obj.id,
-                type="CREATED",
-                message="Order created",
-                created_at=mem_now_utc(),
-            )
-        )
-        return order_obj
-
-    # -------------------------
-    # DB path (integration/API)
-    # -------------------------
-    o = Order(
-        public_tracking_id=uuid.uuid4().hex,
-        merchant_id=auth.user_id if auth.role == "MERCHANT" else None,
-        customer_name=customer_name,
-        customer_phone=customer_phone,
-        pickup_lat=float(resolved_pickup_lat),
-        pickup_lng=float(resolved_pickup_lng),
-        dropoff_lat=float(resolved_dropoff_lat),
-        dropoff_lng=float(resolved_dropoff_lng),
-        dropoff_accuracy_m=dropoff_accuracy_m,
-        payload_weight_kg=float(resolved_payload_weight),
-        payload_type=payload_type or "parcel",
-        priority=prio,
-        status=OrderStatus.CREATED,
-        created_at=now,
-        updated_at=now,
-    )
-
-    db.add(o)
-    db.flush()
-
-    # IMPORTANT: tests expect only CREATED at creation time.
-    _append_event(
-        db,
-        order_id=o.id,
-        event_type=DeliveryEventType.CREATED,
-        message="Order created",
-    )
-
-    db.commit()
-    db.refresh(o)
-
-    log_event("order_created", order_id=str(o.id))
-
-    return {
-        "id": _public_order_id(o.id),
-        "public_tracking_id": o.public_tracking_id,
-        "merchant_id": o.merchant_id,
-        "customer_name": o.customer_name,
-        "status": o.status.value,
-        "created_at": o.created_at,
-        "updated_at": o.updated_at,
-    }
+        raise ValueError("db session is required for db/hybrid mode")
+    return ui_db_service.create_order(auth=auth, db=db, customer_name=customer_name, customer_phone=customer_phone, lat=lat, weight=weight, pickup_lat=pickup_lat, pickup_lng=pickup_lng, dropoff_lat=dropoff_lat, dropoff_lng=dropoff_lng, dropoff_accuracy_m=dropoff_accuracy_m, payload_weight_kg=payload_weight_kg, payload_type=payload_type, priority=priority)
 
 
 def get_order(auth: AuthContext, db: Session, order_id: str) -> dict[str, Any]:
-    # Placeholders: must return 403 for merchants who don't own it (not 404).
-    if order_id in _PLACEHOLDER_IDS:
-        _seed_placeholders_in_store_if_needed()
-        mem = store.orders.get(order_id)
-        if mem is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
-
-        # Enforce access like DB
-        if not _is_backoffice(auth.role):
-            if auth.role == "MERCHANT" and mem.merchant_id == auth.user_id:
-                pass
-            else:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Access denied for this order",
-                )
-
-        return {
-            "id": mem.id,
-            "public_tracking_id": mem.public_tracking_id,
-            "merchant_id": mem.merchant_id,
-            "customer_name": mem.customer_name,
-            "status": mem.status,
-            "created_at": mem.created_at,
-            "updated_at": mem.updated_at,
-        }
-
-    oid = _resolve_db_uuid(order_id)
-    row = db.get(Order, oid)
-    if row is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
-
-    _assert_can_access_order(auth, row)
-
-    return {
-        "id": _public_order_id(row.id),
-        "public_tracking_id": row.public_tracking_id,
-        "merchant_id": row.merchant_id,
-        "customer_name": row.customer_name,
-        "status": row.status.value,
-        "created_at": row.created_at,
-        "updated_at": row.updated_at,
-    }
+    if _mode() == "store" or (_mode() == "hybrid" and order_id.startswith("ord-")):
+        return ui_store_service.get_order(auth, order_id)
+    return ui_db_service.get_order(auth, db, order_id)
 
 
 def list_events(auth: AuthContext, db: Session, order_id: str) -> list[dict[str, Any]]:
-    if order_id in _PLACEHOLDER_IDS:
-        _seed_placeholders_in_store_if_needed()
-        mem = store.orders.get(order_id)
-        if mem is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
-
-        if not _is_backoffice(auth.role):
-            if auth.role == "MERCHANT" and mem.merchant_id == auth.user_id:
-                pass
-            else:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Access denied for this order",
-                )
-
-        out: list[dict[str, Any]] = []
-        for ev in store.events.get(order_id, []):
-            out.append(
-                {
-                    "id": ev.id,
-                    "order_id": ev.order_id,
-                    "type": ev.type,
-                    "message": ev.message,
-                    "created_at": ev.created_at,
-                }
-            )
-        return out
-
-    oid = _resolve_db_uuid(order_id)
-    order = db.get(Order, oid)
-    if order is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
-
-    _assert_can_access_order(auth, order)
-
-    stmt = (
-        select(DeliveryEvent)
-        .where(DeliveryEvent.order_id == oid)
-        .order_by(DeliveryEvent.created_at.asc())
-    )
-    rows = list(db.scalars(stmt))
-
-    out: list[dict[str, Any]] = []
-    for ev in rows:
-        out.append(
-            {
-                "id": str(ev.id),
-                "order_id": _public_order_id(ev.order_id),
-                "type": ev.type.value,
-                "message": ev.message,
-                "created_at": ev.created_at,
-            }
-        )
-    return out
+    if _mode() == "store" or (_mode() == "hybrid" and order_id.startswith("ord-")):
+        return ui_store_service.list_events(auth, order_id)
+    return ui_db_service.list_events(auth, db, order_id)
 
 
 def cancel_order(auth: AuthContext, db: Session, order_id: str) -> dict[str, Any]:
-    if auth.role not in {"OPS", "ADMIN"}:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient role",
-        )
+    return ui_db_service.cancel_order(auth, db, order_id)
 
-    oid = _resolve_db_uuid(order_id)
-    row = db.get(Order, oid)
-    if row is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
 
-    if row.status in TERMINAL:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Order is in terminal state",
-        )
+def manual_assign(auth: AuthContext, db: Session, order_id: str, drone_id: str) -> dict[str, Any]:
+    if _mode() == "store":
+        return ui_store_service.manual_assign(auth, order_id, drone_id)
+    return ui_db_service.manual_assign(auth, db, order_id, drone_id)
 
-    row.status = OrderStatus.CANCELED
-    row.updated_at = _now_utc()
-    _append_event(
-        db,
-        order_id=row.id,
-        event_type=DeliveryEventType.CANCELED,
-        message="Order canceled by operator",
-    )
 
-    db.commit()
-    db.refresh(row)
+def submit_mission(auth: AuthContext, db: Session, order_id: str) -> tuple[dict[str, Any], dict[str, str]]:
+    return ui_db_service.submit_mission(auth, db, order_id)
 
-    log_event("order_canceled", order_id=str(row.id))
 
-    return {
-        "id": _public_order_id(row.id),
-        "public_tracking_id": row.public_tracking_id,
-        "merchant_id": row.merchant_id,
-        "customer_name": row.customer_name,
-        "status": row.status.value,
-        "created_at": row.created_at,
-        "updated_at": row.updated_at,
-    }
+def run_auto_dispatch(auth: AuthContext, db: Session) -> dict[str, int | list[dict[str, str]]]:
+    drones = _available_drones()
+    if _mode() == "store":
+        return ui_store_service.run_auto_dispatch(drones)
+    result = ui_db_service.run_auto_dispatch(auth, db, drones)
+    if _mode() == "hybrid":
+        store_result = ui_store_service.run_auto_dispatch(drones)
+        combined = [*result["assignments"], *store_result["assignments"]]
+        return {"assigned": len(combined), "assignments": combined}
+    return result
 
 
 def _is_valid_drone_id(drone_id: str) -> bool:
@@ -992,26 +789,9 @@ def create_pod(
     if otp_code:
         otp_hash = hashlib.sha256(otp_code.encode("utf-8")).hexdigest()
 
-    pod = ProofOfDelivery(
-        order_id=order.id,
-        method=m,
-        photo_url=photo_url,
-        otp_hash=otp_hash,
-        confirmed_by=operator_name,
-        metadata_json={},
-        notes=None,
-    )
-    db.add(pod)
-    db.commit()
-    db.refresh(pod)
 
-    return {
-        "order_id": _public_order_id(order.id),
-        "method": pod.method.value,
-        "operator_name": operator_name,
-        "photo_url": pod.photo_url,
-        "created_at": pod.created_at,
-    }
+def create_pod(auth: AuthContext, db: Session, order_id: str, method: str, otp_code: str | None, operator_name: str | None, photo_url: str | None) -> dict[str, Any]:
+    return ui_db_service.create_pod(auth, db, order_id, method, otp_code, operator_name, photo_url)
 
 
 def get_pod(db: Session, order_id: str) -> ProofOfDelivery | None:

@@ -257,3 +257,94 @@ def test_manual_assign_includes_validated_and_queued_events():
         "QUEUED",
         "ASSIGNED",
     ]
+
+
+def test_manual_assign_requires_ops_or_admin():
+    order = client.post(
+        "/api/v1/orders",
+        json={"customer_name": "RBAC Assign"},
+        headers=_headers("MERCHANT", sub="merchant-11"),
+    ).json()
+
+    denied = client.post(
+        f"/api/v1/orders/{order['id']}/assign",
+        json={"drone_id": "DR-1"},
+        headers=_headers("MERCHANT", sub="merchant-11"),
+    )
+    assert denied.status_code == 403
+    assert denied.json()["detail"] == "Write action requires OPS/ADMIN"
+
+
+def test_idempotency_for_assign_and_pod_replay_and_conflict(db_session):
+    headers = _headers("OPS", sub="ops-idem")
+    order = client.post("/api/v1/orders", json={"customer_name": "Idem"}, headers=headers).json()
+
+    assign_headers = dict(headers)
+    assign_headers["Idempotency-Key"] = "idem-assign-1"
+    first_assign = client.post(
+        f"/api/v1/orders/{order['id']}/assign",
+        json={"drone_id": "DR-1"},
+        headers=assign_headers,
+    )
+    replay_assign = client.post(
+        f"/api/v1/orders/{order['id']}/assign",
+        json={"drone_id": "DR-1"},
+        headers=assign_headers,
+    )
+    conflict_assign = client.post(
+        f"/api/v1/orders/{order['id']}/assign",
+        json={"drone_id": "DR-2"},
+        headers=assign_headers,
+    )
+    assert first_assign.status_code == 200
+    assert replay_assign.status_code == 200
+    assert replay_assign.json() == first_assign.json()
+    assert conflict_assign.status_code == 409
+
+    from uuid import UUID
+    from app.models.order import Order, OrderStatus
+
+    db_order = db_session.get(Order, UUID(order["id"]))
+    db_order.status = OrderStatus.DELIVERED
+    db_session.commit()
+
+    pod_headers = dict(headers)
+    pod_headers["Idempotency-Key"] = "idem-pod-1"
+    pod_payload = {"method": "PHOTO", "photo_url": "https://cdn.example/pod.jpg"}
+    first_pod = client.post(f"/api/v1/orders/{order['id']}/pod", json=pod_payload, headers=pod_headers)
+    replay_pod = client.post(f"/api/v1/orders/{order['id']}/pod", json=pod_payload, headers=pod_headers)
+    conflict_pod = client.post(
+        f"/api/v1/orders/{order['id']}/pod",
+        json={"method": "OPERATOR_CONFIRM", "operator_name": "ops"},
+        headers=pod_headers,
+    )
+
+    assert first_pod.status_code == 200
+    assert replay_pod.status_code == 200
+    assert replay_pod.json() == first_pod.json()
+    assert conflict_pod.status_code == 409
+
+
+def test_mission_submit_translates_integration_errors():
+    class FailingPublisher:
+        def publish_mission_intent(self, mission_intent: dict) -> None:
+            from app.integrations.errors import IntegrationUnavailableError
+
+            raise IntegrationUnavailableError("gcs_bridge", "bridge unavailable")
+
+    from app.integrations.gcs_bridge_client import get_gcs_bridge_client
+
+    app.dependency_overrides[get_gcs_bridge_client] = lambda: FailingPublisher()
+
+    headers = _headers("OPS", sub="ops-integration")
+    assign = client.post(
+        "/api/v1/orders/ord-1/assign",
+        json={"drone_id": "DR-3"},
+        headers=headers,
+    )
+    assert assign.status_code == 200
+
+    response = client.post("/api/v1/orders/ord-1/submit-mission-intent", headers=headers)
+    assert response.status_code == 503
+    assert response.json()["detail"]["service"] == "gcs_bridge"
+    app.dependency_overrides.clear()

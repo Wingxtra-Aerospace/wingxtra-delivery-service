@@ -3,6 +3,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import sessionmaker
 
 import app.models  # noqa: F401
+from app.auth.dependencies import reset_rate_limits
 from app.db.base import Base
 from app.db.session import engine as app_engine
 from app.db.session import get_db

@@ -37,13 +37,35 @@ Timing metrics currently captured:
 - `mission_intent_generation_seconds`
 - `http_request_duration_seconds`
 
+## Integration boundaries and retries
 
-### Database configuration
+External integration clients now enforce explicit retry/backoff limits and return structured domain errors:
+
+- `fleet_api_client`
+  - timeout via `FLEET_API_TIMEOUT_S`
+  - retries via `FLEET_API_MAX_RETRIES`
+  - exponential backoff base via `FLEET_API_BACKOFF_S`
+- `gcs_bridge_client`
+  - optional HTTP bridge URL via `GCS_BRIDGE_BASE_URL` (empty means no-op publisher)
+  - timeout via `GCS_BRIDGE_TIMEOUT_S`
+  - retries via `GCS_BRIDGE_MAX_RETRIES`
+  - exponential backoff base via `GCS_BRIDGE_BACKOFF_S`
+
+Error translation for API callers:
+- retryable integration failures translate to `503 Service Unavailable`
+- non-retryable upstream response failures translate to `502 Bad Gateway`
+- response body includes `{service, code, message}` for debugging and runbook routing.
+
+## Database configuration
 
 Set `WINGXTRA_DATABASE_URL` to configure the SQLAlchemy connection URL.
 For CI and local test safety, the service defaults to `sqlite+pysqlite:///./test.db` when unset.
 
 Set `WINGXTRA_TESTING=true` in test environments to disable startup demo-data seeding.
-This keeps API list endpoints deterministic for integration tests. During pytest runs, seeding is also automatically disabled when `PYTEST_CURRENT_TEST` is present.
+This keeps API list endpoints deterministic for integration tests.
 
-In test mode (`WINGXTRA_TESTING=true` or pytest runtime), placeholder order IDs `ord-1` and `ord-2` are accepted for UI integration tests and are materialized as in-memory stub orders.
+Set `WINGXTRA_UI_SERVICE_MODE` to explicitly select the UI service strategy:
+
+- `db`: only database-backed order and tracking flows.
+- `store`: only in-memory placeholder/test flows.
+- `hybrid` (default): DB-backed API flows with placeholder/store adapters enabled for UI test IDs like `ord-1` and `ord-2`.

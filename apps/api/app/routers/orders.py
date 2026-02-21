@@ -50,7 +50,6 @@ async def create_order_endpoint(
 ) -> OrderDetailResponse:
     rate_limit_order_creation(request)
 
-    # Idempotency replay path
     if idempotency_key:
         body = await request.json()
         idem = check_idempotency(
@@ -62,7 +61,6 @@ async def create_order_endpoint(
         if idem.replay and idem.response_payload:
             return OrderDetailResponse.model_validate(idem.response_payload)
 
-    # ✅ ALWAYS create the order (independent of idempotency_key)
     order = create_order(
         auth=auth,
         db=db,

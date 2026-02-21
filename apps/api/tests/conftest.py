@@ -3,6 +3,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import sessionmaker
 
 import app.models  # noqa: F401
+from app.config import settings
 from app.db.base import Base
 from app.db.session import engine as app_engine
 from app.db.session import get_db
@@ -17,6 +18,14 @@ def setup_test_schema():
     Base.metadata.drop_all(bind=app_engine)
 
 
+@pytest.fixture(autouse=True)
+def enable_placeholder_mode_for_tests():
+    original = settings.enable_placeholder_mode
+    settings.enable_placeholder_mode = True
+    try:
+        yield
+    finally:
+        settings.enable_placeholder_mode = original
 
 
 @pytest.fixture(autouse=True)

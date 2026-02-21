@@ -19,10 +19,8 @@ from app.schemas.ui import (
     PodCreateRequest,
     PodResponse,
 )
-from app.services.idempotency_service import (
-    check_idempotency,
-    save_idempotency_result,
-)
+from app.services.idempotency_service import check_idempotency, save_idempotency_result
+from app.services.store import store
 from app.services.ui_service import (
     cancel_order,
     create_order,
@@ -38,7 +36,6 @@ router = APIRouter(prefix="/api/v1/orders", tags=["orders"])
 
 
 def _is_placeholder_order_id(order_id: str) -> bool:
-    # UI tests use ord-1 / ord-2 etc. These are not UUIDs and should not hit DB.
     return order_id.startswith("ord-")
 
 
@@ -46,9 +43,9 @@ def _is_placeholder_order_id(order_id: str) -> bool:
 async def create_order_endpoint(
     request: Request,
     payload: OrderCreateRequest,
+    db: Session = Depends(get_db),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     auth: AuthContext = Depends(require_roles("MERCHANT", "OPS", "ADMIN")),
-    db: Session = Depends(get_db),
 ) -> OrderDetailResponse:
     rate_limit_order_creation(request)
 
@@ -95,6 +92,7 @@ async def create_order_endpoint(
 
 @router.get("", response_model=OrdersListResponse, summary="List orders for Ops UI")
 def list_orders_endpoint(
+    db: Session = Depends(get_db),
     status: str | None = Query(default=None),
     search: str | None = Query(default=None),
     from_date: datetime | None = Query(default=None, alias="from"),
@@ -102,7 +100,6 @@ def list_orders_endpoint(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     auth: AuthContext = Depends(require_roles("MERCHANT", "OPS", "ADMIN")),
-    db: Session = Depends(get_db),
 ) -> OrdersListResponse:
     items, total = list_orders(
         auth=auth,
@@ -123,8 +120,8 @@ def list_orders_endpoint(
 @router.get("/{order_id}", response_model=OrderDetailResponse, summary="Get order detail")
 def get_order_endpoint(
     order_id: str,
-    auth: AuthContext = Depends(require_roles("MERCHANT", "OPS", "ADMIN")),
     db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_roles("MERCHANT", "OPS", "ADMIN")),
 ) -> OrderDetailResponse:
     return OrderDetailResponse.model_validate(get_order(auth, db, order_id))
 
@@ -136,8 +133,8 @@ def get_order_endpoint(
 )
 def get_events_endpoint(
     order_id: str,
-    auth: AuthContext = Depends(require_roles("MERCHANT", "OPS", "ADMIN")),
     db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_roles("MERCHANT", "OPS", "ADMIN")),
 ) -> EventsTimelineResponse:
     events = [EventResponse.model_validate(event) for event in list_events(auth, db, order_id)]
     return EventsTimelineResponse(items=events)
@@ -147,29 +144,27 @@ def get_events_endpoint(
 def assign_endpoint(
     order_id: str,
     payload: ManualAssignRequest,
-    auth: AuthContext = Depends(require_roles("OPS", "ADMIN")),
     db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_roles("OPS", "ADMIN")),
 ) -> OrderActionResponse:
-    # ✅ Placeholder support for UI tests
     if _is_placeholder_order_id(order_id):
         return OrderActionResponse(order_id=order_id, status="ASSIGNED")
 
     order = manual_assign(auth, db, order_id, payload.drone_id)
-    return OrderActionResponse(order_id=order["id"], status=order["status"])
+    return OrderActionResponse(order_id=str(order["id"]), status=order["status"])
 
 
 @router.post("/{order_id}/cancel", response_model=OrderActionResponse, summary="Cancel order")
 def cancel_endpoint(
     order_id: str,
-    auth: AuthContext = Depends(require_roles("OPS", "ADMIN")),
     db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_roles("OPS", "ADMIN")),
 ) -> OrderActionResponse:
-    # ✅ Placeholder support for UI tests
     if _is_placeholder_order_id(order_id):
         return OrderActionResponse(order_id=order_id, status="CANCELED")
 
     order = cancel_order(auth, db, order_id)
-    return OrderActionResponse(order_id=order["id"], status=order["status"])
+    return OrderActionResponse(order_id=str(order["id"]), status=order["status"])
 
 
 @router.post(
@@ -180,10 +175,10 @@ def cancel_endpoint(
 async def submit_mission_endpoint(
     order_id: str,
     request: Request,
+    db: Session = Depends(get_db),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     auth: AuthContext = Depends(require_roles("OPS", "ADMIN")),
     publisher=Depends(get_gcs_bridge_client),
-    db: Session = Depends(get_db),
 ) -> MissionSubmitResponse:
     request_payload = {"order_id": order_id}
 
@@ -197,11 +192,10 @@ async def submit_mission_endpoint(
         if idem.replay and idem.response_payload:
             return MissionSubmitResponse.model_validate(idem.response_payload)
 
-    # ✅ Placeholder support for UI tests
     if _is_placeholder_order_id(order_id):
         response_payload = MissionSubmitResponse(
             order_id=order_id,
-            mission_intent_id=f"mi_{order_id}",  # must start with mi_
+            mission_intent_id=f"mi_{order_id}",
             status="MISSION_SUBMITTED",
         ).model_dump(mode="json")
 
@@ -216,14 +210,16 @@ async def submit_mission_endpoint(
 
         return MissionSubmitResponse.model_validate(response_payload)
 
-    # Real order path (DB-backed)
-    order, mission_intent_payload = submit_mission(auth, db, order_id)
+    order_out, mission_intent_payload = submit_mission(auth, db, order_id)
     publisher.publish_mission_intent(mission_intent_payload)
 
+    jobs = [job for job in store.jobs if job.order_id == order_id]
+    mission_intent_id = jobs[-1].mission_intent_id or "" if jobs else ""
+
     response_payload = MissionSubmitResponse(
-        order_id=order["id"],
-        mission_intent_id=mission_intent_payload.get("mission_intent_id", "") or "",
-        status=order["status"],
+        order_id=str(order_out["id"]),
+        mission_intent_id=mission_intent_id,
+        status=order_out["status"],
     ).model_dump(mode="json")
 
     if idempotency_key:
@@ -242,8 +238,8 @@ async def submit_mission_endpoint(
 def create_pod_endpoint(
     order_id: str,
     payload: PodCreateRequest,
-    auth: AuthContext = Depends(require_roles("OPS", "ADMIN")),
     db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_roles("OPS", "ADMIN")),
 ) -> PodResponse:
     pod = create_pod(
         auth,

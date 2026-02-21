@@ -1,13 +1,15 @@
 import hashlib
 import json
-import time
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from fastapi import HTTPException, status
+from sqlalchemy import delete, select
+from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.services.store import store
+from app.models.idempotency_record import IdempotencyRecord
 
 
 @dataclass
@@ -21,40 +23,40 @@ def _hash_payload(payload: Any) -> str:
     return hashlib.sha256(canonical.encode()).hexdigest()
 
 
-def _purge_expired_records(now_s: float) -> None:
-    expired_keys = [
-        key
-        for key, value in store.idempotency_records.items()
-        if float(value.get("expires_at", 0)) <= now_s
-    ]
-    for key in expired_keys:
-        store.idempotency_records.pop(key, None)
+def _purge_expired_records(db: Session, now: datetime) -> None:
+    db.execute(delete(IdempotencyRecord).where(IdempotencyRecord.expires_at <= now))
 
 
 def check_idempotency(
     *,
+    db: Session,
     user_id: str,
     route: str,
     idempotency_key: str,
     request_payload: Any,
 ) -> IdempotencyResult:
-    now_s = time.time()
-    _purge_expired_records(now_s)
+    now = datetime.now(timezone.utc)
+    _purge_expired_records(db, now)
 
     payload_hash = _hash_payload(request_payload)
-    record_key = (user_id, route, idempotency_key)
-    record = store.idempotency_records.get(record_key)
+    record = db.scalar(
+        select(IdempotencyRecord).where(
+            IdempotencyRecord.user_id == user_id,
+            IdempotencyRecord.route == route,
+            IdempotencyRecord.idempotency_key == idempotency_key,
+        )
+    )
 
     if not record:
         return IdempotencyResult(replay=False)
 
-    if record["request_hash"] != payload_hash:
+    if record.request_hash != payload_hash:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Idempotency key reused with different payload",
         )
 
-    return IdempotencyResult(replay=True, response_payload=record["response_payload"])
+    return IdempotencyResult(replay=True, response_payload=record.response_payload)
 
 
 def build_scope(route: str, *, user_id: str, order_id: str | None = None) -> str:
@@ -65,19 +67,39 @@ def build_scope(route: str, *, user_id: str, order_id: str | None = None) -> str
 
 def save_idempotency_result(
     *,
+    db: Session,
     user_id: str,
     route: str,
     idempotency_key: str,
     request_payload: Any,
     response_payload: dict[str, Any],
 ) -> None:
-    now_s = time.time()
-    _purge_expired_records(now_s)
+    now = datetime.now(timezone.utc)
+    _purge_expired_records(db, now)
 
     payload_hash = _hash_payload(request_payload)
-    record_key = (user_id, route, idempotency_key)
-    store.idempotency_records[record_key] = {
-        "request_hash": payload_hash,
-        "response_payload": response_payload,
-        "expires_at": now_s + settings.idempotency_ttl_s,
-    }
+    expires_at = now + timedelta(seconds=settings.idempotency_ttl_s)
+
+    record = db.scalar(
+        select(IdempotencyRecord).where(
+            IdempotencyRecord.user_id == user_id,
+            IdempotencyRecord.route == route,
+            IdempotencyRecord.idempotency_key == idempotency_key,
+        )
+    )
+    if record is None:
+        record = IdempotencyRecord(
+            user_id=user_id,
+            route=route,
+            idempotency_key=idempotency_key,
+            request_hash=payload_hash,
+            response_payload=response_payload,
+            expires_at=expires_at,
+        )
+        db.add(record)
+    else:
+        record.request_hash = payload_hash
+        record.response_payload = response_payload
+        record.expires_at = expires_at
+
+    db.commit()

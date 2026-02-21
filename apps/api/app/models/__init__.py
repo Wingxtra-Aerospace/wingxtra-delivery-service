@@ -5,3 +5,5 @@ from app.models.proof_of_delivery import (  # noqa: F401
     ProofOfDelivery,
     ProofOfDeliveryMethod,
 )
+
+from app.models.idempotency_record import IdempotencyRecord  # noqa: F401

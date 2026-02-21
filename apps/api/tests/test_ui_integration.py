@@ -186,8 +186,6 @@ def test_metrics_endpoint_exposes_dispatch_and_mission_timings():
     assert "mission_intent_generation_seconds" in payload["timings"]
 
 
-
-
 def test_auto_dispatch_assigns_placeholder_ord2_when_queued():
     headers = _headers("OPS", sub="ops-dispatch-ord2")
 
@@ -197,6 +195,7 @@ def test_auto_dispatch_assigns_placeholder_ord2_when_queued():
     assignments = run.json()["assignments"]
     assert any(item["order_id"] == "ord-2" for item in assignments)
     assert all("order_id" in item and "status" in item for item in assignments)
+
 
 def test_auto_dispatch_and_manual_assign_routes_exist():
     headers = _headers("OPS", sub="ops-dispatch")

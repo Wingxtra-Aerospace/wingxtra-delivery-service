@@ -36,17 +36,41 @@ ACTIVE_JOB_STATUSES: set[OrderStatus] = {
     OrderStatus.DELIVERING,
 }
 
-# Placeholder support for tests/demo mode
-_PLACEHOLDER_IDS: dict[str, uuid.UUID] = {
-    "ord-1": uuid.UUID("00000000-0000-4000-8000-000000000001"),
-    "ord-2": uuid.UUID("00000000-0000-4000-8000-000000000002"),
-}
-_PLACEHOLDER_REVERSE: dict[uuid.UUID, str] = {v: k for k, v in _PLACEHOLDER_IDS.items()}
-_PLACEHOLDER_TRACKING_ID_ORD1 = "11111111-1111-4111-8111-111111111111"
+def _is_placeholder_order_id(order_id: str) -> bool:
+    return order_id.startswith("ord-")
 
 
-def _now_utc() -> datetime:
-    return datetime.now(timezone.utc)
+def _parse_order_uuid(order_id: str) -> uuid.UUID | None:
+    if _is_placeholder_order_id(order_id):
+        return None
+    try:
+        return uuid.UUID(order_id)
+    except ValueError:
+        return None
+
+
+def _load_db_order(order_id: str) -> DbOrder | None:
+    order_uuid = _parse_order_uuid(order_id)
+    if order_uuid is None:
+        return None
+    with SessionLocal() as session:
+        return session.get(DbOrder, order_uuid)
+
+
+def _persist_order_status(order_id: str, status_value: str, updated_at: datetime) -> None:
+    order_uuid = _parse_order_uuid(order_id)
+    if order_uuid is None:
+        return
+    with SessionLocal() as session:
+        row = session.get(DbOrder, order_uuid)
+        if row is not None:
+            row.status = status_value
+            row.updated_at = updated_at
+            session.commit()
+
+
+def _is_backoffice(role: str) -> bool:
+    return role in {"OPS", "ADMIN"}
 
 
 def _test_mode_enabled() -> bool:
@@ -57,11 +81,8 @@ def _is_backoffice(role: str) -> bool:
     return role in {"OPS", "ADMIN"}
 
 
-def _public_order_id(order_uuid: uuid.UUID) -> str:
-    """Return ord-1/ord-2 in test mode, else UUID string."""
-    if _test_mode_enabled() and order_uuid in _PLACEHOLDER_REVERSE:
-        return _PLACEHOLDER_REVERSE[order_uuid]
-    return str(order_uuid)
+    created = now_utc()
+    tracking_id = "11111111-1111-4111-8111-111111111111" if order_id == "ord-1" else new_id()
 
 
 def _resolve_order_id(order_id: str) -> uuid.UUID:
@@ -345,6 +366,20 @@ def list_events(auth: AuthContext, db: Session, order_id: str) -> list[dict[str,
     oid = _resolve_order_id(order_id)
     order = db.get(Order, oid)
     if order is None:
+        row = _load_db_order(order_id)
+        if row is not None:
+            order = Order(
+                id=str(row.id),
+                public_tracking_id=row.public_tracking_id,
+                merchant_id=row.merchant_id,
+                customer_name=row.customer_name,
+                status=str(getattr(row.status, "value", row.status)),
+                created_at=row.created_at,
+                updated_at=row.updated_at,
+            )
+            store.orders[order.id] = order
+
+    if not order:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
     _assert_can_access_order(auth, order)
 
@@ -371,46 +406,23 @@ def list_events(auth: AuthContext, db: Session, order_id: str) -> list[dict[str,
 
 def cancel_order(auth: AuthContext, db: Session, order_id: str) -> dict[str, Any]:
     if auth.role not in {"OPS", "ADMIN"}:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient role",
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
+    order = get_order(auth, order_id)
+    row = _load_db_order(order_id)
+    if row is not None:
+        order.status = str(getattr(row.status, "value", row.status))
 
-    _ensure_test_placeholders_seeded(db)
-
-    oid = _resolve_order_id(order_id)
-    row = db.get(Order, oid)
-    if row is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
-
-    if row.status in TERMINAL:
+    if order.status in TERMINAL:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Order is in terminal state",
         )
-
-    row.status = OrderStatus.CANCELED
-    row.updated_at = _now_utc()
-    _append_event(
-        db,
-        order_id=row.id,
-        event_type=DeliveryEventType.CANCELED,
-        message="Order canceled by operator",
-    )
-    db.commit()
-    db.refresh(row)
-
-    log_event("order_canceled", order_id=str(row.id))
-
-    return {
-        "id": _public_order_id(row.id),
-        "public_tracking_id": row.public_tracking_id,
-        "merchant_id": row.merchant_id,
-        "customer_name": row.customer_name,
-        "status": row.status.value,
-        "created_at": row.created_at,
-        "updated_at": row.updated_at,
-    }
+    order.status = "CANCELED"
+    order.updated_at = now_utc()
+    _persist_order_status(order_id, order.status, order.updated_at)
+    append_event(order_id, "CANCELED", "Order canceled by operator")
+    log_event("order_canceled", order_id=order.id)
+    return order
 
 
 def _is_valid_drone_id(drone_id: str) -> bool:
@@ -466,35 +478,12 @@ def manual_assign(
         )
 
     with observe_timing("dispatch_assignment_seconds"):
-        if row.status == OrderStatus.CREATED:
-            row.status = OrderStatus.VALIDATED
-            _append_event(
-                db,
-                order_id=row.id,
-                event_type=DeliveryEventType.VALIDATED,
-                message="Order validated",
-            )
-            row.status = OrderStatus.QUEUED
-            _append_event(
-                db,
-                order_id=row.id,
-                event_type=DeliveryEventType.QUEUED,
-                message="Order queued for dispatch",
-            )
-        elif row.status == OrderStatus.VALIDATED:
-            row.status = OrderStatus.QUEUED
-            _append_event(
-                db,
-                order_id=row.id,
-                event_type=DeliveryEventType.QUEUED,
-                message="Order queued for dispatch",
-            )
-
-        row.status = OrderStatus.ASSIGNED
-        row.updated_at = _now_utc()
-
-        job = DeliveryJob(
-            order_id=row.id,
+        order.status = "ASSIGNED"
+        order.updated_at = now_utc()
+        _persist_order_status(order_id, order.status, order.updated_at)
+        job = Job(
+            id=new_id("job-"),
+            order_id=order_id,
             assigned_drone_id=drone_id,
             status=DeliveryJobStatus.ACTIVE,
         )
@@ -569,22 +558,11 @@ def submit_mission(
 
     with observe_timing("mission_intent_generation_seconds"):
         if not job.mission_intent_id:
-            job.mission_intent_id = f"mi_{uuid.uuid4().hex}"
+            job.mission_intent_id = new_id("mi_")
 
-        row.status = OrderStatus.MISSION_SUBMITTED
-        row.updated_at = _now_utc()
-
-        _append_event(
-            db,
-            order_id=row.id,
-            job_id=job.id,
-            event_type=DeliveryEventType.MISSION_SUBMITTED,
-            message="Mission submitted",
-            payload={
-                "mission_intent_id": job.mission_intent_id,
-                "drone_id": job.assigned_drone_id,
-            },
-        )
+        order.status = "MISSION_SUBMITTED"
+        order.updated_at = now_utc()
+        _persist_order_status(order_id, order.status, order.updated_at)
 
         db.commit()
         db.refresh(row)
@@ -625,15 +603,16 @@ def run_auto_dispatch(
             detail="Insufficient role",
         )
 
-    _ensure_test_placeholders_seeded(db)
+    _ensure_test_placeholder_order("ord-1")
+    _ensure_test_placeholder_order("ord-2")
 
-    dispatchable = {OrderStatus.CREATED, OrderStatus.VALIDATED, OrderStatus.QUEUED}
-    stmt = (
-        select(Order)
-        .where(Order.status.in_(dispatchable))
-        .order_by(Order.created_at.asc())
-    )
-    orders = list(db.scalars(stmt))
+    assignments: list[dict[str, str]] = []
+    candidates = [
+        order
+        for order in store.orders.values()
+        if order.status in {"CREATED", "VALIDATED", "QUEUED"}
+    ]
+    candidates.sort(key=lambda x: x.created_at)
 
     available_drones = [
         drone_id

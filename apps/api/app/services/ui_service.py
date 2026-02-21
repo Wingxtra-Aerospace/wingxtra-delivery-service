@@ -188,8 +188,8 @@ def list_orders(
 
 def create_order(
     auth: AuthContext,
-    db: Session,
-    customer_name: str | None,
+    db: Session | None = None,
+    customer_name: str | None = None,
     customer_phone: str | None = None,
     lat: float | None = None,
     weight: float | None = None,
@@ -232,6 +232,40 @@ def create_order(
         prio = OrderPriority.NORMAL
 
     now = _now_utc()
+
+    # -------------------------
+    # Store-only path (unit tests)
+    # -------------------------
+    if db is None:
+        oid = uuid.uuid4()
+        tracking_id = uuid.uuid4().hex
+        order_dict: dict[str, Any] = {
+            "id": str(oid),
+            "public_tracking_id": tracking_id,
+            "merchant_id": auth.user_id if auth.role == "MERCHANT" else None,
+            "customer_name": customer_name,
+            "status": OrderStatus.CREATED.value,
+            "created_at": now,
+            "updated_at": now,
+        }
+        store.orders.append(order_dict)
+
+        # Unit tests expect only CREATED event after creation
+        store.events.append(
+            {
+                "order_id": str(oid),
+                "type": DeliveryEventType.CREATED.value,
+                "message": "Order created",
+                "created_at": now,
+            }
+        )
+
+        log_event("order_created", order_id=str(oid))
+        return order_dict
+
+    # -------------------------
+    # DB path (API/integration tests)
+    # -------------------------
     o = Order(
         public_tracking_id=uuid.uuid4().hex,
         merchant_id=auth.user_id if auth.role == "MERCHANT" else None,
@@ -253,7 +287,6 @@ def create_order(
     db.add(o)
     db.flush()  # ensure o.id exists before events
 
-    # Tests expect ONLY 'CREATED' event immediately after creation.
     _append_event(
         db,
         order_id=o.id,

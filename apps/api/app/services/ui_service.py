@@ -725,3 +725,63 @@ def create_pod(
         "photo_url": pod.photo_url,
         "created_at": pod.created_at,
     }
+def list_jobs(auth: AuthContext, active_only: bool) -> list[DeliveryJob]:
+    if auth.role not in {"OPS", "ADMIN"}:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Insufficient role",
+        )
+
+    jobs = list(store.jobs)
+
+    if active_only:
+        active_statuses = {
+            DeliveryJobStatus.PENDING,
+            DeliveryJobStatus.ACTIVE,
+        }
+        jobs = [job for job in jobs if job.status in active_statuses]
+
+    return jobs
+
+def tracking_view(public_tracking_id: str) -> Order:
+    # First check in-memory store (used by UI + demo mode)
+    for order in store.orders.values():
+        if order.public_tracking_id == public_tracking_id:
+            return order
+
+    # Fallback to DB
+    with SessionLocal() as session:
+        row = (
+            session.query(DbOrder)
+            .filter(DbOrder.public_tracking_id == public_tracking_id)
+            .one_or_none()
+        )
+
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Tracking record not found",
+        )
+
+    return Order(
+        id=str(row.id),
+        public_tracking_id=row.public_tracking_id,
+        merchant_id=row.merchant_id,
+        customer_name=row.customer_name,
+        status=str(getattr(row.status, "value", row.status)),
+        created_at=row.created_at,
+        updated_at=row.updated_at,
+    )
+
+def get_pod(order_id: str) -> ProofOfDelivery | None:
+    with SessionLocal() as session:
+        try:
+            oid = uuid.UUID(order_id)
+        except ValueError:
+            return None
+
+        return (
+            session.query(ProofOfDelivery)
+            .filter(ProofOfDelivery.order_id == oid)
+            .one_or_none()
+        )

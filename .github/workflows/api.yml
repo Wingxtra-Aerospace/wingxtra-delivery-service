@@ -13,8 +13,23 @@ on:
 jobs:
   api:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: wingxtra_ci
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d wingxtra_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     env:
-      WINGXTRA_DATABASE_URL: sqlite+pysqlite:///./ci.db
+      WINGXTRA_DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/wingxtra_ci
+      WINGXTRA_TESTING: "true"
     defaults:
       run:
         working-directory: apps/api

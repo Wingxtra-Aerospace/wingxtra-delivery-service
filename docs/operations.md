@@ -62,6 +62,9 @@ Error translation for API callers:
 Set `WINGXTRA_DATABASE_URL` to configure the SQLAlchemy connection URL.
 For CI and local test safety, the service defaults to `sqlite+pysqlite:///./test.db` when unset.
 
+CI now runs API tests against Postgres (service container in `.github/workflows/api.yml`) to improve environment parity with production.
+SQLite remains supported for local/dev safety when `WINGXTRA_DATABASE_URL` is unset.
+
 Set `WINGXTRA_TESTING=true` in test environments to disable startup demo-data seeding.
 This keeps API list endpoints deterministic for integration tests.
 

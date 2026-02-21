@@ -200,6 +200,13 @@ async def submit_mission_endpoint(
             mission_intent_id=f"mi_{order_id}",
             status="MISSION_SUBMITTED",
         ).model_dump(mode="json")
+        publisher.publish_mission_intent(
+            {
+                "order_id": order_id,
+                "mission_intent_id": response_payload["mission_intent_id"],
+                "drone_id": "",
+            }
+        )
 
         if idempotency_key:
             save_idempotency_result(

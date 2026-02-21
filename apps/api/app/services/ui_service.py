@@ -116,7 +116,9 @@ def _ensure_test_placeholders_seeded(db: Session) -> None:
         if db.get(Order, oid) is not None:
             continue
 
-        tracking = _PLACEHOLDER_TRACKING_ID_ORD1 if public_id == "ord-1" else uuid.uuid4().hex
+        tracking = (
+            _PLACEHOLDER_TRACKING_ID_ORD1 if public_id == "ord-1" else uuid.uuid4().hex
+        )
         created = _now_utc()
 
         o = Order(
@@ -139,9 +141,24 @@ def _ensure_test_placeholders_seeded(db: Session) -> None:
         )
         db.add(o)
 
-        _append_event(db, order_id=oid, event_type=DeliveryEventType.CREATED, message="Order created")
-        _append_event(db, order_id=oid, event_type=DeliveryEventType.VALIDATED, message="Order validated")
-        _append_event(db, order_id=oid, event_type=DeliveryEventType.QUEUED, message="Order queued for dispatch")
+        _append_event(
+            db,
+            order_id=oid,
+            event_type=DeliveryEventType.CREATED,
+            message="Order created",
+        )
+        _append_event(
+            db,
+            order_id=oid,
+            event_type=DeliveryEventType.VALIDATED,
+            message="Order validated",
+        )
+        _append_event(
+            db,
+            order_id=oid,
+            event_type=DeliveryEventType.QUEUED,
+            message="Order queued for dispatch",
+        )
 
     db.commit()
 
@@ -246,8 +263,12 @@ def create_order(
         resolved_pickup_lat = 0.0
 
     resolved_pickup_lng = pickup_lng if pickup_lng is not None else 0.0
-    resolved_dropoff_lat = dropoff_lat if dropoff_lat is not None else resolved_pickup_lat
-    resolved_dropoff_lng = dropoff_lng if dropoff_lng is not None else resolved_pickup_lng
+    resolved_dropoff_lat = (
+        dropoff_lat if dropoff_lat is not None else resolved_pickup_lat
+    )
+    resolved_dropoff_lng = (
+        dropoff_lng if dropoff_lng is not None else resolved_pickup_lng
+    )
 
     # Resolve payload weight
     if payload_weight_kg is not None:
@@ -282,7 +303,12 @@ def create_order(
     )
 
     db.add(o)
-    _append_event(db, order_id=o.id, event_type=DeliveryEventType.CREATED, message="Order created")
+    _append_event(
+        db,
+        order_id=o.id,
+        event_type=DeliveryEventType.CREATED,
+        message="Order created",
+    )
     db.commit()
     db.refresh(o)
 
@@ -521,7 +547,10 @@ def submit_mission(
     )
     job = db.scalar(job_stmt)
     if job is None:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="No delivery job for order")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No delivery job for order",
+        )
 
     with observe_timing("mission_intent_generation_seconds"):
         if not job.mission_intent_id:
@@ -639,7 +668,10 @@ def tracking_view(db: Session, public_tracking_id: str) -> dict[str, Any]:
     stmt = select(Order).where(Order.public_tracking_id == public_tracking_id)
     row = db.scalar(stmt)
     if row is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tracking record not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Tracking record not found",
+        )
 
     return {
         "id": _public_order_id(row.id),
@@ -709,7 +741,6 @@ def get_pod(db: Session, order_id: str) -> ProofOfDelivery | None:
     try:
         oid = uuid.UUID(order_id)
     except ValueError:
-        # If this is ord-1/ord-2, resolve in test mode
         oid = _resolve_order_id(order_id)
 
     return db.scalar(select(ProofOfDelivery).where(ProofOfDelivery.order_id == oid))

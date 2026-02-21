@@ -1027,7 +1027,12 @@ def create_pod(
 
 
 def get_pod(db: Session, order_id: str) -> ProofOfDelivery | None:
-    oid = _resolve_db_uuid(order_id)
+    # Public tracking for in-memory placeholder orders uses non-UUID ids.
+    try:
+        oid = _resolve_db_uuid(order_id)
+    except HTTPException:
+        return None
+
     return db.scalar(
         select(ProofOfDelivery).where(ProofOfDelivery.order_id == oid)
     )

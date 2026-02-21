@@ -15,12 +15,12 @@ from app.auth.dependencies import AuthContext
 from app.config import settings
 from app.models.delivery_event import DeliveryEvent, DeliveryEventType
 from app.models.delivery_job import DeliveryJob, DeliveryJobStatus
-from app.models.order import Order, OrderPriority, OrderStatus
-from app.models.proof_of_delivery import ProofOfDelivery, ProofOfDeliveryMethod
 from app.models.domain import Event as MemEvent
 from app.models.domain import Job as MemJob
 from app.models.domain import Order as MemOrder
 from app.models.domain import now_utc as mem_now_utc
+from app.models.order import Order, OrderPriority, OrderStatus
+from app.models.proof_of_delivery import ProofOfDelivery, ProofOfDeliveryMethod
 from app.observability import log_event, observe_timing
 from app.services.store import store
 
@@ -198,16 +198,23 @@ def create_order(
     if auth.role not in {"MERCHANT", "OPS", "ADMIN"}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
 
-    resolved_pickup_lat = pickup_lat if pickup_lat is not None else (lat if lat is not None else 0.0)
+    if pickup_lat is not None:
+        resolved_pickup_lat = pickup_lat
+    elif lat is not None:
+        resolved_pickup_lat = lat
+    else:
+        resolved_pickup_lat = 0.0
+
     resolved_pickup_lng = pickup_lng if pickup_lng is not None else 0.0
     resolved_dropoff_lat = dropoff_lat if dropoff_lat is not None else resolved_pickup_lat
     resolved_dropoff_lng = dropoff_lng if dropoff_lng is not None else resolved_pickup_lng
 
-    resolved_payload_weight = (
-        payload_weight_kg
-        if payload_weight_kg is not None
-        else (weight if weight is not None else 1.0)
-    )
+    if payload_weight_kg is not None:
+        resolved_payload_weight = payload_weight_kg
+    elif weight is not None:
+        resolved_payload_weight = weight
+    else:
+        resolved_payload_weight = 1.0
 
     try:
         prio = OrderPriority(priority) if priority else OrderPriority.NORMAL
@@ -270,12 +277,7 @@ def create_order(
     db.flush()  # ensure o.id exists
 
     # Integration tests expect ONLY CREATED here.
-    _append_event(
-        db,
-        order_id=o.id,
-        event_type=DeliveryEventType.CREATED,
-        message="Order created",
-    )
+    _append_event(db, order_id=o.id, event_type=DeliveryEventType.CREATED, message="Order created")
 
     db.commit()
     db.refresh(o)
@@ -415,7 +417,10 @@ def manual_assign(auth: AuthContext, *args: Any) -> Any:
         drone_id = cast(str, args[2])
         return _manual_assign_db(auth, db, order_id, drone_id)
 
-    raise TypeError("manual_assign expected (auth, order_id, drone_id) or (auth, db, order_id, drone_id)")
+    raise TypeError(
+        "manual_assign expected (auth, order_id, drone_id) or "
+        "(auth, db, order_id, drone_id)"
+    )
 
 
 def _manual_assign_store(auth: AuthContext, order_id: str, drone_id: str) -> MemOrder:
@@ -482,7 +487,12 @@ def _manual_assign_store(auth: AuthContext, order_id: str, drone_id: str) -> Mem
     return order
 
 
-def _manual_assign_db(auth: AuthContext, db: Session, order_id: str, drone_id: str) -> dict[str, Any]:
+def _manual_assign_db(
+    auth: AuthContext,
+    db: Session,
+    order_id: str,
+    drone_id: str,
+) -> dict[str, Any]:
     if auth.role not in {"OPS", "ADMIN"}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
 
@@ -711,7 +721,6 @@ def tracking_view(db: Session, public_tracking_id: str) -> dict[str, Any]:
             "status": OrderStatus.QUEUED.value,
         }
 
-    # DB path
     row = db.scalar(select(Order).where(Order.public_tracking_id == public_tracking_id))
     if row is not None:
         return {
@@ -720,7 +729,7 @@ def tracking_view(db: Session, public_tracking_id: str) -> dict[str, Any]:
             "status": row.status.value,
         }
 
-    # Store path fallback (for tests that create orders via store-only functions)
+    # Store path fallback
     for o in store.orders.values():
         if getattr(o, "public_tracking_id", None) == public_tracking_id:
             return {

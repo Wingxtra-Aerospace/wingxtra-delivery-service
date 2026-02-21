@@ -20,16 +20,17 @@ from app.schemas.ui import (
     PodResponse,
 )
 from app.services.idempotency_service import check_idempotency, save_idempotency_result
-from app.services.store import store
 from app.services.ui_service import (
     cancel_order,
     create_order,
     create_pod,
     get_order,
+    get_pod,
     list_events,
     list_orders,
     manual_assign,
     submit_mission,
+    tracking_view,
 )
 
 router = APIRouter(prefix="/api/v1/orders", tags=["orders"])
@@ -49,6 +50,7 @@ async def create_order_endpoint(
 ) -> OrderDetailResponse:
     rate_limit_order_creation(request)
 
+    # Idempotency replay path
     if idempotency_key:
         body = await request.json()
         idem = check_idempotency(
@@ -60,6 +62,7 @@ async def create_order_endpoint(
         if idem.replay and idem.response_payload:
             return OrderDetailResponse.model_validate(idem.response_payload)
 
+    # ✅ ALWAYS create the order (independent of idempotency_key)
     order = create_order(
         auth=auth,
         db=db,
@@ -211,15 +214,13 @@ async def submit_mission_endpoint(
 
         return MissionSubmitResponse.model_validate(response_payload)
 
+    # ✅ Use the mission_intent_id returned by the service (NOT store.jobs)
     order_out, mission_intent_payload = submit_mission(auth, db, order_id)
     publisher.publish_mission_intent(mission_intent_payload)
 
-    jobs = [job for job in store.jobs if job.order_id == order_id]
-    mission_intent_id = jobs[-1].mission_intent_id or "" if jobs else ""
-
     response_payload = MissionSubmitResponse(
         order_id=str(order_out["id"]),
-        mission_intent_id=mission_intent_id,
+        mission_intent_id=mission_intent_payload.get("mission_intent_id", ""),
         status=order_out["status"],
     ).model_dump(mode="json")
 
@@ -251,4 +252,24 @@ def create_pod_endpoint(
         operator_name=payload.operator_name,
         photo_url=payload.photo_url,
     )
+    return PodResponse.model_validate(pod)
+
+
+@router.get("/track/{public_tracking_id}", summary="Public tracking")
+def public_tracking_endpoint(
+    public_tracking_id: str,
+    db: Session = Depends(get_db),
+) -> dict:
+    return tracking_view(db, public_tracking_id)
+
+
+@router.get("/{order_id}/pod", summary="Get proof of delivery")
+def get_pod_endpoint(
+    order_id: str,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_roles("OPS", "ADMIN")),
+) -> PodResponse:
+    pod = get_pod(db, order_id)
+    if pod is None:
+        return PodResponse.model_validate({"order_id": order_id, "method": None})
     return PodResponse.model_validate(pod)

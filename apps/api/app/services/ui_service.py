@@ -16,10 +16,7 @@ from app.config import settings
 from app.models.delivery_event import DeliveryEvent, DeliveryEventType
 from app.models.delivery_job import DeliveryJob, DeliveryJobStatus
 from app.models.order import Order, OrderPriority, OrderStatus
-from app.models.proof_of_delivery import (
-    ProofOfDelivery,
-    ProofOfDeliveryMethod,
-)
+from app.models.proof_of_delivery import ProofOfDelivery, ProofOfDeliveryMethod
 from app.observability import log_event, observe_timing
 from app.services.store import store
 
@@ -61,14 +58,14 @@ def _is_backoffice(role: str) -> bool:
 
 
 def _public_order_id(order_uuid: uuid.UUID) -> str:
-    """Return ord-1/ord-2 in test mode, else the UUID string."""
+    """Return ord-1/ord-2 in test mode, else UUID string."""
     if _test_mode_enabled() and order_uuid in _PLACEHOLDER_REVERSE:
         return _PLACEHOLDER_REVERSE[order_uuid]
     return str(order_uuid)
 
 
 def _resolve_order_id(order_id: str) -> uuid.UUID:
-    """Accept ord-1/ord-2 in test mode; otherwise require a UUID."""
+    """Accept ord-1/ord-2 in test mode; otherwise require UUID."""
     if _test_mode_enabled() and order_id in _PLACEHOLDER_IDS:
         return _PLACEHOLDER_IDS[order_id]
     try:
@@ -112,7 +109,7 @@ def _append_event(
 
 
 def _ensure_test_placeholders_seeded(db: Session) -> None:
-    """Create ord-1 / ord-2 as deterministic UUID orders + timeline, only in test mode."""
+    """Create ord-1/ord-2 deterministic UUID orders + timeline (test mode only)."""
     if not _test_mode_enabled():
         return
 
@@ -177,8 +174,10 @@ def list_orders(
     from_date: datetime | None,
     to_date: datetime | None,
 ) -> tuple[list[dict[str, Any]], int]:
+    _ensure_test_placeholders_seeded(db)
+
     stmt = select(Order)
-    filters = []
+    filters: list[Any] = []
 
     if auth.role == "MERCHANT":
         filters.append(Order.merchant_id == auth.user_id)
@@ -255,7 +254,6 @@ def create_order(
             detail="Insufficient role",
         )
 
-    # Resolve coordinates + payload weight (avoid long one-liners for Ruff)
     if pickup_lat is not None:
         resolved_pickup_lat = pickup_lat
     elif lat is not None:
@@ -321,6 +319,8 @@ def create_order(
 
 
 def get_order(auth: AuthContext, db: Session, order_id: str) -> dict[str, Any]:
+    _ensure_test_placeholders_seeded(db)
+
     oid = _resolve_order_id(order_id)
     row = db.get(Order, oid)
     if row is None:
@@ -340,6 +340,8 @@ def get_order(auth: AuthContext, db: Session, order_id: str) -> dict[str, Any]:
 
 
 def list_events(auth: AuthContext, db: Session, order_id: str) -> list[dict[str, Any]]:
+    _ensure_test_placeholders_seeded(db)
+
     oid = _resolve_order_id(order_id)
     order = db.get(Order, oid)
     if order is None:
@@ -373,6 +375,8 @@ def cancel_order(auth: AuthContext, db: Session, order_id: str) -> dict[str, Any
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Insufficient role",
         )
+
+    _ensure_test_placeholders_seeded(db)
 
     oid = _resolve_order_id(order_id)
     row = db.get(Order, oid)
@@ -416,16 +420,29 @@ def _is_valid_drone_id(drone_id: str) -> bool:
 
 def _assert_drone_assignable(drone_id: str) -> None:
     drone = store.drones.get(drone_id)
-    # If not in store, allow (UI integration layer; real fleet validation can come later)
+
+    # If not in store, allow (UI integration layer; real fleet validation comes later)
     if drone is None:
         return
+
     if not bool(drone.get("available", False)):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Drone unavailable")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Drone unavailable",
+        )
     if int(drone.get("battery", 0)) <= 20:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Drone battery too low")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Drone battery too low",
+        )
 
 
-def manual_assign(auth: AuthContext, db: Session, order_id: str, drone_id: str) -> dict[str, Any]:
+def manual_assign(
+    auth: AuthContext,
+    db: Session,
+    order_id: str,
+    drone_id: str,
+) -> dict[str, Any]:
     if auth.role not in {"OPS", "ADMIN"}:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -434,6 +451,7 @@ def manual_assign(auth: AuthContext, db: Session, order_id: str, drone_id: str) 
     if not _is_valid_drone_id(drone_id):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid drone_id")
 
+    _ensure_test_placeholders_seeded(db)
     _assert_drone_assignable(drone_id)
 
     oid = _resolve_order_id(order_id)
@@ -496,7 +514,12 @@ def manual_assign(auth: AuthContext, db: Session, order_id: str, drone_id: str) 
         db.refresh(row)
         db.refresh(job)
 
-    log_event("order_assigned", order_id=str(row.id), job_id=str(job.id), drone_id=drone_id)
+    log_event(
+        "order_assigned",
+        order_id=str(row.id),
+        job_id=str(job.id),
+        drone_id=drone_id,
+    )
 
     return {
         "id": _public_order_id(row.id),
@@ -519,6 +542,8 @@ def submit_mission(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Insufficient role",
         )
+
+    _ensure_test_placeholders_seeded(db)
 
     oid = _resolve_order_id(order_id)
     row = db.get(Order, oid)
@@ -590,7 +615,10 @@ def submit_mission(
     return order_out, mission_intent_payload
 
 
-def run_auto_dispatch(auth: AuthContext, db: Session) -> dict[str, int | list[dict[str, str]]]:
+def run_auto_dispatch(
+    auth: AuthContext,
+    db: Session,
+) -> dict[str, int | list[dict[str, str]]]:
     if auth.role not in {"OPS", "ADMIN"}:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -621,6 +649,40 @@ def run_auto_dispatch(auth: AuthContext, db: Session) -> dict[str, int | list[di
     return {"assigned": len(assignments), "assignments": assignments}
 
 
+def list_jobs(
+    auth: AuthContext,
+    db: Session,
+    active_only: bool,
+) -> list[dict[str, Any]]:
+    if auth.role not in {"OPS", "ADMIN"}:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Insufficient role",
+        )
+
+    _ensure_test_placeholders_seeded(db)
+
+    stmt = select(DeliveryJob).order_by(DeliveryJob.created_at.asc())
+    if active_only:
+        stmt = stmt.where(DeliveryJob.status.in_({DeliveryJobStatus.PENDING, DeliveryJobStatus.ACTIVE}))
+
+    rows = list(db.scalars(stmt))
+
+    out: list[dict[str, Any]] = []
+    for job in rows:
+        out.append(
+            {
+                "id": str(job.id),
+                "order_id": _public_order_id(job.order_id),
+                "assigned_drone_id": job.assigned_drone_id,
+                "mission_intent_id": job.mission_intent_id,
+                "status": job.status.value,
+                "created_at": job.created_at,
+            }
+        )
+    return out
+
+
 def create_pod(
     auth: AuthContext,
     db: Session,
@@ -635,6 +697,8 @@ def create_pod(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Insufficient role",
         )
+
+    _ensure_test_placeholders_seeded(db)
 
     oid = _resolve_order_id(order_id)
     order = db.get(Order, oid)
@@ -655,9 +719,7 @@ def create_pod(
             detail="Invalid POD method",
         ) from err
 
-    otp_hash = None
-    if otp_code:
-        otp_hash = hashlib.sha256(otp_code.encode("utf-8")).hexdigest()
+    otp_hash = hashlib.sha256(otp_code.encode("utf-8")).hexdigest() if otp_code else None
 
     pod = ProofOfDelivery(
         order_id=order.id,

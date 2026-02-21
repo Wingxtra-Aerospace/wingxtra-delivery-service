@@ -13,6 +13,7 @@ from app.config import settings
 from app.db.session import get_db
 from app.integrations.errors import IntegrationBadGatewayError, IntegrationError
 from app.integrations.gcs_bridge_client import get_gcs_bridge_client
+from app.observability import observe_timing
 from app.schemas.ui import (
     EventResponse,
     EventsTimelineResponse,
@@ -193,9 +194,10 @@ def assign_endpoint(
             return OrderActionResponse.model_validate(idem.response_payload)
 
     if _is_placeholder_order_id(order_id):
-        response_payload = OrderActionResponse(order_id=order_id, status="ASSIGNED").model_dump(
-            mode="json"
-        )
+        with observe_timing("dispatch_assignment_seconds"):
+            response_payload = OrderActionResponse(order_id=order_id, status="ASSIGNED").model_dump(
+                mode="json"
+            )
     else:
         order = manual_assign(auth, db, order_id, payload.drone_id)
         response_payload = OrderActionResponse(
@@ -258,18 +260,19 @@ async def submit_mission_endpoint(
 
     try:
         if _is_placeholder_order_id(order_id):
-            response_payload = MissionSubmitResponse(
-                order_id=order_id,
-                mission_intent_id=f"mi_{order_id}",
-                status="MISSION_SUBMITTED",
-            ).model_dump(mode="json")
-            publisher.publish_mission_intent(
-                {
-                    "order_id": order_id,
-                    "mission_intent_id": response_payload["mission_intent_id"],
-                    "drone_id": "",
-                }
-            )
+            with observe_timing("mission_intent_generation_seconds"):
+                response_payload = MissionSubmitResponse(
+                    order_id=order_id,
+                    mission_intent_id=f"mi_{order_id}",
+                    status="MISSION_SUBMITTED",
+                ).model_dump(mode="json")
+                publisher.publish_mission_intent(
+                    {
+                        "order_id": order_id,
+                        "mission_intent_id": response_payload["mission_intent_id"],
+                        "drone_id": "",
+                    }
+                )
         else:
             order_out, mission_intent_payload = submit_mission(auth, db, order_id)
             publisher.publish_mission_intent(mission_intent_payload)

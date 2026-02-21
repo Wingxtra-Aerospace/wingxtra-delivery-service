@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.integrations.gcs_bridge_client import MissionPublisherProtocol
 from app.models.delivery_job import DeliveryJob, DeliveryJobStatus
 from app.models.order import Order, OrderStatus
+from app.schemas.mission_intent import MissionIntent
 from app.services.orders_service import get_order, transition_order_status
 
 
@@ -19,7 +20,7 @@ def _build_mission_intent(order: Order, job: DeliveryJob) -> dict:
         )
 
     intent_id = f"mi_{uuid.uuid4().hex}"
-    return {
+    payload = {
         "intent_id": intent_id,
         "order_id": str(order.id),
         "drone_id": job.assigned_drone_id,
@@ -44,6 +45,7 @@ def _build_mission_intent(order: Order, job: DeliveryJob) -> dict:
             "created_at": datetime.now(timezone.utc).isoformat(),
         },
     }
+    return MissionIntent.model_validate(payload).model_dump(mode="json")
 
 
 def _get_active_job(db: Session, order_id: uuid.UUID) -> DeliveryJob:

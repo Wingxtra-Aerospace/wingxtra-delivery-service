@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     order_create_rate_limit_requests: int = 1000
     order_create_rate_limit_window_s: int = 60
 
+    fleet_api_base_url: str = ""
     fleet_api_timeout_s: float = 2.0
     fleet_api_max_retries: int = 2
     fleet_api_backoff_s: float = 0.2

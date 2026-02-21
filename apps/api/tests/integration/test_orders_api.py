@@ -213,6 +213,39 @@ def test_create_order_validation_error(client):
     assert response.status_code == 422
 
 
+def test_update_order_patch_updates_allowed_fields(client, db_session):
+    order = _create_order(client).json()
+
+    response = client.patch(
+        f"/api/v1/orders/{order['id']}",
+        json={
+            "customer_phone": "+1987654321",
+            "dropoff_lat": 6.7,
+            "dropoff_lng": 3.6,
+            "priority": "URGENT",
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["id"] == order["id"]
+
+    db_order = db_session.get(Order, UUID(order["id"]))
+    assert db_order.customer_phone == "+1987654321"
+    assert db_order.dropoff_lat == 6.7
+    assert db_order.dropoff_lng == 3.6
+    assert db_order.priority.value == "URGENT"
+
+
+def test_update_order_patch_rejects_partial_dropoff_coordinates(client):
+    order = _create_order(client).json()
+
+    response = client.patch(
+        f"/api/v1/orders/{order['id']}",
+        json={"dropoff_lat": 6.8},
+    )
+    assert response.status_code == 400
+    assert "must be provided together" in response.json()["detail"]
+
+
 def test_submit_placeholder_mission_intent_publishes(client):
     publisher = FakePublisher()
     app.dependency_overrides[get_gcs_bridge_client] = lambda: publisher

@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Header, Query, Request
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import AuthContext, rate_limit_order_creation, require_roles
+from app.config import settings
 from app.db.session import get_db
 from app.integrations.gcs_bridge_client import get_gcs_bridge_client
 from app.schemas.ui import (
@@ -149,7 +150,7 @@ def assign_endpoint(
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(require_roles("OPS", "ADMIN")),
 ) -> OrderActionResponse:
-    if _is_placeholder_order_id(order_id):
+    if settings.enable_placeholder_mode and _is_placeholder_order_id(order_id):
         return OrderActionResponse(order_id=order_id, status="ASSIGNED")
 
     order = manual_assign(auth, db, order_id, payload.drone_id)
@@ -162,7 +163,7 @@ def cancel_endpoint(
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(require_roles("OPS", "ADMIN")),
 ) -> OrderActionResponse:
-    if _is_placeholder_order_id(order_id):
+    if settings.enable_placeholder_mode and _is_placeholder_order_id(order_id):
         return OrderActionResponse(order_id=order_id, status="CANCELED")
 
     order = cancel_order(auth, db, order_id)
@@ -194,7 +195,7 @@ async def submit_mission_endpoint(
         if idem.replay and idem.response_payload:
             return MissionSubmitResponse.model_validate(idem.response_payload)
 
-    if _is_placeholder_order_id(order_id):
+    if settings.enable_placeholder_mode and _is_placeholder_order_id(order_id):
         response_payload = MissionSubmitResponse(
             order_id=order_id,
             mission_intent_id=f"mi_{order_id}",

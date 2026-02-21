@@ -50,6 +50,10 @@ def _test_mode_enabled() -> bool:
     return bool(settings.testing or ("PYTEST_CURRENT_TEST" in os.environ))
 
 
+def _placeholder_mode_enabled() -> bool:
+    return bool(settings.enable_placeholder_mode)
+
+
 def _is_backoffice(role: str) -> bool:
     return role in {"OPS", "ADMIN"}
 
@@ -105,6 +109,9 @@ def _seed_placeholders_in_store_if_needed() -> None:
     - ord-1 exists with tracking id 1111...
     - ord-2 exists and can be auto-dispatched when QUEUED
     """
+    if not _placeholder_mode_enabled():
+        return
+
     if "ord-1" not in store.orders:
         created = mem_now_utc()
         o1 = MemOrder(
@@ -356,7 +363,7 @@ def create_order(
 
 def get_order(auth: AuthContext, db: Session, order_id: str) -> dict[str, Any]:
     # Placeholders: must return 403 for merchants who don't own it (not 404).
-    if order_id in _PLACEHOLDER_IDS:
+    if _placeholder_mode_enabled() and order_id in _PLACEHOLDER_IDS:
         _seed_placeholders_in_store_if_needed()
         mem = store.orders.get(order_id)
         if mem is None:
@@ -401,7 +408,7 @@ def get_order(auth: AuthContext, db: Session, order_id: str) -> dict[str, Any]:
 
 
 def list_events(auth: AuthContext, db: Session, order_id: str) -> list[dict[str, Any]]:
-    if order_id in _PLACEHOLDER_IDS:
+    if _placeholder_mode_enabled() and order_id in _PLACEHOLDER_IDS:
         _seed_placeholders_in_store_if_needed()
         mem = store.orders.get(order_id)
         if mem is None:
@@ -824,7 +831,8 @@ def run_auto_dispatch(
             detail="Insufficient role",
         )
 
-    _seed_placeholders_in_store_if_needed()
+    if _placeholder_mode_enabled():
+        _seed_placeholders_in_store_if_needed()
 
     dispatchable = {OrderStatus.CREATED, OrderStatus.VALIDATED, OrderStatus.QUEUED}
     orders_stmt = (
@@ -853,7 +861,7 @@ def run_auto_dispatch(
         assignments.append({"order_id": assigned["id"], "status": assigned["status"]})
 
     # Then ensure placeholder ord-2 can be assigned in tests when queued
-    ord2 = store.orders.get("ord-2")
+    ord2 = store.orders.get("ord-2") if _placeholder_mode_enabled() else None
     if ord2 is not None and ord2.status == "QUEUED" and remaining_drones:
         drone_id = remaining_drones.pop(0)
         ord2.status = "ASSIGNED"
@@ -937,17 +945,19 @@ def list_jobs(
 
 
 def tracking_view(db: Session, public_tracking_id: str) -> dict[str, Any]:
-    _seed_placeholders_in_store_if_needed()
+    if _placeholder_mode_enabled():
+        _seed_placeholders_in_store_if_needed()
 
     # Store-first (tests expect 1111... to work without auth)
-    for o in store.orders.values():
-        if o.public_tracking_id == public_tracking_id:
-            return {
-                "id": o.id,
-                "order_id": o.id,
-                "public_tracking_id": o.public_tracking_id,
-                "status": o.status,
-            }
+    if _placeholder_mode_enabled():
+        for o in store.orders.values():
+            if o.public_tracking_id == public_tracking_id:
+                return {
+                    "id": o.id,
+                    "order_id": o.id,
+                    "public_tracking_id": o.public_tracking_id,
+                    "status": o.status,
+                }
 
     stmt = select(Order).where(Order.public_tracking_id == public_tracking_id)
     row = db.scalar(stmt)
@@ -1031,7 +1041,9 @@ def get_pod(db: Session, order_id: str) -> ProofOfDelivery | None:
     try:
         oid = _resolve_db_uuid(order_id)
     except HTTPException:
-        return None
+        if _placeholder_mode_enabled():
+            return None
+        raise
 
     return db.scalar(
         select(ProofOfDelivery).where(ProofOfDelivery.order_id == oid)

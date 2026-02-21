@@ -7,7 +7,6 @@ def test_metrics_endpoint_returns_typed_payload(client):
     assert isinstance(payload["timings"], dict)
 
 
-
 def test_metrics_endpoint_exposes_explicit_response_schema(client):
     openapi = client.get("/openapi.json")
     assert openapi.status_code == 200

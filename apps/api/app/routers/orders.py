@@ -60,10 +60,10 @@ async def create_order_endpoint(
         if idem.replay and idem.response_payload:
             return OrderDetailResponse.model_validate(idem.response_payload)
 
-    order = create_order(
-        auth,
-        db,
-        payload.customer_name,
+        order = create_order(
+        auth=auth,
+        db=db,
+        customer_name=payload.customer_name,
         customer_phone=payload.customer_phone,
         lat=payload.lat,
         weight=payload.weight,

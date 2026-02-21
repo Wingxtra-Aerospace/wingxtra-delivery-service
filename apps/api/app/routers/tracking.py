@@ -21,10 +21,11 @@ def tracking_endpoint(
     _rate_limit: None = Depends(rate_limit_public_tracking),
 ) -> TrackingViewResponse:
     order = tracking_view(db, public_tracking_id)
-    pod = get_pod(db, order["id"])
+    order_id = order.get("id") or order["order_id"]
+    pod = get_pod(db, order_id)
 
     payload: dict[str, object] = {
-        "order_id": order["id"],
+        "order_id": order_id,
         "public_tracking_id": order["public_tracking_id"],
         "status": order["status"],
     }

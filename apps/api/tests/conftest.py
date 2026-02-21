@@ -17,13 +17,12 @@ def setup_test_schema():
     Base.metadata.drop_all(bind=app_engine)
 
 
-
-
 @pytest.fixture(autouse=True)
 def reset_db():
     Base.metadata.drop_all(bind=app_engine)
     Base.metadata.create_all(bind=app_engine)
     yield
+
 
 @pytest.fixture
 def db_session():

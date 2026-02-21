@@ -149,7 +149,6 @@ def test_submit_mission_intent_rejected_when_not_assigned(client):
     assert response.status_code == 409
 
 
-
 def test_create_pod_and_tracking_summary(client, db_session):
     order = _create_order(client).json()
 
@@ -212,3 +211,22 @@ def test_create_order_validation_error(client):
         },
     )
     assert response.status_code == 422
+
+
+def test_submit_placeholder_mission_intent_publishes(client):
+    publisher = FakePublisher()
+    app.dependency_overrides[get_gcs_bridge_client] = lambda: publisher
+
+    response = client.post("/api/v1/orders/ord-1/submit-mission-intent")
+    assert response.status_code == 200
+    assert len(publisher.published) == 1
+    assert publisher.published[0]["order_id"] == "ord-1"
+    assert publisher.published[0]["mission_intent_id"] == "mi_ord-1"
+
+
+def test_public_tracking_placeholder_without_pod_still_returns_200(client):
+    response = client.get("/api/v1/tracking/11111111-1111-4111-8111-111111111111")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["order_id"] == "ord-1"
+    assert body["public_tracking_id"] == "11111111-1111-4111-8111-111111111111"

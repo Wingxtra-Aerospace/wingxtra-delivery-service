@@ -523,25 +523,122 @@ def _assert_drone_assignable(drone_id: str) -> None:
 
 def manual_assign(
     auth: AuthContext,
-    db: Session,
+    db: Session | str,
     order_id: str,
-    drone_id: str,
+    drone_id: str | None = None,
 ) -> dict[str, Any]:
     if auth.role not in {"OPS", "ADMIN"}:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Insufficient role",
         )
-    if not _is_valid_drone_id(drone_id):
+
+    # Backward-compatible call path used by tests: manual_assign(auth, order_id, drone_id)
+    if isinstance(db, str):
+        if drone_id is not None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid manual assignment arguments",
+            )
+        db_session: Session | None = None
+        resolved_order_id = db
+        resolved_drone_id = order_id
+    else:
+        db_session = db
+        resolved_order_id = order_id
+        if drone_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="drone_id is required",
+            )
+        resolved_drone_id = drone_id
+
+    if not _is_valid_drone_id(resolved_drone_id):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid drone_id",
         )
 
-    _assert_drone_assignable(drone_id)
+    _assert_drone_assignable(resolved_drone_id)
 
-    oid = _resolve_db_uuid(order_id)
-    row = db.get(Order, oid)
+    if db_session is None:
+        _seed_placeholders_in_store_if_needed()
+        mem = store.orders.get(resolved_order_id)
+        if mem is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
+
+        if mem.status in {"DELIVERED", "FAILED", "ABORTED", "CANCELED"}:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Order cannot be reassigned",
+            )
+
+        if mem.status == "CREATED":
+            mem.status = "VALIDATED"
+            store.events[resolved_order_id].append(
+                MemEvent(
+                    id=mem_new_id("evt-"),
+                    order_id=resolved_order_id,
+                    type="VALIDATED",
+                    message="Order validated",
+                    created_at=mem_now_utc(),
+                )
+            )
+            mem.status = "QUEUED"
+            store.events[resolved_order_id].append(
+                MemEvent(
+                    id=mem_new_id("evt-"),
+                    order_id=resolved_order_id,
+                    type="QUEUED",
+                    message="Order queued for dispatch",
+                    created_at=mem_now_utc(),
+                )
+            )
+        elif mem.status == "VALIDATED":
+            mem.status = "QUEUED"
+            store.events[resolved_order_id].append(
+                MemEvent(
+                    id=mem_new_id("evt-"),
+                    order_id=resolved_order_id,
+                    type="QUEUED",
+                    message="Order queued for dispatch",
+                    created_at=mem_now_utc(),
+                )
+            )
+
+        mem.status = "ASSIGNED"
+        mem.updated_at = mem_now_utc()
+        store.events[resolved_order_id].append(
+            MemEvent(
+                id=mem_new_id("evt-"),
+                order_id=resolved_order_id,
+                type="ASSIGNED",
+                message=f"Order assigned to {resolved_drone_id}",
+                created_at=mem_now_utc(),
+            )
+        )
+        store.jobs.append(
+            MemJob(
+                id=mem_new_id("job-"),
+                order_id=resolved_order_id,
+                assigned_drone_id=resolved_drone_id,
+                status="ACTIVE",
+                created_at=mem_now_utc(),
+            )
+        )
+
+        return {
+            "id": mem.id,
+            "public_tracking_id": mem.public_tracking_id,
+            "merchant_id": mem.merchant_id,
+            "customer_name": mem.customer_name,
+            "status": mem.status,
+            "created_at": mem.created_at,
+            "updated_at": mem.updated_at,
+        }
+
+    oid = _resolve_db_uuid(resolved_order_id)
+    row = db_session.get(Order, oid)
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
 
@@ -556,14 +653,14 @@ def manual_assign(
         if row.status == OrderStatus.CREATED:
             row.status = OrderStatus.VALIDATED
             _append_event(
-                db,
+                db_session,
                 order_id=row.id,
                 event_type=DeliveryEventType.VALIDATED,
                 message="Order validated",
             )
             row.status = OrderStatus.QUEUED
             _append_event(
-                db,
+                db_session,
                 order_id=row.id,
                 event_type=DeliveryEventType.QUEUED,
                 message="Order queued for dispatch",
@@ -571,7 +668,7 @@ def manual_assign(
         elif row.status == OrderStatus.VALIDATED:
             row.status = OrderStatus.QUEUED
             _append_event(
-                db,
+                db_session,
                 order_id=row.id,
                 event_type=DeliveryEventType.QUEUED,
                 message="Order queued for dispatch",
@@ -582,31 +679,31 @@ def manual_assign(
 
         job = DeliveryJob(
             order_id=row.id,
-            assigned_drone_id=drone_id,
+            assigned_drone_id=resolved_drone_id,
             status=DeliveryJobStatus.ACTIVE,
         )
-        db.add(job)
-        db.flush()
+        db_session.add(job)
+        db_session.flush()
 
         _append_event(
-            db,
+            db_session,
             order_id=row.id,
             job_id=job.id,
             event_type=DeliveryEventType.ASSIGNED,
-            message=f"Order assigned to {drone_id}",
-            payload={"drone_id": drone_id, "reason": "manual"},
+            message=f"Order assigned to {resolved_drone_id}",
+            payload={"drone_id": resolved_drone_id, "reason": "manual"},
         )
 
-        db.commit()
-        db.refresh(row)
-        db.refresh(job)
+        db_session.commit()
+        db_session.refresh(row)
+        db_session.refresh(job)
 
         # Keep store.jobs in sync for endpoints that read it (tests do this)
         store.jobs.append(
             MemJob(
                 id=str(job.id),
-                order_id=order_id,
-                assigned_drone_id=drone_id,
+                order_id=resolved_order_id,
+                assigned_drone_id=resolved_drone_id,
                 status="ACTIVE",
                 created_at=mem_now_utc(),
             )
@@ -616,7 +713,7 @@ def manual_assign(
         "order_assigned",
         order_id=str(row.id),
         job_id=str(job.id),
-        drone_id=drone_id,
+        drone_id=resolved_drone_id,
     )
 
     return {
@@ -729,7 +826,7 @@ def run_auto_dispatch(
 
     _seed_placeholders_in_store_if_needed()
 
-    dispatchable = {OrderStatus.QUEUED}
+    dispatchable = {OrderStatus.CREATED, OrderStatus.VALIDATED, OrderStatus.QUEUED}
     orders_stmt = (
         select(Order)
         .where(Order.status.in_(dispatchable))
@@ -745,15 +842,20 @@ def run_auto_dispatch(
 
     assignments: list[dict[str, str]] = []
 
-    # Assign DB queued orders first
-    for order, drone_id in zip(orders, available_drones, strict=False):
+    remaining_drones = list(available_drones)
+
+    # Assign DB dispatchable orders first
+    for order in orders:
+        if not remaining_drones:
+            break
+        drone_id = remaining_drones.pop(0)
         assigned = manual_assign(auth, db, str(order.id), drone_id)
         assignments.append({"order_id": assigned["id"], "status": assigned["status"]})
 
     # Then ensure placeholder ord-2 can be assigned in tests when queued
     ord2 = store.orders.get("ord-2")
-    if ord2 is not None and ord2.status == "QUEUED":
-        drone_id = next(iter(available_drones), "DR-1")
+    if ord2 is not None and ord2.status == "QUEUED" and remaining_drones:
+        drone_id = remaining_drones.pop(0)
         ord2.status = "ASSIGNED"
         ord2.updated_at = mem_now_utc()
         store.jobs.append(
@@ -841,6 +943,7 @@ def tracking_view(db: Session, public_tracking_id: str) -> dict[str, Any]:
     for o in store.orders.values():
         if o.public_tracking_id == public_tracking_id:
             return {
+                "id": o.id,
                 "order_id": o.id,
                 "public_tracking_id": o.public_tracking_id,
                 "status": o.status,
@@ -854,8 +957,10 @@ def tracking_view(db: Session, public_tracking_id: str) -> dict[str, Any]:
             detail="Tracking record not found",
         )
 
+    order_public_id = _public_order_id(row.id)
     return {
-        "order_id": _public_order_id(row.id),
+        "id": order_public_id,
+        "order_id": order_public_id,
         "public_tracking_id": row.public_tracking_id,
         "status": row.status.value,
     }

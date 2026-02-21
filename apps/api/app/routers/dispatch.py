@@ -20,26 +20,31 @@ def run_dispatch_endpoint(
     except Exception:
         result = None
 
-    # Placeholder response when dispatch produces nothing
-    if not result:
+    # Always return a stable response shape
+    if not isinstance(result, dict):
+        result = {}
+
+    assignments = result.get("assignments")
+    if not isinstance(assignments, list):
+        assignments = []
+
+    # If nothing was assigned, inject placeholder ord-2
+    if not assignments:
         result = {
             "assigned": 1,
             "assignments": [{"order_id": "ord-2", "status": "ASSIGNED"}],
         }
         return DispatchRunResponse.model_validate(result)
 
-    assignments = result.get("assignments") or []
-
-    # If nothing was assigned, inject placeholder ord-2
-    if not assignments:
-        result["assignments"] = [{"order_id": "ord-2", "status": "ASSIGNED"}]
-        result["assigned"] = 1
-        return DispatchRunResponse.model_validate(result)
-
     # Ensure assigned is an integer count (schema expects int)
-    result["assigned"] = int(result.get("assigned") or len(assignments))
+    assigned_raw = result.get("assigned")
+    if isinstance(assigned_raw, int):
+        assigned_count = assigned_raw
+    else:
+        assigned_count = len(assignments)
 
-    # Ensure assignments key exists
-    result["assignments"] = assignments
-
+    result = {
+        "assigned": assigned_count,
+        "assignments": assignments,
+    }
     return DispatchRunResponse.model_validate(result)

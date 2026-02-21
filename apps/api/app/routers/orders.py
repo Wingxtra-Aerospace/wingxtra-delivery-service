@@ -3,7 +3,13 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
-from app.auth.dependencies import AuthContext, rate_limit_order_creation, require_backoffice_write, require_roles
+from app.auth.dependencies import (
+    AuthContext,
+    rate_limit_order_creation,
+    require_backoffice_write,
+    require_roles,
+)
+from app.config import settings
 from app.db.session import get_db
 from app.integrations.errors import IntegrationBadGatewayError, IntegrationError
 from app.integrations.gcs_bridge_client import get_gcs_bridge_client
@@ -187,10 +193,14 @@ def assign_endpoint(
             return OrderActionResponse.model_validate(idem.response_payload)
 
     if _is_placeholder_order_id(order_id):
-        response_payload = OrderActionResponse(order_id=order_id, status="ASSIGNED").model_dump(mode="json")
+        response_payload = OrderActionResponse(order_id=order_id, status="ASSIGNED").model_dump(
+            mode="json"
+        )
     else:
         order = manual_assign(auth, db, order_id, payload.drone_id)
-        response_payload = OrderActionResponse(order_id=str(order["id"]), status=order["status"]).model_dump(mode="json")
+        response_payload = OrderActionResponse(
+            order_id=str(order["id"]), status=order["status"]
+        ).model_dump(mode="json")
 
     if idempotency_key:
         save_idempotency_result(
@@ -210,7 +220,7 @@ def cancel_endpoint(
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(require_backoffice_write),
 ) -> OrderActionResponse:
-    if settings.enable_placeholder_mode and _is_placeholder_order_id(order_id):
+    if settings.ui_service_mode in {"store", "hybrid"} and _is_placeholder_order_id(order_id):
         return OrderActionResponse(order_id=order_id, status="CANCELED")
 
     order = cancel_order(auth, db, order_id)
@@ -246,27 +256,19 @@ async def submit_mission_endpoint(
         if idem.replay and idem.response_payload:
             return MissionSubmitResponse.model_validate(idem.response_payload)
 
-    if _is_placeholder_order_id(order_id):
-        response_payload = MissionSubmitResponse(
-            order_id=order_id,
-            mission_intent_id=f"mi_{order_id}",
-            status="MISSION_SUBMITTED",
-        ).model_dump(mode="json")
-        publisher.publish_mission_intent(
-            {
-                "order_id": order_id,
-                "mission_intent_id": response_payload["mission_intent_id"],
-                "drone_id": "",
-            }
-        )
-
-        if idempotency_key:
-            save_idempotency_result(
-                user_id=auth.user_id,
-                route="POST:/api/v1/orders/{order_id}/submit-mission-intent",
-                idempotency_key=idempotency_key,
-                request_payload=request_payload,
-                response_payload=response_payload,
+    try:
+        if _is_placeholder_order_id(order_id):
+            response_payload = MissionSubmitResponse(
+                order_id=order_id,
+                mission_intent_id=f"mi_{order_id}",
+                status="MISSION_SUBMITTED",
+            ).model_dump(mode="json")
+            publisher.publish_mission_intent(
+                {
+                    "order_id": order_id,
+                    "mission_intent_id": response_payload["mission_intent_id"],
+                    "drone_id": "",
+                }
             )
         else:
             order_out, mission_intent_payload = submit_mission(auth, db, order_id)

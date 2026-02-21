@@ -43,7 +43,9 @@ class _ClientStub:
 def test_fleet_client_retries_then_succeeds(monkeypatch):
     sequence = [
         httpx.ReadTimeout("timeout"),
-        _Response(200, [{"drone_id": "DR-1", "lat": 1.0, "lng": 2.0, "battery": 99, "is_available": True}]),
+        _Response(
+            200, [{"drone_id": "DR-1", "lat": 1.0, "lng": 2.0, "battery": 99, "is_available": True}]
+        ),
     ]
     monkeypatch.setattr(
         "app.integrations.fleet_api_client.httpx.Client",

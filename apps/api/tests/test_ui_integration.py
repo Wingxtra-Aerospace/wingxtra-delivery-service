@@ -1,9 +1,12 @@
+from uuid import UUID
+
 from fastapi.testclient import TestClient
 
 from app.auth.dependencies import reset_rate_limits
 from app.auth.jwt import issue_jwt
 from app.config import settings
 from app.main import app
+from app.models.order import Order, OrderStatus
 
 client = TestClient(app)
 
@@ -301,9 +304,6 @@ def test_idempotency_for_assign_and_pod_replay_and_conflict(db_session):
     assert replay_assign.json() == first_assign.json()
     assert conflict_assign.status_code == 409
 
-    from uuid import UUID
-    from app.models.order import Order, OrderStatus
-
     db_order = db_session.get(Order, UUID(order["id"]))
     db_order.status = OrderStatus.DELIVERED
     db_session.commit()
@@ -311,8 +311,12 @@ def test_idempotency_for_assign_and_pod_replay_and_conflict(db_session):
     pod_headers = dict(headers)
     pod_headers["Idempotency-Key"] = "idem-pod-1"
     pod_payload = {"method": "PHOTO", "photo_url": "https://cdn.example/pod.jpg"}
-    first_pod = client.post(f"/api/v1/orders/{order['id']}/pod", json=pod_payload, headers=pod_headers)
-    replay_pod = client.post(f"/api/v1/orders/{order['id']}/pod", json=pod_payload, headers=pod_headers)
+    first_pod = client.post(
+        f"/api/v1/orders/{order['id']}/pod", json=pod_payload, headers=pod_headers
+    )
+    replay_pod = client.post(
+        f"/api/v1/orders/{order['id']}/pod", json=pod_payload, headers=pod_headers
+    )
     conflict_pod = client.post(
         f"/api/v1/orders/{order['id']}/pod",
         json={"method": "OPERATOR_CONFIRM", "operator_name": "ops"},

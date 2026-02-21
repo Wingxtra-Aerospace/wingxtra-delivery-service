@@ -241,13 +241,47 @@ def assign_endpoint(
 def cancel_endpoint(
     order_id: str,
     db: Session = Depends(get_db),
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     auth: AuthContext = Depends(require_backoffice_write),
 ) -> OrderActionResponse:
-    if settings.ui_service_mode in {"store", "hybrid"} and _is_placeholder_order_id(order_id):
-        return OrderActionResponse(order_id=order_id, status="CANCELED")
+    request_payload = {"order_id": order_id}
+    route_scope = build_scope(
+        "POST:/api/v1/orders/{order_id}/cancel",
+        user_id=auth.user_id,
+        order_id=order_id,
+    )
 
-    order = cancel_order(auth, db, order_id)
-    return OrderActionResponse(order_id=str(order["id"]), status=order["status"])
+    if idempotency_key:
+        idem = check_idempotency(
+            user_id=auth.user_id,
+            route=route_scope,
+            idempotency_key=idempotency_key,
+            request_payload=request_payload,
+        )
+        if idem.replay and idem.response_payload:
+            return OrderActionResponse.model_validate(idem.response_payload)
+
+    if settings.ui_service_mode in {"store", "hybrid"} and _is_placeholder_order_id(order_id):
+        response_payload = OrderActionResponse(order_id=order_id, status="CANCELED").model_dump(
+            mode="json"
+        )
+    else:
+        order = cancel_order(auth, db, order_id)
+        response_payload = OrderActionResponse(
+            order_id=str(order["id"]),
+            status=order["status"],
+        ).model_dump(mode="json")
+
+    if idempotency_key:
+        save_idempotency_result(
+            user_id=auth.user_id,
+            route=route_scope,
+            idempotency_key=idempotency_key,
+            request_payload=request_payload,
+            response_payload=response_payload,
+        )
+
+    return OrderActionResponse.model_validate(response_payload)
 
 
 @router.post(

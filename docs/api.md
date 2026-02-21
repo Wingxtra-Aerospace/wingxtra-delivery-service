@@ -34,7 +34,10 @@ JWT bearer required for protected endpoints.
 
 Idempotency support:
 - `POST /api/v1/orders`
+- `POST /api/v1/orders/{order_id}/cancel`
 - `POST /api/v1/orders/{order_id}/submit-mission-intent`
+- `POST /api/v1/orders/{order_id}/assign`
+- `POST /api/v1/orders/{order_id}/pod`
 
 Provide `Idempotency-Key` header.
 Replay with same payload returns same response; reused key with different payload returns `409`.

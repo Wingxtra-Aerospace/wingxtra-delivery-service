@@ -31,6 +31,8 @@ def test_manual_assign_transition_parity(db_session):
 
     assert db_assigned["status"] == st_assigned["status"] == "ASSIGNED"
 
-    db_events = [item["type"] for item in ui_db_service.list_events(auth, db_session, db_order["id"])]
+    db_events = [
+        item["type"] for item in ui_db_service.list_events(auth, db_session, db_order["id"])
+    ]
     st_events = [item["type"] for item in ui_store_service.list_events(auth, st_order["id"])]
     assert db_events == st_events == ["CREATED", "VALIDATED", "QUEUED", "ASSIGNED"]

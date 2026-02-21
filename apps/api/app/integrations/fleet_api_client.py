@@ -59,7 +59,7 @@ class FleetApiClient:
                         "Fleet API returned malformed payload",
                     )
                 return [FleetDroneTelemetry.model_validate(item) for item in payload]
-            except httpx.TimeoutException as err:
+            except httpx.TimeoutException:
                 integration_error = IntegrationTimeoutError("fleet_api")
             except httpx.TransportError as err:
                 integration_error = IntegrationUnavailableError("fleet_api", str(err))

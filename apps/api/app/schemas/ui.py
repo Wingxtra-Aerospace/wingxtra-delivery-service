@@ -28,6 +28,13 @@ class OrderCreateRequest(BaseModel):
     priority: str | None = None
 
 
+class OrderUpdateRequest(BaseModel):
+    customer_phone: str | None = None
+    dropoff_lat: float | None = Field(default=None, ge=-90, le=90)
+    dropoff_lng: float | None = Field(default=None, ge=-180, le=180)
+    priority: str | None = None
+
+
 class OrderSummary(ResponseModel):
     id: str
     public_tracking_id: str

@@ -23,6 +23,7 @@ from app.schemas.ui import (
     OrderCreateRequest,
     OrderDetailResponse,
     OrdersListResponse,
+    OrderUpdateRequest,
     PaginationMeta,
     PodCreateRequest,
     PodResponse,
@@ -43,6 +44,7 @@ from app.services.ui_service import (
     manual_assign,
     submit_mission,
     tracking_view,
+    update_order,
 )
 
 router = APIRouter(prefix="/api/v1/orders", tags=["orders"])
@@ -143,6 +145,25 @@ def list_orders_endpoint(
         items=[OrderDetailResponse.model_validate(order) for order in items],
         pagination=PaginationMeta(page=page, page_size=page_size, total=total),
     )
+
+
+@router.patch("/{order_id}", response_model=OrderDetailResponse, summary="Update order")
+def update_order_endpoint(
+    order_id: str,
+    payload: OrderUpdateRequest,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_roles("MERCHANT", "OPS", "ADMIN")),
+) -> OrderDetailResponse:
+    order = update_order(
+        auth=auth,
+        db=db,
+        order_id=order_id,
+        customer_phone=payload.customer_phone,
+        dropoff_lat=payload.dropoff_lat,
+        dropoff_lng=payload.dropoff_lng,
+        priority=payload.priority,
+    )
+    return OrderDetailResponse.model_validate(order)
 
 
 @router.get("/{order_id}", response_model=OrderDetailResponse, summary="Get order detail")

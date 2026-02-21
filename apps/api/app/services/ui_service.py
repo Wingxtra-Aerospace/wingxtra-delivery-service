@@ -199,12 +199,8 @@ def create_order(
         resolved_pickup_lat = 0.0
 
     resolved_pickup_lng = pickup_lng if pickup_lng is not None else 0.0
-    resolved_dropoff_lat = (
-        dropoff_lat if dropoff_lat is not None else resolved_pickup_lat
-    )
-    resolved_dropoff_lng = (
-        dropoff_lng if dropoff_lng is not None else resolved_pickup_lng
-    )
+    resolved_dropoff_lat = dropoff_lat if dropoff_lat is not None else resolved_pickup_lat
+    resolved_dropoff_lng = dropoff_lng if dropoff_lng is not None else resolved_pickup_lng
 
     if payload_weight_kg is not None:
         resolved_payload_weight = payload_weight_kg
@@ -224,6 +220,7 @@ def create_order(
     if db is None:
         oid = uuid.uuid4()
         tracking_id = uuid.uuid4().hex
+
         store.orders.append(
             {
                 "id": str(oid),
@@ -235,18 +232,23 @@ def create_order(
                 "updated_at": now,
             }
         )
-        # also store basic events to match expectations
+
         store.events.append(
-            {"order_id": str(oid), "type": "CREATED", "message": "Order created", "created_at": now}
+            {
+                "order_id": str(oid),
+                "type": "CREATED",
+                "message": "Order created",
+                "created_at": now,
+            }
         )
-store.events.append(
-    {
-        "order_id": str(oid),
-        "type": "VALIDATED",
-        "message": "Order validated",
-        "created_at": now,
-    }
-)
+        store.events.append(
+            {
+                "order_id": str(oid),
+                "type": "VALIDATED",
+                "message": "Order validated",
+                "created_at": now,
+            }
+        )
         store.events.append(
             {
                 "order_id": str(oid),
@@ -255,6 +257,7 @@ store.events.append(
                 "created_at": now,
             }
         )
+
         return store.orders[-1]
 
     # DB path
@@ -277,9 +280,8 @@ store.events.append(
     )
 
     db.add(o)
-    db.flush()  # ensure o.id exists
+    db.flush()  # ✅ ensure o.id exists before inserting DeliveryEvent rows
 
-    # Tests expect these events in this sequence
     _append_event(
         db,
         order_id=o.id,
@@ -441,7 +443,6 @@ def manual_assign(
         )
 
     with observe_timing("dispatch_assignment_seconds"):
-        # Do NOT skip progression events: order already has CREATED/VALIDATED/QUEUED on create.
         row.status = OrderStatus.ASSIGNED
         row.updated_at = _now_utc()
 
@@ -466,7 +467,12 @@ def manual_assign(
         db.refresh(row)
         db.refresh(job)
 
-    log_event("order_assigned", order_id=str(row.id), job_id=str(job.id), drone_id=drone_id)
+    log_event(
+        "order_assigned",
+        order_id=str(row.id),
+        job_id=str(job.id),
+        drone_id=drone_id,
+    )
 
     return {
         "id": _public_order_id(row.id),
@@ -701,4 +707,5 @@ def get_pod(db: Session, order_id: str) -> ProofOfDelivery | None:
     except ValueError:
         oid = _resolve_order_id(order_id)
 
-    return db.scalar(select(ProofOfDelivery).where(ProofOfDelivery.order_id == oid))
+    stmt = select(ProofOfDelivery).where(ProofOfDelivery.order_id == oid)
+    return db.scalar(stmt)

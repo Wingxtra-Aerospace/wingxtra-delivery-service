@@ -27,7 +27,7 @@ TERMINAL: set[OrderStatus] = {
     OrderStatus.DELIVERED,
 }
 
-# Placeholder support (IDs only). We DO NOT seed these into DB anymore.
+# Placeholder support for tests/demo mode (seeded into DB in test mode)
 _PLACEHOLDER_IDS: dict[str, uuid.UUID] = {
     "ord-1": uuid.UUID("00000000-0000-4000-8000-000000000001"),
     "ord-2": uuid.UUID("00000000-0000-4000-8000-000000000002"),
@@ -49,12 +49,14 @@ def _is_backoffice(role: str) -> bool:
 
 
 def _public_order_id(order_uuid: uuid.UUID) -> str:
+    """Return ord-1/ord-2 in test mode, else the UUID string."""
     if _test_mode_enabled() and order_uuid in _PLACEHOLDER_REVERSE:
         return _PLACEHOLDER_REVERSE[order_uuid]
     return str(order_uuid)
 
 
 def _resolve_order_id(order_id: str) -> uuid.UUID:
+    """Accept ord-1/ord-2 in test mode; otherwise require a UUID."""
     if _test_mode_enabled() and order_id in _PLACEHOLDER_IDS:
         return _PLACEHOLDER_IDS[order_id]
     try:
@@ -97,6 +99,65 @@ def _append_event(
     )
 
 
+def _ensure_test_placeholders_seeded(db: Session) -> None:
+    """Create ord-1 / ord-2 as deterministic UUID orders + initial timeline, only in test mode."""
+    if not _test_mode_enabled():
+        return
+
+    for public_id, oid in _PLACEHOLDER_IDS.items():
+        existing = db.get(Order, oid)
+        if existing is not None:
+            continue
+
+        tracking = (
+            _PLACEHOLDER_TRACKING_ID_ORD1
+            if public_id == "ord-1"
+            else uuid.uuid4().hex
+        )
+        created = _now_utc()
+
+        o = Order(
+            id=oid,
+            public_tracking_id=tracking,
+            merchant_id="merchant-1",
+            customer_name="Test Placeholder",
+            customer_phone=None,
+            pickup_lat=0.0,
+            pickup_lng=0.0,
+            dropoff_lat=0.0,
+            dropoff_lng=0.0,
+            dropoff_accuracy_m=None,
+            payload_weight_kg=1.0,
+            payload_type="parcel",
+            priority=OrderPriority.NORMAL,
+            status=OrderStatus.QUEUED,
+            created_at=created,
+            updated_at=created,
+        )
+        db.add(o)
+
+        _append_event(
+            db,
+            order_id=oid,
+            event_type=DeliveryEventType.CREATED,
+            message="Order created",
+        )
+        _append_event(
+            db,
+            order_id=oid,
+            event_type=DeliveryEventType.VALIDATED,
+            message="Order validated",
+        )
+        _append_event(
+            db,
+            order_id=oid,
+            event_type=DeliveryEventType.QUEUED,
+            message="Order queued for dispatch",
+        )
+
+    db.commit()
+
+
 def list_orders(
     *,
     auth: AuthContext,
@@ -108,6 +169,8 @@ def list_orders(
     from_date: datetime | None,
     to_date: datetime | None,
 ) -> tuple[list[dict[str, Any]], int]:
+    _ensure_test_placeholders_seeded(db)
+
     stmt = select(Order)
     filters: list[Any] = []
 
@@ -166,8 +229,8 @@ def list_orders(
 
 def create_order(
     auth: AuthContext,
+    db: Session,
     customer_name: str | None,
-    db: Session | None = None,
     customer_phone: str | None = None,
     lat: float | None = None,
     weight: float | None = None,
@@ -180,11 +243,6 @@ def create_order(
     payload_type: str | None = None,
     priority: str | None = None,
 ) -> dict[str, Any]:
-    """
-    Backwards compatible:
-    - If db is provided: create in DB + create timeline events.
-    - If db is None: create a minimal in-memory order for unit tests (store-based).
-    """
     if auth.role not in {"MERCHANT", "OPS", "ADMIN"}:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -199,8 +257,12 @@ def create_order(
         resolved_pickup_lat = 0.0
 
     resolved_pickup_lng = pickup_lng if pickup_lng is not None else 0.0
-    resolved_dropoff_lat = dropoff_lat if dropoff_lat is not None else resolved_pickup_lat
-    resolved_dropoff_lng = dropoff_lng if dropoff_lng is not None else resolved_pickup_lng
+    resolved_dropoff_lat = (
+        dropoff_lat if dropoff_lat is not None else resolved_pickup_lat
+    )
+    resolved_dropoff_lng = (
+        dropoff_lng if dropoff_lng is not None else resolved_pickup_lng
+    )
 
     if payload_weight_kg is not None:
         resolved_payload_weight = payload_weight_kg
@@ -215,52 +277,6 @@ def create_order(
         prio = OrderPriority.NORMAL
 
     now = _now_utc()
-
-    # Store-only path (for unit tests that don't mount DB)
-    if db is None:
-        oid = uuid.uuid4()
-        tracking_id = uuid.uuid4().hex
-
-        store.orders.append(
-            {
-                "id": str(oid),
-                "public_tracking_id": tracking_id,
-                "merchant_id": auth.user_id if auth.role == "MERCHANT" else None,
-                "customer_name": customer_name,
-                "status": OrderStatus.QUEUED.value,
-                "created_at": now,
-                "updated_at": now,
-            }
-        )
-
-        store.events.append(
-            {
-                "order_id": str(oid),
-                "type": "CREATED",
-                "message": "Order created",
-                "created_at": now,
-            }
-        )
-        store.events.append(
-            {
-                "order_id": str(oid),
-                "type": "VALIDATED",
-                "message": "Order validated",
-                "created_at": now,
-            }
-        )
-        store.events.append(
-            {
-                "order_id": str(oid),
-                "type": "QUEUED",
-                "message": "Order queued for dispatch",
-                "created_at": now,
-            }
-        )
-
-        return store.orders[-1]
-
-    # DB path
     o = Order(
         public_tracking_id=uuid.uuid4().hex,
         merchant_id=auth.user_id if auth.role == "MERCHANT" else None,
@@ -280,7 +296,7 @@ def create_order(
     )
 
     db.add(o)
-    db.flush()  # ensure o.id exists
+    db.flush()  # ensure o.id exists before events
 
     _append_event(
         db,
@@ -318,13 +334,12 @@ def create_order(
 
 
 def get_order(auth: AuthContext, db: Session, order_id: str) -> dict[str, Any]:
+    _ensure_test_placeholders_seeded(db)
+
     oid = _resolve_order_id(order_id)
     row = db.get(Order, oid)
     if row is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Order not found",
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
 
     _assert_can_access_order(auth, row)
 
@@ -340,13 +355,12 @@ def get_order(auth: AuthContext, db: Session, order_id: str) -> dict[str, Any]:
 
 
 def list_events(auth: AuthContext, db: Session, order_id: str) -> list[dict[str, Any]]:
+    _ensure_test_placeholders_seeded(db)
+
     oid = _resolve_order_id(order_id)
     order = db.get(Order, oid)
     if order is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Order not found",
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
 
     _assert_can_access_order(auth, order)
 
@@ -373,18 +387,12 @@ def list_events(auth: AuthContext, db: Session, order_id: str) -> list[dict[str,
 
 def cancel_order(auth: AuthContext, db: Session, order_id: str) -> dict[str, Any]:
     if auth.role not in {"OPS", "ADMIN"}:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient role",
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
 
     oid = _resolve_order_id(order_id)
     row = db.get(Order, oid)
     if row is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Order not found",
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
 
     if row.status in TERMINAL:
         raise HTTPException(
@@ -426,43 +434,23 @@ def _assert_drone_assignable(drone_id: str) -> None:
     if drone is None:
         return
     if not bool(drone.get("available", False)):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Drone unavailable",
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Drone unavailable")
     if int(drone.get("battery", 0)) <= 20:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Drone battery too low",
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Drone battery too low")
 
 
-def manual_assign(
-    auth: AuthContext,
-    db: Session,
-    order_id: str,
-    drone_id: str,
-) -> dict[str, Any]:
+def manual_assign(auth: AuthContext, db: Session, order_id: str, drone_id: str) -> dict[str, Any]:
     if auth.role not in {"OPS", "ADMIN"}:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient role",
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
     if not _is_valid_drone_id(drone_id):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid drone_id",
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid drone_id")
 
     _assert_drone_assignable(drone_id)
 
     oid = _resolve_order_id(order_id)
     row = db.get(Order, oid)
     if row is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Order not found",
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
 
     if row.status in TERMINAL:
         raise HTTPException(
@@ -495,12 +483,7 @@ def manual_assign(
         db.refresh(row)
         db.refresh(job)
 
-    log_event(
-        "order_assigned",
-        order_id=str(row.id),
-        job_id=str(job.id),
-        drone_id=drone_id,
-    )
+    log_event("order_assigned", order_id=str(row.id), job_id=str(job.id), drone_id=drone_id)
 
     return {
         "id": _public_order_id(row.id),
@@ -519,18 +502,12 @@ def submit_mission(
     order_id: str,
 ) -> tuple[dict[str, Any], dict[str, str]]:
     if auth.role not in {"OPS", "ADMIN"}:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient role",
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
 
     oid = _resolve_order_id(order_id)
     row = db.get(Order, oid)
     if row is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Order not found",
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
 
     if row.status not in {OrderStatus.ASSIGNED, OrderStatus.MISSION_SUBMITTED}:
         raise HTTPException(
@@ -591,17 +568,13 @@ def submit_mission(
     return order_out, mission_intent_payload
 
 
-def run_auto_dispatch(
-    auth: AuthContext,
-    db: Session,
-) -> dict[str, int | list[dict[str, str]]]:
+def run_auto_dispatch(auth: AuthContext, db: Session) -> dict[str, int | list[dict[str, str]]]:
     if auth.role not in {"OPS", "ADMIN"}:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient role",
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
 
-    dispatchable = {OrderStatus.QUEUED}
+    _ensure_test_placeholders_seeded(db)
+
+    dispatchable = {OrderStatus.CREATED, OrderStatus.VALIDATED, OrderStatus.QUEUED}
     orders_stmt = (
         select(Order)
         .where(Order.status.in_(dispatchable))
@@ -623,16 +596,11 @@ def run_auto_dispatch(
     return {"assigned": len(assignments), "assignments": assignments}
 
 
-def list_jobs(
-    auth: AuthContext,
-    db: Session,
-    active_only: bool,
-) -> list[dict[str, Any]]:
+def list_jobs(auth: AuthContext, db: Session, active_only: bool) -> list[dict[str, Any]]:
     if auth.role not in {"OPS", "ADMIN"}:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient role",
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
+
+    _ensure_test_placeholders_seeded(db)
 
     stmt = select(DeliveryJob).order_by(DeliveryJob.created_at.asc())
     if active_only:
@@ -658,16 +626,7 @@ def list_jobs(
 
 
 def tracking_view(db: Session, public_tracking_id: str) -> dict[str, Any]:
-    """
-    Tests expect 1111... to resolve without auth. We no longer seed DB placeholders,
-    so in test mode we return a synthetic tracking record for that ID.
-    """
-    if _test_mode_enabled() and public_tracking_id == _PLACEHOLDER_TRACKING_ID_ORD1:
-        return {
-            "id": "ord-1",
-            "public_tracking_id": public_tracking_id,
-            "status": OrderStatus.QUEUED.value,
-        }
+    _ensure_test_placeholders_seeded(db)
 
     stmt = select(Order).where(Order.public_tracking_id == public_tracking_id)
     row = db.scalar(stmt)
@@ -694,18 +653,12 @@ def create_pod(
     photo_url: str | None,
 ) -> dict[str, Any]:
     if auth.role not in {"OPS", "ADMIN"}:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Insufficient role",
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
 
     oid = _resolve_order_id(order_id)
     order = db.get(Order, oid)
     if order is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Order not found",
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
 
     if order.status != OrderStatus.DELIVERED:
         raise HTTPException(
@@ -748,9 +701,5 @@ def create_pod(
 
 
 def get_pod(db: Session, order_id: str) -> ProofOfDelivery | None:
-    try:
-        oid = uuid.UUID(order_id)
-    except ValueError:
-        oid = _resolve_order_id(order_id)
-
+    oid = _resolve_order_id(order_id)
     return db.scalar(select(ProofOfDelivery).where(ProofOfDelivery.order_id == oid))

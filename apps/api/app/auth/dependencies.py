@@ -61,7 +61,9 @@ def require_roles(*roles: str) -> Callable[[AuthContext], AuthContext]:
 
 def require_backoffice_write(auth: AuthContext = Depends(get_auth_context)) -> AuthContext:
     if auth.role not in {"OPS", "ADMIN"}:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Write action requires OPS/ADMIN")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Write action requires OPS/ADMIN"
+        )
     return auth
 
 
@@ -70,7 +72,9 @@ def assert_merchant_ownership(auth: AuthContext, merchant_id: str | None) -> Non
         return
     if auth.role == "MERCHANT" and merchant_id == auth.user_id:
         return
-    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied for this order")
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN, detail="Access denied for this order"
+    )
 
 
 _RATE_LIMIT_BUCKETS: dict[str, list[float]] = {}

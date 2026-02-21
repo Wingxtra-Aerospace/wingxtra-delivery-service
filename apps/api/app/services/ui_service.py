@@ -14,17 +14,14 @@ from app.auth.dependencies import AuthContext
 from app.config import settings
 from app.models.delivery_event import DeliveryEvent, DeliveryEventType
 from app.models.delivery_job import DeliveryJob, DeliveryJobStatus
+from app.models.domain import Event as MemEvent
+from app.models.domain import Job as MemJob
+from app.models.domain import Order as MemOrder
+from app.models.domain import now_utc as mem_now_utc
 from app.models.order import Order, OrderPriority, OrderStatus
 from app.models.proof_of_delivery import ProofOfDelivery, ProofOfDeliveryMethod
 from app.observability import log_event, observe_timing
 from app.services.store import store
-
-# In-memory (store) domain models
-from app.models.domain import Event as MemEvent
-from app.models.domain import Job as MemJob
-from app.models.domain import Order as MemOrder
-from app.models.domain import ProofOfDelivery as MemPod
-from app.models.domain import now_utc as mem_now_utc
 
 TERMINAL: set[OrderStatus] = {
     OrderStatus.CANCELED,
@@ -32,7 +29,6 @@ TERMINAL: set[OrderStatus] = {
     OrderStatus.ABORTED,
     OrderStatus.DELIVERED,
 }
-
 
 def _now_utc() -> datetime:
     return datetime.now(timezone.utc)

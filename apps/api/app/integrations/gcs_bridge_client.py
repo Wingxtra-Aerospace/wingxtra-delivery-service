@@ -32,15 +32,15 @@ class GcsBridgeClient:
         self.backoff_s = backoff_s
 
     def publish_mission_intent(self, mission_intent: dict) -> None:
+        if not self.base_url:
+            return None
+
         try:
             mission_intent = MissionIntent.model_validate(mission_intent).model_dump(mode="json")
         except Exception as err:
             raise IntegrationBadGatewayError(
                 "gcs_bridge", "Mission intent payload failed contract validation"
             ) from err
-
-        if not self.base_url:
-            return None
 
         attempts = self.max_retries + 1
         for attempt in range(attempts):

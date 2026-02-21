@@ -104,7 +104,7 @@ def test_gcs_client_retries_and_raises_timeout(monkeypatch):
 
 
 def test_gcs_client_rejects_invalid_mission_intent_contract():
-    client = GcsBridgeClient("", timeout_s=0.1, max_retries=0, backoff_s=0)
+    client = GcsBridgeClient("http://gcs", timeout_s=0.1, max_retries=0, backoff_s=0)
 
     with pytest.raises(IntegrationBadGatewayError):
         client.publish_mission_intent({"order_id": "ord-1"})

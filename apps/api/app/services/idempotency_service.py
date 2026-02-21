@@ -42,6 +42,12 @@ def check_idempotency(
     return IdempotencyResult(replay=True, response_payload=record["response_payload"])
 
 
+def build_scope(route: str, *, user_id: str, order_id: str | None = None) -> str:
+    if order_id:
+        return f"{route}:user={user_id}:order={order_id}"
+    return f"{route}:user={user_id}"
+
+
 def save_idempotency_result(
     *,
     user_id: str,

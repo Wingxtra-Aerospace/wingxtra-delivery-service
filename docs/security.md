@@ -26,8 +26,9 @@ If valid, request role is mapped to `OPS`.
 
 - `CUSTOMER`: no protected endpoint access; can use public tracking only.
 - `MERCHANT`: create order, list own orders, view own order details/events.
-- `OPS`: full operations (list orders, order detail/events, assign, cancel, jobs).
-- `ADMIN`: all OPS permissions.
+- `OPS`/`ADMIN`: all write actions (`assign`, `cancel`, `submit mission intent`, `POD create`), jobs, and dispatch execution.
+
+Write endpoints now use a strict backoffice check and return `403` with `Write action requires OPS/ADMIN` when a merchant/customer token attempts a mutating ops action.
 
 ## Public tracking
 
@@ -42,23 +43,29 @@ When proof-of-delivery exists, tracking also includes:
 - `pod_summary` (with at least `method`)
 
 Rate limiting is applied per client IP:
-- Public tracking (stricter defaults):
+- Public tracking:
   - `PUBLIC_TRACKING_RATE_LIMIT_REQUESTS` (default `10`)
   - `PUBLIC_TRACKING_RATE_LIMIT_WINDOW_S` (default `60`)
 - Order creation:
-  - `ORDER_CREATE_RATE_LIMIT_REQUESTS` (default `5`)
+  - `ORDER_CREATE_RATE_LIMIT_REQUESTS` (default `1000`)
   - `ORDER_CREATE_RATE_LIMIT_WINDOW_S` (default `60`)
 
 When limits are exceeded, the API returns `429 Too Many Requests`.
 
+## Idempotency
+
+Supported endpoints:
+- `POST /api/v1/orders`
+- `POST /api/v1/orders/{order_id}/assign`
+- `POST /api/v1/orders/{order_id}/submit-mission-intent`
+- `POST /api/v1/orders/{order_id}/pod`
+
+Behavior:
+- `Idempotency-Key` is optional but, when provided, replay is deterministic.
+- Scope is deterministic per endpoint/user (and per-order where required).
+- Replays with the same payload return the original response payload.
+- Reusing the same key with a different payload returns `409` (`Idempotency key reused with different payload`).
+
 ## CORS
 
 Set `CORS_ALLOWED_ORIGINS` as comma-separated origins for UI clients.
-
-
-## Idempotency
-Supported endpoints:
-- `POST /api/v1/orders`
-- `POST /api/v1/orders/{order_id}/submit-mission-intent`
-
-The API stores idempotency key + request hash + response payload.

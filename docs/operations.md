@@ -37,8 +37,26 @@ Timing metrics currently captured:
 - `mission_intent_generation_seconds`
 - `http_request_duration_seconds`
 
+## Integration boundaries and retries
 
-### Database configuration
+External integration clients now enforce explicit retry/backoff limits and return structured domain errors:
+
+- `fleet_api_client`
+  - timeout via `FLEET_API_TIMEOUT_S`
+  - retries via `FLEET_API_MAX_RETRIES`
+  - exponential backoff base via `FLEET_API_BACKOFF_S`
+- `gcs_bridge_client`
+  - optional HTTP bridge URL via `GCS_BRIDGE_BASE_URL` (empty means no-op publisher)
+  - timeout via `GCS_BRIDGE_TIMEOUT_S`
+  - retries via `GCS_BRIDGE_MAX_RETRIES`
+  - exponential backoff base via `GCS_BRIDGE_BACKOFF_S`
+
+Error translation for API callers:
+- retryable integration failures translate to `503 Service Unavailable`
+- non-retryable upstream response failures translate to `502 Bad Gateway`
+- response body includes `{service, code, message}` for debugging and runbook routing.
+
+## Database configuration
 
 Set `WINGXTRA_DATABASE_URL` to configure the SQLAlchemy connection URL.
 For CI and local test safety, the service defaults to `sqlite+pysqlite:///./test.db` when unset.

@@ -24,6 +24,15 @@ class Settings(BaseSettings):
     order_create_rate_limit_requests: int = 1000
     order_create_rate_limit_window_s: int = 60
 
+    fleet_api_timeout_s: float = 2.0
+    fleet_api_max_retries: int = 2
+    fleet_api_backoff_s: float = 0.2
+
+    gcs_bridge_base_url: str = ""
+    gcs_bridge_timeout_s: float = 2.0
+    gcs_bridge_max_retries: int = 2
+    gcs_bridge_backoff_s: float = 0.2
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 

@@ -83,6 +83,7 @@ async def create_order_endpoint(
 
     if idempotency_key:
         idem = check_idempotency(
+            db=db,
             user_id=auth.user_id,
             route=route_scope,
             idempotency_key=idempotency_key,
@@ -112,6 +113,7 @@ async def create_order_endpoint(
 
     if idempotency_key:
         save_idempotency_result(
+            db=db,
             user_id=auth.user_id,
             route=route_scope,
             idempotency_key=idempotency_key,
@@ -208,6 +210,7 @@ def assign_endpoint(
 
     if idempotency_key:
         idem = check_idempotency(
+            db=db,
             user_id=auth.user_id,
             route=route_scope,
             idempotency_key=idempotency_key,
@@ -229,6 +232,7 @@ def assign_endpoint(
 
     if idempotency_key:
         save_idempotency_result(
+            db=db,
             user_id=auth.user_id,
             route=route_scope,
             idempotency_key=idempotency_key,
@@ -255,6 +259,7 @@ def cancel_endpoint(
 
     if idempotency_key:
         idem = check_idempotency(
+            db=db,
             user_id=auth.user_id,
             route=route_scope,
             idempotency_key=idempotency_key,
@@ -276,6 +281,7 @@ def cancel_endpoint(
 
     if idempotency_key:
         save_idempotency_result(
+            db=db,
             user_id=auth.user_id,
             route=route_scope,
             idempotency_key=idempotency_key,
@@ -307,6 +313,7 @@ async def submit_mission_endpoint(
 
     if idempotency_key:
         idem = check_idempotency(
+            db=db,
             user_id=auth.user_id,
             route=route_scope,
             idempotency_key=idempotency_key,
@@ -346,6 +353,7 @@ async def submit_mission_endpoint(
 
     if idempotency_key:
         save_idempotency_result(
+            db=db,
             user_id=auth.user_id,
             route=route_scope,
             idempotency_key=idempotency_key,
@@ -379,6 +387,7 @@ def create_pod_endpoint(
 
     if idempotency_key:
         idem = check_idempotency(
+            db=db,
             user_id=auth.user_id,
             route=route_scope,
             idempotency_key=idempotency_key,
@@ -400,6 +409,7 @@ def create_pod_endpoint(
 
     if idempotency_key:
         save_idempotency_result(
+            db=db,
             user_id=auth.user_id,
             route=route_scope,
             idempotency_key=idempotency_key,

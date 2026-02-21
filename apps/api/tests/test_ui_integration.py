@@ -73,6 +73,13 @@ def test_public_tracking_is_unauthenticated_and_sanitized():
     assert set(payload.keys()) == {"order_id", "public_tracking_id", "status"}
 
 
+def test_orders_track_endpoint_is_unauthenticated_and_sanitized():
+    tracking = client.get("/api/v1/orders/track/11111111-1111-4111-8111-111111111111")
+    assert tracking.status_code == 200
+    payload = tracking.json()
+    assert set(payload.keys()) == {"order_id", "public_tracking_id", "status"}
+
+
 def test_protected_endpoints_allow_test_bypass_without_jwt():
     response = client.get("/api/v1/orders")
     assert response.status_code == 200
@@ -86,6 +93,17 @@ def test_public_tracking_rate_limit_enforced():
 
     limited = client.get("/api/v1/tracking/11111111-1111-4111-8111-111111111111")
     assert limited.status_code == 429
+
+
+def test_orders_track_endpoint_rate_limit_enforced():
+    reset_rate_limits()
+    for _ in range(settings.public_tracking_rate_limit_requests):
+        ok = client.get("/api/v1/orders/track/11111111-1111-4111-8111-111111111111")
+        assert ok.status_code == 200
+
+    limited = client.get("/api/v1/orders/track/11111111-1111-4111-8111-111111111111")
+    assert limited.status_code == 429
+    assert limited.json()["detail"] == "Public tracking rate limit exceeded"
 
 
 def test_idempotency_for_create_order_replay_and_conflict():
@@ -163,6 +181,14 @@ def test_request_id_echoed_in_response_header():
     )
     assert response.status_code == 200
     assert response.headers.get("X-Request-ID") == request_id
+
+
+def test_metrics_endpoint_requires_ops_or_admin_role():
+    forbidden = client.get("/metrics", headers=_headers("MERCHANT", sub="merchant-metrics"))
+    assert forbidden.status_code == 403
+
+    allowed = client.get("/metrics", headers=_headers("OPS", sub="ops-metrics-auth"))
+    assert allowed.status_code == 200
 
 
 def test_metrics_endpoint_exposes_dispatch_and_mission_timings():
@@ -278,6 +304,39 @@ def test_manual_assign_requires_ops_or_admin():
     assert denied.json()["detail"] == "Write action requires OPS/ADMIN"
 
 
+def test_idempotency_for_cancel_replay_and_order_scope():
+    headers = _headers("OPS", sub="ops-cancel-idem")
+
+    order_one = client.post(
+        "/api/v1/orders",
+        json={"customer_name": "Cancel Idem One"},
+        headers=headers,
+    ).json()
+    order_two = client.post(
+        "/api/v1/orders",
+        json={"customer_name": "Cancel Idem Two"},
+        headers=headers,
+    ).json()
+
+    idem_headers = dict(headers)
+    idem_headers["Idempotency-Key"] = "idem-cancel-1"
+
+    first_cancel = client.post(f"/api/v1/orders/{order_one['id']}/cancel", headers=idem_headers)
+    replay_cancel = client.post(f"/api/v1/orders/{order_one['id']}/cancel", headers=idem_headers)
+    second_order_cancel = client.post(
+        f"/api/v1/orders/{order_two['id']}/cancel",
+        headers=idem_headers,
+    )
+
+    assert first_cancel.status_code == 200
+    assert replay_cancel.status_code == 200
+    assert replay_cancel.json() == first_cancel.json()
+
+    assert second_order_cancel.status_code == 200
+    assert second_order_cancel.json()["order_id"] == order_two["id"]
+    assert second_order_cancel.json()["status"] == "CANCELED"
+
+
 def test_idempotency_for_assign_and_pod_replay_and_conflict(db_session):
     headers = _headers("OPS", sub="ops-idem")
     order = client.post("/api/v1/orders", json={"customer_name": "Idem"}, headers=headers).json()
@@ -327,6 +386,24 @@ def test_idempotency_for_assign_and_pod_replay_and_conflict(db_session):
     assert replay_pod.status_code == 200
     assert replay_pod.json() == first_pod.json()
     assert conflict_pod.status_code == 409
+
+
+def test_get_pod_returns_nullable_method_when_record_missing():
+    order = client.post(
+        "/api/v1/orders",
+        json={"customer_name": "No POD yet"},
+        headers=_headers("OPS", sub="ops-pod-read"),
+    ).json()
+
+    response = client.get(
+        f"/api/v1/orders/{order['id']}/pod",
+        headers=_headers("OPS", sub="ops-pod-read"),
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["order_id"] == order["id"]
+    assert payload["method"] is None
 
 
 def test_mission_submit_translates_integration_errors():

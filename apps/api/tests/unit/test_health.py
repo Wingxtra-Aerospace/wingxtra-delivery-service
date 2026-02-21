@@ -3,3 +3,15 @@ def test_health_check(client):
 
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
+
+
+def test_health_endpoint_exposes_explicit_response_schema(client):
+    openapi = client.get("/openapi.json")
+    assert openapi.status_code == 200
+
+    payload = openapi.json()
+    health_get = payload["paths"]["/health"]["get"]
+
+    assert health_get["responses"]["200"]["content"]["application/json"]["schema"]["$ref"] == (
+        "#/components/schemas/HealthResponse"
+    )

@@ -4,17 +4,34 @@ on:
   push:
     paths:
       - "apps/api/**"
+      - "docs/**"
       - ".github/workflows/api.yml"
   pull_request:
     paths:
       - "apps/api/**"
+      - "docs/**"
       - ".github/workflows/api.yml"
 
 jobs:
   api:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: wingxtra
+          POSTGRES_PASSWORD: wingxtra
+          POSTGRES_DB: wingxtra_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U wingxtra -d wingxtra_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     env:
-      WINGXTRA_DATABASE_URL: sqlite+pysqlite:///./ci.db
+      WINGXTRA_DATABASE_URL: postgresql+psycopg://wingxtra:wingxtra@localhost:5432/wingxtra_ci
+      WINGXTRA_TESTING: "true"
     defaults:
       run:
         working-directory: apps/api
@@ -31,3 +48,5 @@ jobs:
         run: ruff check .
       - name: Test
         run: pytest
+      - name: Readiness suite
+        run: pytest tests/integration/test_readiness_layer.py

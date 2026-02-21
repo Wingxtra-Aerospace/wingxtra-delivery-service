@@ -1,9 +1,32 @@
 import httpx
 import pytest
 
-from app.integrations.errors import IntegrationBadGatewayError, IntegrationTimeoutError
+from app.integrations.errors import (
+    IntegrationBadGatewayError,
+    IntegrationTimeoutError,
+    IntegrationUnavailableError,
+)
 from app.integrations.fleet_api_client import FleetApiClient
 from app.integrations.gcs_bridge_client import GcsBridgeClient
+
+
+def _valid_mission_intent() -> dict:
+    return {
+        "intent_id": "mi_123",
+        "order_id": "11111111-1111-1111-1111-111111111111",
+        "drone_id": "DR-1",
+        "pickup": {"lat": 1.0, "lng": 2.0, "alt_m": 20},
+        "dropoff": {"lat": 3.0, "lng": 4.0, "alt_m": 20, "delivery_alt_m": 8},
+        "actions": ["TAKEOFF", "CRUISE", "DESCEND", "DROP_OR_WINCH", "ASCEND", "RTL"],
+        "constraints": {"battery_min_pct": 30, "service_area_id": "default"},
+        "safety": {"abort_rtl_on_fail": True, "loiter_timeout_s": 60, "lost_link_behavior": "RTL"},
+        "metadata": {
+            "payload_type": "BOX",
+            "payload_weight_kg": 1.5,
+            "priority": "NORMAL",
+            "created_at": "2026-02-20T10:00:00Z",
+        },
+    }
 
 
 class _Response:
@@ -77,4 +100,18 @@ def test_gcs_client_retries_and_raises_timeout(monkeypatch):
 
     client = GcsBridgeClient("http://gcs", timeout_s=0.1, max_retries=0, backoff_s=0)
     with pytest.raises(IntegrationTimeoutError):
+        client.publish_mission_intent(_valid_mission_intent())
+
+
+def test_gcs_client_rejects_invalid_mission_intent_contract():
+    client = GcsBridgeClient("", timeout_s=0.1, max_retries=0, backoff_s=0)
+
+    with pytest.raises(IntegrationBadGatewayError):
         client.publish_mission_intent({"order_id": "ord-1"})
+
+
+def test_fleet_client_requires_base_url():
+    client = FleetApiClient("", timeout_s=0.1, max_retries=0, backoff_s=0)
+
+    with pytest.raises(IntegrationUnavailableError):
+        client.get_latest_telemetry()

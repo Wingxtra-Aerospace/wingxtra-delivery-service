@@ -62,23 +62,10 @@ Set `WINGXTRA_DATABASE_URL` to configure the SQLAlchemy connection URL.
 For CI and local test safety, the service defaults to `sqlite+pysqlite:///./test.db` when unset.
 
 Set `WINGXTRA_TESTING=true` in test environments to disable startup demo-data seeding.
-This keeps API list endpoints deterministic for integration tests. During pytest runs, seeding is also automatically disabled when `PYTEST_CURRENT_TEST` is present.
+This keeps API list endpoints deterministic for integration tests.
 
-In test mode (`WINGXTRA_TESTING=true` or pytest runtime), placeholder order IDs `ord-1` and `ord-2` are accepted for UI integration tests and are materialized as in-memory stub orders.
+Set `WINGXTRA_UI_SERVICE_MODE` to explicitly select the UI service strategy:
 
-## Delivery readiness checklist
-
-Run this checklist before promoting a release candidate:
-
-- [ ] **Postgres-backed readiness suite passes in CI**
-  - Command: `pytest tests/integration/test_readiness_layer.py`
-  - Pass criteria: all readiness tests pass against Postgres with `WINGXTRA_TESTING=true`.
-- [ ] **Happy-path workflow validated end to end**
-  - Scenario: order creation → assignment → mission submit → delivery event progression (`LAUNCHED`, `ENROUTE`, `DELIVERED`) → POD creation → public tracking lookup.
-  - Pass criteria: timeline contains expected ordered events and tracking returns `DELIVERED` + POD summary.
-- [ ] **Failure paths validated**
-  - Scenario coverage: unavailable drone, low-battery drone, duplicate mission submit (idempotency key replay), and external publish failure.
-  - Pass criteria: API returns deterministic error responses for assignment failures, duplicate mission submit publishes once, and publish failure is surfaced while preserving persisted mission state for operator recovery.
-- [ ] **Hot endpoint smoke checks complete**
-  - Scenario coverage: `/api/v1/orders`, `/api/v1/tracking/{id}`, and `/api/v1/dispatch/run` under short burst load.
-  - Pass criteria: request bursts complete within guardrail timings asserted by readiness tests and dispatch assigns all eligible queued orders.
+- `db`: only database-backed order and tracking flows.
+- `store`: only in-memory placeholder/test flows.
+- `hybrid` (default): DB-backed API flows with placeholder/store adapters enabled for UI test IDs like `ord-1` and `ord-2`.

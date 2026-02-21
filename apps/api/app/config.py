@@ -16,10 +16,7 @@ class Settings(BaseSettings):
     gcs_auth_source: str = "gcs"
     enable_test_auth_bypass: bool = False
     testing: bool = Field(default=False, validation_alias="WINGXTRA_TESTING")
-    enable_placeholder_mode: bool = Field(
-        default=False,
-        validation_alias="WINGXTRA_ENABLE_PLACEHOLDER_MODE",
-    )
+    ui_service_mode: str = Field(default="hybrid", validation_alias="WINGXTRA_UI_SERVICE_MODE")
 
     public_tracking_rate_limit_requests: int = 10
     public_tracking_rate_limit_window_s: int = 60

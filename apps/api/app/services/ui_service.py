@@ -239,9 +239,14 @@ def create_order(
         store.events.append(
             {"order_id": str(oid), "type": "CREATED", "message": "Order created", "created_at": now}
         )
-        store.events.append(
-            {"order_id": str(oid), "type": "VALIDATED", "message": "Order validated", "created_at": now}
-        )
+store.events.append(
+    {
+        "order_id": str(oid),
+        "type": "VALIDATED",
+        "message": "Order validated",
+        "created_at": now,
+    }
+)
         store.events.append(
             {
                 "order_id": str(oid),

@@ -16,7 +16,10 @@ from app.config import settings
 from app.models.delivery_event import DeliveryEvent, DeliveryEventType
 from app.models.delivery_job import DeliveryJob, DeliveryJobStatus
 from app.models.order import Order, OrderPriority, OrderStatus
-from app.models.pod import ProofOfDelivery, ProofOfDeliveryMethod
+from app.models.proof_of_delivery import (
+    ProofOfDelivery,
+    ProofOfDeliveryMethod,
+)
 from app.observability import log_event, observe_timing
 from app.services.store import store
 

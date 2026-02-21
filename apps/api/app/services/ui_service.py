@@ -663,12 +663,13 @@ def list_jobs(
     _ensure_test_placeholders_seeded(db)
 
     stmt = select(DeliveryJob).order_by(DeliveryJob.created_at.asc())
-if active_only:
-    active_statuses = {
-        DeliveryJobStatus.PENDING,
-        DeliveryJobStatus.ACTIVE,
-    }
-    stmt = stmt.where(DeliveryJob.status.in_(active_statuses))
+    if active_only:
+        active_statuses = {
+            DeliveryJobStatus.PENDING,
+            DeliveryJobStatus.ACTIVE,
+        }
+        stmt = stmt.where(DeliveryJob.status.in_(active_statuses))
+
     rows = list(db.scalars(stmt))
 
     out: list[dict[str, Any]] = []
@@ -679,12 +680,13 @@ if active_only:
                 "order_id": _public_order_id(job.order_id),
                 "assigned_drone_id": job.assigned_drone_id,
                 "mission_intent_id": job.mission_intent_id,
+                "eta_seconds": job.eta_seconds,
                 "status": job.status.value,
                 "created_at": job.created_at,
             }
         )
-    return out
 
+    return out
 
 def create_pod(
     auth: AuthContext,

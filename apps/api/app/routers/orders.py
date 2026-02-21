@@ -13,6 +13,7 @@ from app.config import settings
 from app.db.session import get_db
 from app.integrations.errors import IntegrationBadGatewayError, IntegrationError
 from app.integrations.gcs_bridge_client import get_gcs_bridge_client
+from app.observability import observe_timing
 from app.schemas.ui import (
     EventResponse,
     EventsTimelineResponse,
@@ -22,6 +23,7 @@ from app.schemas.ui import (
     OrderCreateRequest,
     OrderDetailResponse,
     OrdersListResponse,
+    OrderUpdateRequest,
     PaginationMeta,
     PodCreateRequest,
     PodResponse,
@@ -42,6 +44,7 @@ from app.services.ui_service import (
     manual_assign,
     submit_mission,
     tracking_view,
+    update_order,
 )
 
 router = APIRouter(prefix="/api/v1/orders", tags=["orders"])
@@ -144,6 +147,25 @@ def list_orders_endpoint(
     )
 
 
+@router.patch("/{order_id}", response_model=OrderDetailResponse, summary="Update order")
+def update_order_endpoint(
+    order_id: str,
+    payload: OrderUpdateRequest,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_roles("MERCHANT", "OPS", "ADMIN")),
+) -> OrderDetailResponse:
+    order = update_order(
+        auth=auth,
+        db=db,
+        order_id=order_id,
+        customer_phone=payload.customer_phone,
+        dropoff_lat=payload.dropoff_lat,
+        dropoff_lng=payload.dropoff_lng,
+        priority=payload.priority,
+    )
+    return OrderDetailResponse.model_validate(order)
+
+
 @router.get("/{order_id}", response_model=OrderDetailResponse, summary="Get order detail")
 def get_order_endpoint(
     order_id: str,
@@ -193,9 +215,10 @@ def assign_endpoint(
             return OrderActionResponse.model_validate(idem.response_payload)
 
     if _is_placeholder_order_id(order_id):
-        response_payload = OrderActionResponse(order_id=order_id, status="ASSIGNED").model_dump(
-            mode="json"
-        )
+        with observe_timing("dispatch_assignment_seconds"):
+            response_payload = OrderActionResponse(order_id=order_id, status="ASSIGNED").model_dump(
+                mode="json"
+            )
     else:
         order = manual_assign(auth, db, order_id, payload.drone_id)
         response_payload = OrderActionResponse(
@@ -258,18 +281,19 @@ async def submit_mission_endpoint(
 
     try:
         if _is_placeholder_order_id(order_id):
-            response_payload = MissionSubmitResponse(
-                order_id=order_id,
-                mission_intent_id=f"mi_{order_id}",
-                status="MISSION_SUBMITTED",
-            ).model_dump(mode="json")
-            publisher.publish_mission_intent(
-                {
-                    "order_id": order_id,
-                    "mission_intent_id": response_payload["mission_intent_id"],
-                    "drone_id": "",
-                }
-            )
+            with observe_timing("mission_intent_generation_seconds"):
+                response_payload = MissionSubmitResponse(
+                    order_id=order_id,
+                    mission_intent_id=f"mi_{order_id}",
+                    status="MISSION_SUBMITTED",
+                ).model_dump(mode="json")
+                publisher.publish_mission_intent(
+                    {
+                        "order_id": order_id,
+                        "mission_intent_id": response_payload["mission_intent_id"],
+                        "drone_id": "",
+                    }
+                )
         else:
             order_out, mission_intent_payload = submit_mission(auth, db, order_id)
             publisher.publish_mission_intent(mission_intent_payload)

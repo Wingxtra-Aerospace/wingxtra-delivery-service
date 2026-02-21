@@ -8,6 +8,7 @@ Core UI integration endpoints:
 - `POST /api/v1/orders`
 - `GET /api/v1/orders` (pagination + filtering)
 - `GET /api/v1/orders/{order_id}`
+- `PATCH /api/v1/orders/{order_id}` (limited: `customer_phone`, `dropoff_lat/dropoff_lng`, `priority`)
 - `GET /api/v1/orders/{order_id}/events`
 - `POST /api/v1/orders/{order_id}/assign`
 - `POST /api/v1/orders/{order_id}/cancel`

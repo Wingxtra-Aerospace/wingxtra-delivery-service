@@ -1,4 +1,5 @@
 import time
+from contextlib import asynccontextmanager
 from uuid import uuid4
 
 from fastapi import FastAPI, Request
@@ -18,10 +19,21 @@ from app.routers.orders import router as orders_router
 from app.routers.tracking import router as tracking_router
 from app.services.store import seed_data
 
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    import app.models  # noqa: F401 (register all SQLAlchemy models)
+
+    Base.metadata.create_all(bind=engine)
+    seed_data()
+    yield
+
+
 app = FastAPI(
     title=settings.app_name,
     version="0.1.0",
     description="Wingxtra Delivery API UI integration support endpoints",
+    lifespan=lifespan,
 )
 
 
@@ -90,10 +102,3 @@ app.include_router(jobs_router)
 app.include_router(tracking_router)
 app.include_router(metrics_router)
 
-
-@app.on_event("startup")
-def startup_seed() -> None:
-    import app.models  # noqa: F401 (register all SQLAlchemy models)
-
-    Base.metadata.create_all(bind=engine)
-    seed_data()

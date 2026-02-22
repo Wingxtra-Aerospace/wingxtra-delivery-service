@@ -30,6 +30,41 @@ services:
       timeout: 5s
       retries: 5
 
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: wingxtra-api
+    environment:
+      WINGXTRA_DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/wingxtra
+      WINGXTRA_UI_SERVICE_MODE: db
+      WINGXTRA_TESTING: "true"
+      REDIS_URL: redis://redis:6379/0
+      RATE_LIMIT_BACKEND: redis
+      JWT_SECRET: dev-only-not-for-production-32-chars
+      POD_OTP_HMAC_SECRET: dev-only-not-for-production-32-chars
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+
+  web:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+      args:
+        VITE_API_BASE_URL: /api
+    container_name: wingxtra-web
+    environment:
+      VITE_API_BASE_URL: /api
+    depends_on:
+      - api
+    ports:
+      - "8080:80"
+
 volumes:
   postgres_data:
   redis_data:

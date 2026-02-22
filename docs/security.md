@@ -69,6 +69,12 @@ Behavior:
 - Reusing the same key with a different payload returns `409` (`Idempotency key reused with different payload`).
 - Idempotency records are persisted in the `idempotency_records` database table with TTL (`IDEMPOTENCY_TTL_S`, default `86400` seconds). Expired keys are purged opportunistically during idempotency checks/writes. Concurrent retries with the same scope/key are resolved safely to a single persisted record.
 
+
+## Test auth bypass
+
+For automated tests only, auth bypass is controlled by `ENABLE_TEST_AUTH_BYPASS` / `settings.enable_test_auth_bypass`.
+It is **not** implicitly enabled by pytest process environment variables.
+
 ## CORS
 
 Set `CORS_ALLOWED_ORIGINS` as comma-separated origins for UI clients.

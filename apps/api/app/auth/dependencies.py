@@ -1,4 +1,3 @@
-import os
 from dataclasses import dataclass
 from typing import Callable
 
@@ -19,7 +18,7 @@ class AuthContext:
 
 
 def _test_auth_bypass_enabled() -> bool:
-    return settings.enable_test_auth_bypass or ("PYTEST_CURRENT_TEST" in os.environ)
+    return settings.enable_test_auth_bypass
 
 
 def get_auth_context(

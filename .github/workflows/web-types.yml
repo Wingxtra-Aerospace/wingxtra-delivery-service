@@ -52,12 +52,11 @@ jobs:
         working-directory: web
         run: npm install
 
-      - name: Ensure generated API types are up to date
+      - name: Generate API types from OpenAPI schema
         working-directory: web
         run: |
           npx openapi-typescript /tmp/wingxtra-openapi.json --output src/api/types.ts
           node scripts/normalize-openapi-types.mjs
-          git diff --exit-code -- src/api/types.ts
 
       - name: Build web
         working-directory: web

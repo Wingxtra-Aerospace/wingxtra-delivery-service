@@ -85,9 +85,11 @@ class RateLimitStatus:
     limit: int
     remaining: int
     reset_after_s: int
+    reset_at_s: int
 
 
 def _apply_rate_limit(key: str, max_requests: int, window_s: int, detail: str) -> RateLimitStatus:
+    import math
     import time
 
     now = time.time()
@@ -98,7 +100,8 @@ def _apply_rate_limit(key: str, max_requests: int, window_s: int, detail: str) -
     if len(history) >= max_requests:
         metrics_store.increment("rate_limit_rejected_total")
         oldest = min(history)
-        reset_after_s = max(1, int((oldest + window_s) - now))
+        reset_after_s = max(1, math.ceil((oldest + window_s) - now))
+        reset_at_s = math.ceil(now + reset_after_s)
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail=detail,
@@ -106,15 +109,21 @@ def _apply_rate_limit(key: str, max_requests: int, window_s: int, detail: str) -
                 "Retry-After": str(reset_after_s),
                 "X-RateLimit-Limit": str(max_requests),
                 "X-RateLimit-Remaining": "0",
-                "X-RateLimit-Reset": str(reset_after_s),
+                "X-RateLimit-Reset": str(reset_at_s),
             },
         )
 
     history.append(now)
     _RATE_LIMIT_BUCKETS[key] = history
     remaining = max_requests - len(history)
-    reset_after_s = max(1, int((history[0] + window_s) - now))
-    return RateLimitStatus(limit=max_requests, remaining=remaining, reset_after_s=reset_after_s)
+    reset_after_s = max(1, math.ceil((history[0] + window_s) - now))
+    reset_at_s = math.ceil(now + reset_after_s)
+    return RateLimitStatus(
+        limit=max_requests,
+        remaining=remaining,
+        reset_after_s=reset_after_s,
+        reset_at_s=reset_at_s,
+    )
 
 
 def rate_limit_public_tracking(request: Request) -> RateLimitStatus:

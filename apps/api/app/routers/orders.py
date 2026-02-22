@@ -73,7 +73,7 @@ def _translate_integration_error(err: IntegrationError) -> HTTPException:
 def _set_rate_limit_headers(response, rate_limit: RateLimitStatus) -> None:
     response.headers["X-RateLimit-Limit"] = str(rate_limit.limit)
     response.headers["X-RateLimit-Remaining"] = str(rate_limit.remaining)
-    response.headers["X-RateLimit-Reset"] = str(rate_limit.reset_after_s)
+    response.headers["X-RateLimit-Reset"] = str(rate_limit.reset_at_s)
 
 
 @router.post("", response_model=OrderDetailResponse, summary="Create order", status_code=201)

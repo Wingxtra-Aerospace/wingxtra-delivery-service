@@ -23,7 +23,7 @@ def tracking_endpoint(
 ) -> TrackingViewResponse:
     response.headers["X-RateLimit-Limit"] = str(rate_limit.limit)
     response.headers["X-RateLimit-Remaining"] = str(rate_limit.remaining)
-    response.headers["X-RateLimit-Reset"] = str(rate_limit.reset_after_s)
+    response.headers["X-RateLimit-Reset"] = str(rate_limit.reset_at_s)
 
     order = tracking_view(db, public_tracking_id)
     order_id = order.get("id") or order["order_id"]

@@ -234,6 +234,10 @@ def list_jobs(
     return ui_db_service.list_jobs(auth, db, active_only, page, page_size)
 
 
+def get_job(auth: AuthContext, db: Session, job_id: str) -> dict[str, Any]:
+    return ui_db_service.get_job(auth, db, job_id)
+
+
 def tracking_view(db: Session, public_tracking_id: str) -> dict[str, Any]:
     mode = _mode()
     if mode in {"store", "hybrid"}:

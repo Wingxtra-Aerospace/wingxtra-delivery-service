@@ -415,6 +415,30 @@ def list_jobs(
     return items, total
 
 
+def get_job(auth: AuthContext, db: Session, job_id: str) -> dict[str, Any]:
+    if auth.role not in {"OPS", "ADMIN"}:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
+
+    try:
+        job_uuid = uuid.UUID(job_id)
+    except ValueError as err:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found") from err
+
+    row = db.get(DeliveryJob, job_uuid)
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
+
+    return {
+        "id": str(row.id),
+        "order_id": _public_order_id(row.order_id),
+        "assigned_drone_id": row.assigned_drone_id,
+        "mission_intent_id": row.mission_intent_id,
+        "eta_seconds": row.eta_seconds,
+        "status": row.status.value,
+        "created_at": row.created_at,
+    }
+
+
 def tracking_view(db: Session, public_tracking_id: str) -> dict[str, Any]:
     row = db.scalar(select(Order).where(Order.public_tracking_id == public_tracking_id))
     if row is None:

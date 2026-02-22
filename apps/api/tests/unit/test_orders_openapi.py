@@ -91,3 +91,13 @@ def test_jobs_item_schema_exposes_nullable_eta_seconds(client):
 
     assert eta_schema["anyOf"][0]["type"] == "integer"
     assert eta_schema["anyOf"][1]["type"] == "null"
+
+
+def test_jobs_detail_response_schema_in_openapi(client):
+    openapi = client.get("/openapi.json")
+    assert openapi.status_code == 200
+
+    jobs_detail = openapi.json()["paths"]["/api/v1/jobs/{job_id}"]["get"]
+    assert jobs_detail["responses"]["200"]["content"]["application/json"]["schema"]["$ref"] == (
+        "#/components/schemas/JobResponse"
+    )

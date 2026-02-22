@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.auth.dependencies import AuthContext, require_backoffice_write
 from app.db.session import get_db
 from app.schemas.ui import JobResponse, JobsListResponse, PaginationMeta
-from app.services.ui_service import list_jobs
+from app.services.ui_service import get_job, list_jobs
 
 router = APIRouter(prefix="/api/v1/jobs", tags=["jobs"])
 
@@ -22,3 +22,12 @@ def list_jobs_endpoint(
         items=[JobResponse.model_validate(job) for job in items],
         pagination=PaginationMeta(page=page, page_size=page_size, total=total),
     )
+
+
+@router.get("/{job_id}", response_model=JobResponse, summary="Get delivery job detail")
+def get_job_endpoint(
+    job_id: str,
+    auth: AuthContext = Depends(require_backoffice_write),
+    db: Session = Depends(get_db),
+) -> JobResponse:
+    return JobResponse.model_validate(get_job(auth, db, job_id))

@@ -233,6 +233,32 @@ def test_submit_mission_intent_rejected_when_not_assigned(client):
     assert response.status_code == 409
 
 
+def test_get_job_detail_endpoint(client):
+    _set_fleet_override(
+        [FleetDroneTelemetry(drone_id="DRONE-1", lat=6.45, lng=3.39, battery=95, is_available=True)]
+    )
+    order = _create_order(client).json()
+    assign = client.post(f"/api/v1/orders/{order['id']}/assign", json={"drone_id": "DRONE-1"})
+    assert assign.status_code == 200
+
+    jobs = client.get("/api/v1/jobs?active=true&page=1&page_size=10")
+    assert jobs.status_code == 200
+    assert jobs.json()["items"]
+    job_id = jobs.json()["items"][0]["id"]
+
+    detail = client.get(f"/api/v1/jobs/{job_id}")
+    assert detail.status_code == 200
+    body = detail.json()
+    assert body["id"] == job_id
+    assert body["order_id"] == order["id"]
+    assert body["assigned_drone_id"] == "DRONE-1"
+
+
+def test_get_job_detail_404_for_missing_job(client):
+    missing = client.get("/api/v1/jobs/00000000-0000-0000-0000-000000000000")
+    assert missing.status_code == 404
+
+
 def test_jobs_endpoint_active_filter_and_total_count(client, db_session):
     _set_fleet_override(
         [

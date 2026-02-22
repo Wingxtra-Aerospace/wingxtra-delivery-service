@@ -269,10 +269,14 @@ def test_settings_reads_redis_readiness_timeout_from_env_alias():
 
 
 def test_settings_rejects_non_positive_fleet_timeout():
-    with pytest.raises(ValidationError, match="fleet_api timeout/cache settings must be greater than 0"):
+    with pytest.raises(
+        ValidationError, match="fleet_api timeout/cache settings must be greater than 0"
+    ):
         config_module.Settings(fleet_api_timeout_s=0)
 
 
 def test_settings_rejects_non_positive_fleet_cache_ttl():
-    with pytest.raises(ValidationError, match="fleet_api timeout/cache settings must be greater than 0"):
+    with pytest.raises(
+        ValidationError, match="fleet_api timeout/cache settings must be greater than 0"
+    ):
         config_module.Settings(fleet_api_cache_ttl_s=0)

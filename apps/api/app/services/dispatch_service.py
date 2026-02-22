@@ -75,7 +75,9 @@ def run_auto_dispatch(
         telemetry = []
 
     drones = [
-        drone for drone in telemetry if drone.is_available and drone.battery >= _MIN_BATTERY_FOR_ASSIGNMENT
+        drone
+        for drone in telemetry
+        if drone.is_available and drone.battery >= _MIN_BATTERY_FOR_ASSIGNMENT
     ]
 
     assignments: list[tuple[Order, DeliveryJob]] = []

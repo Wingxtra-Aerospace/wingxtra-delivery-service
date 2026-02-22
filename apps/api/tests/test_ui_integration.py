@@ -376,6 +376,25 @@ def test_demo_mode_keeps_placeholder_paths_enabled():
         settings.ui_service_mode = original_ui_mode
 
 
+def test_auto_ui_mode_allows_placeholder_cancel_in_testing():
+    original_app_mode = settings.app_mode
+    original_ui_mode = settings.ui_service_mode
+    settings.app_mode = "demo"
+    settings.ui_service_mode = "auto"
+    try:
+        response = client.post(
+            "/api/v1/orders/ord-1/cancel",
+            headers=_headers("OPS", sub="ops-auto-cancel"),
+        )
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["order_id"] == "ord-1"
+        assert payload["status"] == "CANCELED"
+    finally:
+        settings.app_mode = original_app_mode
+        settings.ui_service_mode = original_ui_mode
+
+
 def test_manual_assign_includes_validated_and_queued_events():
     create = client.post(
         "/api/v1/orders",

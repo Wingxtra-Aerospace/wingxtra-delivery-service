@@ -6,6 +6,7 @@ from typing import Any
 
 from fastapi import HTTPException, status
 from sqlalchemy import delete, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -23,8 +24,9 @@ def _hash_payload(payload: Any) -> str:
     return hashlib.sha256(canonical.encode()).hexdigest()
 
 
-def _purge_expired_records(db: Session, now: datetime) -> None:
-    db.execute(delete(IdempotencyRecord).where(IdempotencyRecord.expires_at <= now))
+def _purge_expired_records(db: Session, now: datetime) -> int:
+    result = db.execute(delete(IdempotencyRecord).where(IdempotencyRecord.expires_at <= now))
+    return int(result.rowcount or 0)
 
 
 def check_idempotency(
@@ -36,7 +38,9 @@ def check_idempotency(
     request_payload: Any,
 ) -> IdempotencyResult:
     now = datetime.now(timezone.utc)
-    _purge_expired_records(db, now)
+    expired_count = _purge_expired_records(db, now)
+    if expired_count:
+        db.commit()
 
     payload_hash = _hash_payload(request_payload)
     record = db.scalar(
@@ -75,7 +79,7 @@ def save_idempotency_result(
     response_payload: dict[str, Any],
 ) -> None:
     now = datetime.now(timezone.utc)
-    _purge_expired_records(db, now)
+    expired_count = _purge_expired_records(db, now)
 
     payload_hash = _hash_payload(request_payload)
     expires_at = now + timedelta(seconds=settings.idempotency_ttl_s)
@@ -88,18 +92,38 @@ def save_idempotency_result(
         )
     )
     if record is None:
-        record = IdempotencyRecord(
-            user_id=user_id,
-            route=route,
-            idempotency_key=idempotency_key,
-            request_hash=payload_hash,
-            response_payload=response_payload,
-            expires_at=expires_at,
+        db.add(
+            IdempotencyRecord(
+                user_id=user_id,
+                route=route,
+                idempotency_key=idempotency_key,
+                request_hash=payload_hash,
+                response_payload=response_payload,
+                expires_at=expires_at,
+            )
         )
-        db.add(record)
     else:
         record.request_hash = payload_hash
         record.response_payload = response_payload
         record.expires_at = expires_at
 
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        existing = db.scalar(
+            select(IdempotencyRecord).where(
+                IdempotencyRecord.user_id == user_id,
+                IdempotencyRecord.route == route,
+                IdempotencyRecord.idempotency_key == idempotency_key,
+            )
+        )
+        if existing is None:
+            raise
+
+        existing.request_hash = payload_hash
+        existing.response_payload = response_payload
+        existing.expires_at = expires_at
+        if expired_count:
+            _purge_expired_records(db, now)
+        db.commit()

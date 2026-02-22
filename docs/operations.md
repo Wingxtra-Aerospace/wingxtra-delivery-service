@@ -33,6 +33,16 @@ It responds with HTTP `200` when all dependencies are healthy and HTTP `503` whe
 Current checks:
 
 - `database` (runs `SELECT 1`)
+- `redis` (optional; checked only when `REDIS_URL` is configured)
+
+Readiness config env vars:
+- `REDIS_URL` (optional; enables Redis dependency check in `/ready` when set)
+
+Redis readiness check behavior:
+
+- Supports `redis://` URLs.
+- Opens a short-lived TCP connection and performs a Redis `PING`/`PONG` check.
+- Reports `error` when URL is invalid/unset for scheme expectations, connection fails, or ping is unsuccessful.
 
 Response shape:
 - `status`: `ok` or `degraded`

@@ -87,3 +87,11 @@ Includes Vitest + Testing Library coverage for Orders page loading and URL/filte
 - Fetches `GET /api/v1/orders` with URL-driven filters and pagination
 - Query params mirrored in URL for shareable links: `page`, `page_size`, `status`, `q`, `from`, `to`
 - Row click navigates to `/orders/:orderId` detail
+
+
+## Order detail page
+
+- Route: `/orders/:orderId`
+- Fetches order detail, timeline events, and POD (OPS/ADMIN)
+- Includes role-gated actions (assign/cancel/ingest event/submit mission intent)
+- Includes public tracking link copy button and Wingxtra GCS deep links (drone/mission when available)

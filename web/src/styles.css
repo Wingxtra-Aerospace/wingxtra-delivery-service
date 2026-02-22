@@ -155,3 +155,44 @@ code {
   align-items: center;
   gap: 0.4rem;
 }
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: 0.4rem 0.8rem;
+}
+
+.detail-grid dt {
+  font-weight: 600;
+}
+
+.detail-grid dd {
+  margin: 0;
+}
+
+.detail-links {
+  margin: 1rem 0;
+}
+
+.detail-links p {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.timeline-list {
+  padding-left: 1.1rem;
+}
+
+.actions-grid {
+  display: grid;
+  gap: 0.8rem;
+  margin-top: 0.6rem;
+}
+
+.actions-grid button,
+.actions-grid input,
+.actions-grid select {
+  margin-right: 0.4rem;
+}

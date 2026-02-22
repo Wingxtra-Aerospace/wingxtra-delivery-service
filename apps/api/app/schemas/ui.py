@@ -68,8 +68,8 @@ class EventsTimelineResponse(ResponseModel):
 
 
 class OrderEventIngestRequest(BaseModel):
-    event_type: Literal["MISSION_LAUNCHED", "ENROUTE", "ARRIVED", "DELIVERED", "FAILED"] = (
-        Field(validation_alias=AliasChoices("event_type", "event", "type"))
+    event_type: Literal["MISSION_LAUNCHED", "ENROUTE", "ARRIVED", "DELIVERED", "FAILED"] = Field(
+        validation_alias=AliasChoices("event_type", "event", "type")
     )
     occurred_at: datetime | None = Field(
         default=None,

@@ -242,7 +242,12 @@ def test_order_event_ingestion_transitions_and_timeline_order(client):
     app.dependency_overrides[get_gcs_bridge_client] = lambda: publisher
 
     order = _create_order(client).json()
-    assert client.post(f"/api/v1/orders/{order['id']}/assign", json={"drone_id": "DRONE-1"}).status_code == 200
+    assert (
+        client.post(
+            f"/api/v1/orders/{order['id']}/assign", json={"drone_id": "DRONE-1"}
+        ).status_code
+        == 200
+    )
     assert client.post(f"/api/v1/orders/{order['id']}/submit-mission-intent").status_code == 200
 
     launched = client.post(
@@ -294,15 +299,29 @@ def test_order_event_ingestion_rejects_backward_transition(client):
         [FleetDroneTelemetry(drone_id="DRONE-1", lat=6.45, lng=3.39, battery=95, is_available=True)]
     )
     order = _create_order(client).json()
-    assert client.post(f"/api/v1/orders/{order['id']}/assign", json={"drone_id": "DRONE-1"}).status_code == 200
-    assert client.post(f"/api/v1/orders/{order['id']}/submit-mission-intent").status_code == 200
     assert (
-        client.post(f"/api/v1/orders/{order['id']}/events", json={"event_type": "MISSION_LAUNCHED"}).status_code
+        client.post(
+            f"/api/v1/orders/{order['id']}/assign", json={"drone_id": "DRONE-1"}
+        ).status_code
         == 200
     )
-    assert client.post(f"/api/v1/orders/{order['id']}/events", json={"event_type": "ENROUTE"}).status_code == 200
+    assert client.post(f"/api/v1/orders/{order['id']}/submit-mission-intent").status_code == 200
+    assert (
+        client.post(
+            f"/api/v1/orders/{order['id']}/events", json={"event_type": "MISSION_LAUNCHED"}
+        ).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            f"/api/v1/orders/{order['id']}/events", json={"event_type": "ENROUTE"}
+        ).status_code
+        == 200
+    )
 
-    backwards = client.post(f"/api/v1/orders/{order['id']}/events", json={"event_type": "MISSION_LAUNCHED"})
+    backwards = client.post(
+        f"/api/v1/orders/{order['id']}/events", json={"event_type": "MISSION_LAUNCHED"}
+    )
     assert backwards.status_code == 409
 
 

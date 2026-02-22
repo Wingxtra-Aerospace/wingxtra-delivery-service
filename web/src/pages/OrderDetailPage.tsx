@@ -4,7 +4,9 @@ import { useAuth } from "../AuthProvider";
 import { apiFetch } from "../api";
 import { DroneGcsLink, MissionGcsLink } from "../components/GcsLinks";
 
-type OrderDetail = {
+import type { EventsTimelineResponse, OrderDetailResponse, PodResponse } from "../api/types";
+
+type OrderDetail = OrderDetailResponse & {
   id: string;
   status: string;
   priority?: string | null;
@@ -19,7 +21,7 @@ type OrderDetail = {
   mission_intent_id?: string | null;
 };
 
-type EventItem = {
+type EventItem = EventsTimelineResponse["items"][number] & {
   id: string;
   order_id: string;
   type: string;
@@ -30,7 +32,7 @@ type EventItem = {
   mission_intent_id?: string | null;
 };
 
-type PodResponse = {
+type PodRecord = PodResponse & {
   order_id: string;
   method: string | null;
   operator_name?: string | null;
@@ -55,7 +57,7 @@ export function OrderDetailPage() {
 
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [events, setEvents] = useState<EventItem[]>([]);
-  const [pod, setPod] = useState<PodResponse | null>(null);
+  const [pod, setPod] = useState<PodRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -107,7 +109,7 @@ export function OrderDetailPage() {
       if (canOps) {
         const podRes = await apiFetch(`/api/v1/orders/${orderId}/pod`);
         if (podRes.ok) {
-          setPod((await podRes.json()) as PodResponse);
+          setPod((await podRes.json()) as PodRecord);
         } else {
           setPod({ order_id: orderId, method: null });
         }

@@ -118,3 +118,20 @@ Includes Vitest + Testing Library coverage for Orders page loading and URL/filte
 - Link-out only integration: opens `https://gcs.wingxtra.com` in a new tab.
 - No iframe embedding, no postMessage integration, and no token query params.
 - Reusable GCS deep-link helpers are used on Order/Job detail pages for drone and mission links.
+
+
+## OpenAPI Type Generation
+
+Generate API types from FastAPI OpenAPI:
+
+```bash
+VITE_API_BASE_URL=http://localhost:8000 npm run gen:types
+```
+
+Check generated file is current (used in CI):
+
+```bash
+npm run gen:types:check
+```
+
+Generated file: `src/api/types.ts`

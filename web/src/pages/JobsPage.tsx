@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiFetch } from "../api";
-import type { JobItem, JobsListResponse } from "../types";
+import type { JobsListResponse } from "../api/types";
+type JobItem = JobsListResponse["items"][number];
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 

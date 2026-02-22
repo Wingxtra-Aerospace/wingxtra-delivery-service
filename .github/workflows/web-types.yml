@@ -1,0 +1,70 @@
+name: Web Types CI
+
+on:
+  push:
+    paths:
+      - "web/**"
+      - "apps/api/**"
+      - ".github/workflows/web-types.yml"
+  pull_request:
+    paths:
+      - "web/**"
+      - "apps/api/**"
+      - ".github/workflows/web-types.yml"
+
+jobs:
+  web-types:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install API dependencies
+        working-directory: apps/api
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Start API for OpenAPI schema
+        run: |
+          cd apps/api
+          uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+          echo $! > /tmp/wingxtra-api.pid
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:8000/openapi.json >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "API failed to start" >&2
+          exit 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: web/package.json
+
+      - name: Install web dependencies
+        working-directory: web
+        run: npm install
+
+      - name: Ensure generated API types are up to date
+        working-directory: web
+        env:
+          VITE_API_BASE_URL: http://127.0.0.1:8000
+        run: npm run gen:types:check
+
+      - name: Build web
+        working-directory: web
+        run: npm run build
+
+      - name: Stop API
+        if: always()
+        run: |
+          if [ -f /tmp/wingxtra-api.pid ]; then
+            kill "$(cat /tmp/wingxtra-api.pid)" || true
+          fi

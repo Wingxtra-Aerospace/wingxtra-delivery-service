@@ -8,7 +8,9 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "gen:types": "openapi-typescript ${VITE_API_BASE_URL:-http://localhost:8000}/openapi.json --output src/api/types.ts",
+    "gen:types:check": "npm run gen:types && git diff --exit-code -- src/api/types.ts"
   },
   "dependencies": {
     "react": "^18.3.1",
@@ -25,6 +27,7 @@
     "@testing-library/react": "^16.0.1",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/user-event": "^14.5.2",
-    "jsdom": "^25.0.1"
+    "jsdom": "^25.0.1",
+    "openapi-typescript": "^7.3.0"
   }
 }

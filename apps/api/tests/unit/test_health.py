@@ -29,3 +29,20 @@ def test_health_endpoint_exposes_explicit_response_schema(client):
     assert ready_get["responses"]["200"]["content"]["application/json"]["schema"]["$ref"] == (
         "#/components/schemas/ReadinessResponse"
     )
+
+
+def test_readiness_check_degraded_when_database_unavailable(client, monkeypatch):
+    from app.routers import health
+
+    def _broken_db(*args, **kwargs):
+        return "error"
+
+    monkeypatch.setattr(health, "_database_dependency_status", _broken_db)
+
+    response = client.get("/ready")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "degraded",
+        "dependencies": [{"name": "database", "status": "error"}],
+    }

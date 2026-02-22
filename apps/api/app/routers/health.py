@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 from sqlalchemy import text
-from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session, sessionmaker
 
 from app.db.session import SessionLocal
 from app.schemas.health import HealthResponse, ReadinessDependency, ReadinessResponse
@@ -15,17 +16,16 @@ def health() -> HealthResponse:
 
 @router.get("/ready", summary="Readiness check", response_model=ReadinessResponse)
 def readiness() -> ReadinessResponse:
-    dependencies: list[ReadinessDependency] = []
+    database_status = _database_dependency_status(SessionLocal)
+    dependencies = [ReadinessDependency(name="database", status=database_status)]
+    readiness_status = "ok" if database_status == "ok" else "degraded"
+    return ReadinessResponse(status=readiness_status, dependencies=dependencies)
 
+
+def _database_dependency_status(session_factory: sessionmaker[Session]) -> str:
     try:
-        db: Session = SessionLocal()
-        db.execute(text("SELECT 1"))
-        dependencies.append(ReadinessDependency(name="database", status="ok"))
-    except Exception:
-        dependencies.append(ReadinessDependency(name="database", status="error"))
-        return ReadinessResponse(status="degraded", dependencies=dependencies)
-    finally:
-        if "db" in locals():
-            db.close()
-
-    return ReadinessResponse(status="ok", dependencies=dependencies)
+        with session_factory() as db:
+            db.execute(text("SELECT 1"))
+    except SQLAlchemyError:
+        return "error"
+    return "ok"

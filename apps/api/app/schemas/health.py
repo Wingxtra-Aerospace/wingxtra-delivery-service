@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel
 
 
@@ -7,9 +9,9 @@ class HealthResponse(BaseModel):
 
 class ReadinessDependency(BaseModel):
     name: str
-    status: str
+    status: Literal["ok", "error"]
 
 
 class ReadinessResponse(BaseModel):
-    status: str
+    status: Literal["ok", "degraded"]
     dependencies: list[ReadinessDependency]

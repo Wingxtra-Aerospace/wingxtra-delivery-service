@@ -39,11 +39,17 @@ def test_load_settings_defaults():
     assert settings.interval_s == 10
     assert settings.timeout_s == 5.0
     assert settings.max_assignments is None
+    assert settings.max_retries == 2
 
 
 def test_load_settings_rejects_invalid_interval():
     with pytest.raises(ValueError, match="INTERVAL"):
         worker_module.load_settings({"WINGXTRA_DISPATCH_WORKER_INTERVAL_S": "0"})
+
+
+def test_load_settings_rejects_negative_max_retries():
+    with pytest.raises(ValueError, match="MAX_RETRIES"):
+        worker_module.load_settings({"WINGXTRA_DISPATCH_WORKER_MAX_RETRIES": "-1"})
 
 
 def test_run_dispatch_once_success_with_max_assignments():
@@ -53,6 +59,8 @@ def test_run_dispatch_once_success_with_max_assignments():
         timeout_s=2.0,
         max_assignments=3,
         auth_token="abc",
+        max_retries=2,
+        retry_backoff_s=0.5,
     )
 
     def opener(request, timeout):
@@ -76,6 +84,8 @@ def test_run_dispatch_once_http_error_returns_failure():
         timeout_s=2.0,
         max_assignments=None,
         auth_token=None,
+        max_retries=2,
+        retry_backoff_s=0.5,
     )
 
     def opener(request, timeout):
@@ -92,3 +102,64 @@ def test_run_dispatch_once_http_error_returns_failure():
     assert result.ok is False
     assert result.status_code == 503
     assert result.assigned_count == 0
+
+
+def test_run_dispatch_with_retries_retries_retryable_errors_then_succeeds():
+    settings = worker_module.DispatchWorkerSettings(
+        api_base_url="http://api",
+        interval_s=10,
+        timeout_s=2.0,
+        max_assignments=None,
+        auth_token=None,
+        max_retries=2,
+        retry_backoff_s=0.25,
+    )
+    sleeps: list[float] = []
+    calls = {"count": 0}
+
+    def opener(request, timeout):
+        calls["count"] += 1
+        if calls["count"] < 3:
+            raise urllib.error.URLError("temporary network")
+        return _FakeResponse({"assigned_count": 1}, status=200)
+
+    result = worker_module.run_dispatch_with_retries(
+        settings,
+        opener=opener,
+        sleep=lambda seconds: sleeps.append(seconds),
+    )
+
+    assert result.ok is True
+    assert result.attempts == 3
+    assert sleeps == [0.25, 0.5]
+
+
+def test_run_dispatch_with_retries_does_not_retry_4xx():
+    settings = worker_module.DispatchWorkerSettings(
+        api_base_url="http://api",
+        interval_s=10,
+        timeout_s=2.0,
+        max_assignments=None,
+        auth_token=None,
+        max_retries=5,
+        retry_backoff_s=0.25,
+    )
+
+    def opener(request, timeout):
+        raise urllib.error.HTTPError(
+            url=request.full_url,
+            code=401,
+            msg="Unauthorized",
+            hdrs=None,
+            fp=None,
+        )
+
+    result = worker_module.run_dispatch_with_retries(
+        settings,
+        opener=opener,
+        sleep=lambda _seconds: None,
+    )
+
+    assert result.ok is False
+    assert result.status_code == 401
+    assert result.attempts == 1

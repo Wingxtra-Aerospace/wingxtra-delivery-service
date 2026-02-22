@@ -135,6 +135,8 @@ Environment variables:
 - `WINGXTRA_DISPATCH_WORKER_INTERVAL_S` (default `10`)
 - `WINGXTRA_DISPATCH_WORKER_TIMEOUT_S` (default `5`)
 - `WINGXTRA_DISPATCH_WORKER_MAX_ASSIGNMENTS` (optional, integer >= 1)
+- `WINGXTRA_DISPATCH_WORKER_MAX_RETRIES` (default `2`; retries retryable failures)
+- `WINGXTRA_DISPATCH_WORKER_RETRY_BACKOFF_S` (default `0.5`; exponential base delay)
 
 Example:
 

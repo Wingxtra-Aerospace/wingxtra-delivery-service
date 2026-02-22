@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+from hashlib import sha256
 from types import SimpleNamespace
 from typing import Any, Callable
 
@@ -286,6 +288,12 @@ def tracking_view(db: Session, public_tracking_id: str) -> dict[str, Any]:
             if mode == "store":
                 raise
     return ui_db_service.tracking_view(db, public_tracking_id)
+
+
+def build_public_tracking_etag(payload: dict[str, Any]) -> str:
+    canonical_payload = json.dumps(payload, sort_keys=True, default=str, separators=(",", ":"))
+    digest = sha256(canonical_payload.encode("utf-8")).hexdigest()
+    return f'"{digest}"'
 
 
 def build_public_tracking_payload(db: Session, public_tracking_id: str) -> dict[str, Any]:

@@ -59,6 +59,20 @@ def test_jobs_forbidden_for_merchant_and_allowed_for_admin():
     assert admin_jobs.status_code == 200
 
 
+def test_job_detail_forbidden_for_merchant_and_not_found_for_missing_job():
+    merchant_detail = client.get(
+        "/api/v1/jobs/00000000-0000-0000-0000-000000000000",
+        headers=_headers("MERCHANT", sub="merchant-1"),
+    )
+    assert merchant_detail.status_code == 403
+
+    admin_missing = client.get(
+        "/api/v1/jobs/00000000-0000-0000-0000-000000000000",
+        headers=_headers("ADMIN", sub="admin-1"),
+    )
+    assert admin_missing.status_code == 404
+
+
 def test_jobs_list_items_include_eta_seconds_field():
     response = client.get("/api/v1/jobs", headers=_headers("ADMIN", sub="admin-1"))
     assert response.status_code == 200

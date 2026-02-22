@@ -17,7 +17,7 @@ Core UI integration endpoints:
 - `GET /api/v1/orders/{order_id}/pod`
 - `GET /api/v1/orders/track/{public_tracking_id}`
 - `GET /api/v1/jobs` (pagination: `page`>=1, `page_size` 1-100; filter: `active`, ordered newest-first)
-- `GET /api/v1/jobs/{job_id}`
+- `GET /api/v1/jobs/{job_id}` (`404` when missing/invalid job id, backoffice roles only)
 - `GET /api/v1/tracking/{public_tracking_id}`
 - `GET /health`
 - `GET /ready`

@@ -101,3 +101,12 @@ def test_jobs_detail_response_schema_in_openapi(client):
     assert jobs_detail["responses"]["200"]["content"]["application/json"]["schema"]["$ref"] == (
         "#/components/schemas/JobResponse"
     )
+
+
+def test_jobs_detail_endpoint_documents_auth_errors(client):
+    openapi = client.get("/openapi.json")
+    assert openapi.status_code == 200
+
+    jobs_detail_responses = openapi.json()["paths"]["/api/v1/jobs/{job_id}"]["get"]["responses"]
+    # FastAPI always includes 422 for path/query validation.
+    assert "422" in jobs_detail_responses

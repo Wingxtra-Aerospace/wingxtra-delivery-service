@@ -134,6 +134,20 @@ def test_auto_dispatch_respects_max_assignments(client):
     assert len(assignments) == 1
 
 
+def test_dispatch_run_request_validation_bounds(client):
+    too_low = client.post("/api/v1/dispatch/run", json={"max_assignments": 0})
+    too_high = client.post("/api/v1/dispatch/run", json={"max_assignments": 101})
+
+    assert too_low.status_code == 422
+    assert too_high.status_code == 422
+
+
+def test_dispatch_run_accepts_empty_body(client):
+    response = client.post("/api/v1/dispatch/run", json={})
+    assert response.status_code == 200
+    assert "assigned" in response.json()
+
+
 def test_manual_assign_rejects_invalid_drone(client):
     _set_fleet_override(
         [

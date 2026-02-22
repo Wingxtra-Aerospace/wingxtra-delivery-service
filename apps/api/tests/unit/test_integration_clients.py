@@ -155,3 +155,55 @@ def test_fleet_client_uses_ttl_cache(monkeypatch):
     assert len(first) == 1
     assert len(second) == 1
     assert calls["count"] == 1
+
+
+def test_fleet_dependency_status_maps_success_timeout_and_5xx(monkeypatch):
+    ok_client = FleetApiClient(
+        "http://fleet", timeout_s=0.1, max_retries=0, backoff_s=0, cache_ttl_s=2
+    )
+
+    monkeypatch.setattr(
+        "app.integrations.fleet_api_client.httpx.Client",
+        lambda timeout: _ClientStub(get_sequence=[_Response(200, [])]),
+    )
+    assert ok_client.dependency_status() == "ok"
+
+    timeout_client = FleetApiClient(
+        "http://fleet", timeout_s=0.1, max_retries=0, backoff_s=0, cache_ttl_s=2
+    )
+    monkeypatch.setattr(
+        "app.integrations.fleet_api_client.httpx.Client",
+        lambda timeout: _ClientStub(get_sequence=[httpx.ReadTimeout("timeout")]),
+    )
+    assert timeout_client.dependency_status() == "degraded"
+
+    down_client = FleetApiClient(
+        "http://fleet", timeout_s=0.1, max_retries=0, backoff_s=0, cache_ttl_s=2
+    )
+    monkeypatch.setattr(
+        "app.integrations.fleet_api_client.httpx.Client",
+        lambda timeout: _ClientStub(get_sequence=[_Response(500, {})]),
+    )
+    assert down_client.dependency_status() == "down"
+
+
+def test_gcs_dependency_status_maps_success_timeout_and_500(monkeypatch):
+    client = GcsBridgeClient("http://gcs", timeout_s=0.1, max_retries=0, backoff_s=0)
+
+    monkeypatch.setattr(
+        "app.integrations.gcs_bridge_client.httpx.Client",
+        lambda timeout: _ClientStub(get_sequence=[_Response(200, {"status": "ok"})]),
+    )
+    assert client.dependency_status() == "ok"
+
+    monkeypatch.setattr(
+        "app.integrations.gcs_bridge_client.httpx.Client",
+        lambda timeout: _ClientStub(get_sequence=[httpx.ReadTimeout("timeout")]),
+    )
+    assert client.dependency_status() == "degraded"
+
+    monkeypatch.setattr(
+        "app.integrations.gcs_bridge_client.httpx.Client",
+        lambda timeout: _ClientStub(get_sequence=[_Response(500, {"status": "nope"})]),
+    )
+    assert client.dependency_status() == "down"

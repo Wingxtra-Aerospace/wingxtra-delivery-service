@@ -7,7 +7,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from app.observability import log_event
+from app.observability import log_event, metrics_store
 
 ReadinessStatus = Literal["ok", "error"]
 
@@ -16,14 +16,20 @@ def safe_dependency_status(
     dependency_name: str,
     checker: Callable[[], ReadinessStatus],
 ) -> ReadinessStatus:
+    metrics_store.increment("readiness_dependency_checked_total")
     try:
-        return checker()
+        status = checker()
     except Exception as exc:  # defensive: readiness must fail closed to degraded
+        metrics_store.increment("readiness_dependency_error_total")
         log_event(
             "readiness_dependency_check_failed",
             order_id=f"{dependency_name}:{type(exc).__name__}",
         )
         return "error"
+
+    if status != "ok":
+        metrics_store.increment("readiness_dependency_error_total")
+    return status
 
 
 def database_dependency_status(

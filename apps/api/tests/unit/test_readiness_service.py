@@ -71,9 +71,15 @@ def test_safe_dependency_status_logs_unexpected_exception(monkeypatch):
 
     monkeypatch.setattr(readiness_service, "log_event", _record_event)
 
+    from app.observability import metrics_store
+
+    metrics_store.reset()
     result = readiness_service.safe_dependency_status("database", _raises)
 
+    snapshot = metrics_store.snapshot()
     assert result == "error"
+    assert snapshot.counters.get("readiness_dependency_checked_total") == 1
+    assert snapshot.counters.get("readiness_dependency_error_total") == 1
     assert events == [("readiness_dependency_check_failed", "database:RuntimeError")]
 
 
@@ -105,3 +111,31 @@ def test_redis_dependency_status_passes_configured_timeout(monkeypatch):
         readiness_service.redis_dependency_status("redis://localhost:6379/0", timeout_s=2.5) == "ok"
     )
     assert observed["timeout"] == 2.5
+
+
+def test_safe_dependency_status_increments_metrics_for_error_status():
+    from app.observability import metrics_store
+    from app.services.readiness_service import safe_dependency_status
+
+    metrics_store.reset()
+
+    result = safe_dependency_status("redis", lambda: "error")
+
+    snapshot = metrics_store.snapshot()
+    assert result == "error"
+    assert snapshot.counters.get("readiness_dependency_checked_total") == 1
+    assert snapshot.counters.get("readiness_dependency_error_total") == 1
+
+
+def test_safe_dependency_status_increments_metrics_for_ok_status():
+    from app.observability import metrics_store
+    from app.services.readiness_service import safe_dependency_status
+
+    metrics_store.reset()
+
+    result = safe_dependency_status("database", lambda: "ok")
+
+    snapshot = metrics_store.snapshot()
+    assert result == "ok"
+    assert snapshot.counters.get("readiness_dependency_checked_total") == 1
+    assert snapshot.counters.get("readiness_dependency_error_total", 0) == 0

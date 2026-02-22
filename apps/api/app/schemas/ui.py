@@ -82,11 +82,13 @@ class JobResponse(ResponseModel):
     assigned_drone_id: str
     status: str
     mission_intent_id: str | None
+    eta_seconds: int | None = None
     created_at: datetime
 
 
 class JobsListResponse(ResponseModel):
     items: list[JobResponse]
+    pagination: PaginationMeta
 
 
 class TrackingPodSummary(ResponseModel):

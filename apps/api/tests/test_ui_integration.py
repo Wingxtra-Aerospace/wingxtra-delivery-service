@@ -90,9 +90,12 @@ def test_public_tracking_rate_limit_enforced():
     for _ in range(settings.public_tracking_rate_limit_requests):
         ok = client.get("/api/v1/tracking/11111111-1111-4111-8111-111111111111")
         assert ok.status_code == 200
+        assert ok.headers["X-RateLimit-Limit"] == str(settings.public_tracking_rate_limit_requests)
 
     limited = client.get("/api/v1/tracking/11111111-1111-4111-8111-111111111111")
     assert limited.status_code == 429
+    assert limited.headers["X-RateLimit-Remaining"] == "0"
+    assert "Retry-After" in limited.headers
 
 
 def test_orders_track_endpoint_rate_limit_enforced():
@@ -100,10 +103,12 @@ def test_orders_track_endpoint_rate_limit_enforced():
     for _ in range(settings.public_tracking_rate_limit_requests):
         ok = client.get("/api/v1/orders/track/11111111-1111-4111-8111-111111111111")
         assert ok.status_code == 200
+        assert ok.headers["X-RateLimit-Limit"] == str(settings.public_tracking_rate_limit_requests)
 
     limited = client.get("/api/v1/orders/track/11111111-1111-4111-8111-111111111111")
     assert limited.status_code == 429
     assert limited.json()["detail"] == "Public tracking rate limit exceeded"
+    assert limited.headers["X-RateLimit-Remaining"] == "0"
 
 
 def test_idempotency_for_create_order_replay_and_conflict():
@@ -159,6 +164,7 @@ def test_order_creation_rate_limit_enforced():
                 headers=headers,
             )
             assert ok.status_code == 201
+            assert ok.headers["X-RateLimit-Limit"] == "2"
 
         limited = client.post(
             "/api/v1/orders",
@@ -167,6 +173,8 @@ def test_order_creation_rate_limit_enforced():
         )
         assert limited.status_code == 429
         assert limited.json()["detail"] == "Order creation rate limit exceeded"
+        assert limited.headers["X-RateLimit-Remaining"] == "0"
+        assert "Retry-After" in limited.headers
     finally:
         settings.order_create_rate_limit_requests = original_requests
         settings.order_create_rate_limit_window_s = original_window

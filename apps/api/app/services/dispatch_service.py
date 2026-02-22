@@ -5,6 +5,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.integrations.errors import IntegrationError
 from app.integrations.fleet_api_client import FleetApiClientProtocol, FleetDroneTelemetry
 from app.models.delivery_job import DeliveryJob, DeliveryJobStatus

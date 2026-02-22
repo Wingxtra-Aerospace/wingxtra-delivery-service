@@ -627,6 +627,72 @@ def test_both_tracking_endpoints_return_same_payload(client, db_session):
     assert legacy.json() == direct.json()
 
 
+def test_tracking_endpoints_support_etag_conditional_get(client):
+    order = _create_order(client).json()
+
+    direct = client.get(f"/api/v1/tracking/{order['public_tracking_id']}")
+    legacy = client.get(f"/api/v1/orders/track/{order['public_tracking_id']}")
+
+    assert direct.status_code == 200
+    assert legacy.status_code == 200
+
+    direct_etag = direct.headers.get("etag")
+    legacy_etag = legacy.headers.get("etag")
+    assert direct_etag
+    assert legacy_etag == direct_etag
+
+    direct_not_modified = client.get(
+        f"/api/v1/tracking/{order['public_tracking_id']}",
+        headers={"If-None-Match": direct_etag},
+    )
+    legacy_not_modified = client.get(
+        f"/api/v1/orders/track/{order['public_tracking_id']}",
+        headers={"If-None-Match": legacy_etag},
+    )
+
+    assert direct_not_modified.status_code == 304
+    assert legacy_not_modified.status_code == 304
+    assert direct_not_modified.content == b""
+    assert legacy_not_modified.content == b""
+    assert direct_not_modified.headers.get("etag") == direct_etag
+    assert legacy_not_modified.headers.get("etag") == legacy_etag
+    assert direct.headers.get("cache-control") == "public, max-age=0, must-revalidate"
+    assert legacy.headers.get("cache-control") == "public, max-age=0, must-revalidate"
+    assert direct_not_modified.headers.get("cache-control") == "public, max-age=0, must-revalidate"
+    assert legacy_not_modified.headers.get("cache-control") == "public, max-age=0, must-revalidate"
+
+
+def test_tracking_conditional_get_supports_weak_and_listed_etags(client):
+    order = _create_order(client).json()
+
+    direct = client.get(f"/api/v1/tracking/{order['public_tracking_id']}")
+    assert direct.status_code == 200
+    etag = direct.headers["etag"]
+
+    weak = client.get(
+        f"/api/v1/tracking/{order['public_tracking_id']}",
+        headers={"If-None-Match": f"W/{etag}"},
+    )
+    listed = client.get(
+        f"/api/v1/tracking/{order['public_tracking_id']}",
+        headers={"If-None-Match": f'"different", {etag}'},
+    )
+
+    assert weak.status_code == 304
+    assert listed.status_code == 304
+
+
+def test_tracking_conditional_get_supports_wildcard_etag(client):
+    order = _create_order(client).json()
+
+    direct = client.get(
+        f"/api/v1/orders/track/{order['public_tracking_id']}",
+        headers={"If-None-Match": "*"},
+    )
+
+    assert direct.status_code == 304
+
+
 def test_create_pod_rejected_for_non_delivered_order(client):
     order = _create_order(client).json()
     response = client.post(

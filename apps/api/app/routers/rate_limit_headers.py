@@ -28,3 +28,20 @@ def apply_rate_limit_headers(response, *, limit: int, remaining: int, reset_at_s
     response.headers["X-RateLimit-Limit"] = str(limit)
     response.headers["X-RateLimit-Remaining"] = str(remaining)
     response.headers["X-RateLimit-Reset"] = str(reset_at_s)
+
+
+ETAG_RESPONSE_HEADER = {
+    "ETag": {
+        "description": "Entity tag representing the current tracking payload",
+        "schema": {"type": "string"},
+    }
+}
+
+CACHE_CONTROL_RESPONSE_HEADER = {
+    "Cache-Control": {
+        "description": "Caching policy for conditional tracking responses",
+        "schema": {"type": "string"},
+    }
+}
+
+TRACKING_CACHE_CONTROL_VALUE = "public, max-age=0, must-revalidate"

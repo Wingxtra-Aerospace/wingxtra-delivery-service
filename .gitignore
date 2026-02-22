@@ -12,6 +12,6 @@ postgres_data/
 
 # Local dev artifacts
 apps/api/test.db
+/test.db
 apps/api/*.egg-info/
 apps/api/**.egg-info/
-

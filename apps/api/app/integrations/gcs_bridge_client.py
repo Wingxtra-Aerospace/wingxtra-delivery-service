@@ -15,6 +15,8 @@ from app.schemas.mission_intent import MissionIntent
 class MissionPublisherProtocol(Protocol):
     def publish_mission_intent(self, mission_intent: dict) -> None: ...
 
+    def dependency_status(self) -> str: ...
+
 
 class GcsBridgeClient:
     """Publish mission intents to the GCS bridge when configured."""
@@ -45,7 +47,13 @@ class GcsBridgeClient:
         attempts = self.max_retries + 1
         for attempt in range(attempts):
             try:
-                with httpx.Client(timeout=self.timeout_s) as client:
+                timeout = httpx.Timeout(
+                    connect=self.timeout_s,
+                    read=self.timeout_s,
+                    write=self.timeout_s,
+                    pool=self.timeout_s,
+                )
+                with httpx.Client(timeout=timeout) as client:
                     response = client.post(
                         f"{self.base_url}/api/v1/mission-intents",
                         json=mission_intent,
@@ -71,6 +79,29 @@ class GcsBridgeClient:
             time.sleep(self.backoff_s * (2**attempt))
 
         return None
+
+    def dependency_status(self) -> str:
+        if not self.base_url:
+            return "down"
+        try:
+            timeout = httpx.Timeout(
+                connect=self.timeout_s,
+                read=self.timeout_s,
+                write=self.timeout_s,
+                pool=self.timeout_s,
+            )
+            with httpx.Client(timeout=timeout) as client:
+                response = client.get(f"{self.base_url}/health")
+        except httpx.TimeoutException:
+            return "degraded"
+        except httpx.TransportError:
+            return "down"
+
+        if response.status_code >= 500:
+            return "down"
+        if response.status_code >= 400:
+            return "degraded"
+        return "ok"
 
 
 def get_gcs_bridge_client() -> MissionPublisherProtocol:

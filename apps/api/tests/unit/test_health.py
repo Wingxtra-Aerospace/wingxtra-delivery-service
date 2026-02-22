@@ -2,7 +2,22 @@ def test_health_check(client):
     response = client.get("/health")
 
     assert response.status_code == 200
-    assert response.json() == {"status": "ok"}
+    assert response.json() == {
+        "status": "ok",
+        "dependencies": {"fleet_api": "down", "gcs_bridge": "down"},
+    }
+
+
+def test_health_reports_dependency_states_without_failing(monkeypatch, client):
+    from app.routers import health
+
+    monkeypatch.setattr(health, "fleet_dependency_health_status", lambda *_a, **_k: "degraded")
+    monkeypatch.setattr(health, "gcs_bridge_dependency_health_status", lambda *_a, **_k: "down")
+
+    response = client.get("/health")
+
+    assert response.status_code == 200
+    assert response.json()["dependencies"] == {"fleet_api": "degraded", "gcs_bridge": "down"}
 
 
 def test_readiness_check(client):

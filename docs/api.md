@@ -68,6 +68,7 @@ Rate limiting:
 - `POST /api/v1/orders` returns `429` when order creation rate limit is exceeded.
 - Successful and limited responses include numeric-string `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset` (Unix epoch seconds); limited responses also include numeric-string `Retry-After` (delta seconds).
 - OpenAPI documents these rate-limit headers on `POST /api/v1/orders`, `GET /api/v1/orders/track/{public_tracking_id}`, and `GET /api/v1/tracking/{public_tracking_id}` responses (including `429`).
+- Set `WINGXTRA_RATE_LIMIT_USE_REDIS=true` and `REDIS_URL=redis://...` to enforce limits across replicas; default behavior remains in-memory for local/dev usage.
 
 Public tracking response is sanitized to: `order_id`, `public_tracking_id`, `status`, and `milestones` (timeline event types in chronological order). When proof-of-delivery exists, it includes `pod_summary` with only `method` and `created_at`. Merchant/customer contact fields and POD `photo_url` are redacted from public tracking responses. This sanitized contract applies to both `GET /api/v1/tracking/{public_tracking_id}` and `GET /api/v1/orders/track/{public_tracking_id}`.
 

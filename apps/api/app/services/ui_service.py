@@ -9,10 +9,13 @@ from sqlalchemy.orm import Session
 from app.auth.dependencies import AuthContext
 from app.config import resolved_ui_service_mode
 from app.services import ui_db_service, ui_store_service
+from app.services.safety import assert_production_safe
 
 
 def _mode() -> str:
-    return resolved_ui_service_mode()
+    mode = resolved_ui_service_mode()
+    assert_production_safe()
+    return mode
 
 
 def _is_placeholder_order_id(order_id: str) -> bool:
@@ -95,6 +98,7 @@ def create_order(
 
 
 def get_order(auth: AuthContext, db: Session, order_id: str) -> dict[str, Any]:
+    assert_production_safe(order_id=order_id)
     mode = _mode()
     if mode == "store" or (mode == "hybrid" and _is_placeholder_order_id(order_id)):
         return ui_store_service.get_order(auth, order_id)
@@ -102,6 +106,7 @@ def get_order(auth: AuthContext, db: Session, order_id: str) -> dict[str, Any]:
 
 
 def list_events(auth: AuthContext, db: Session, order_id: str) -> list[dict[str, Any]]:
+    assert_production_safe(order_id=order_id)
     mode = _mode()
     if mode == "store" or (mode == "hybrid" and _is_placeholder_order_id(order_id)):
         return ui_store_service.list_events(auth, order_id)
@@ -114,17 +119,29 @@ def ingest_order_event(
     order_id: str,
     event_type: str,
     occurred_at,
+    source: str = "ops_event_ingest",
+    event_id: str | None = None,
 ) -> dict[str, Any]:
+    assert_production_safe(order_id=order_id)
     mode = _mode()
     if mode == "store" or (mode == "hybrid" and _is_placeholder_order_id(order_id)):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Placeholder orders do not support event ingestion",
         )
-    return ui_db_service.ingest_order_event(auth, db, order_id, event_type, occurred_at)
+    return ui_db_service.ingest_order_event(
+        auth,
+        db,
+        order_id,
+        event_type,
+        occurred_at,
+        source,
+        event_id,
+    )
 
 
 def cancel_order(auth: AuthContext, db: Session, order_id: str) -> dict[str, Any]:
+    assert_production_safe(order_id=order_id)
     if _mode() == "store" or _is_placeholder_order_id(order_id):
         order = ui_store_service.get_order(auth, order_id)
         ui_store_service.store.orders[order_id].status = "CANCELED"
@@ -138,6 +155,7 @@ def manual_assign(
     order_id: str,
     drone_id: str | None = None,
 ) -> dict[str, Any]:
+    assert_production_safe(order_id=order_id)
     if drone_id is not None:
         _assert_drone_assignable(drone_id)
 
@@ -166,6 +184,7 @@ def update_order(
     dropoff_lng: float | None,
     priority: str | None,
 ) -> dict[str, Any]:
+    assert_production_safe(order_id=order_id)
     mode = _mode()
     if mode == "store" or (mode == "hybrid" and _is_placeholder_order_id(order_id)):
         raise HTTPException(
@@ -188,6 +207,7 @@ def submit_mission(
     order_id: str,
     publish: Callable[[dict[str, str]], None] | None = None,
 ) -> tuple[dict[str, Any], dict[str, str]]:
+    assert_production_safe(order_id=order_id)
     return ui_db_service.submit_mission(auth, db, order_id, publish=publish)
 
 
@@ -196,6 +216,7 @@ def run_auto_dispatch(
     db: Session,
     max_assignments: int | None = None,
 ) -> dict[str, int | list[dict[str, str]]]:
+    assert_production_safe()
     drones = [
         drone_id
         for drone_id, info in ui_store_service.store.drones.items()
@@ -256,6 +277,7 @@ def get_job(auth: AuthContext, db: Session, job_id: str) -> dict[str, Any]:
 
 
 def tracking_view(db: Session, public_tracking_id: str) -> dict[str, Any]:
+    assert_production_safe(order_id=public_tracking_id)
     mode = _mode()
     if mode in {"store", "hybrid"}:
         try:

@@ -234,6 +234,42 @@ def test_settings_normalizes_ui_service_mode_value():
     assert settings.ui_service_mode == "hybrid"
 
 
+def test_settings_rejects_invalid_app_mode():
+    with pytest.raises(ValidationError, match="APP_MODE must be one of"):
+        config_module.Settings(APP_MODE="invalid-mode")
+
+
+def test_settings_normalizes_app_mode_value():
+    settings = config_module.Settings(APP_MODE="  PRODUCTION  ")
+
+    assert settings.app_mode == "production"
+
+
+def test_runtime_security_rejects_non_db_mode_in_production_app_mode():
+    original_testing = config_module.settings.testing
+    original_jwt = config_module.settings.jwt_secret
+    original_pod = config_module.settings.pod_otp_hmac_secret
+    original_mode = config_module.settings.ui_service_mode
+    original_db = config_module.settings.database_url
+    original_app_mode = config_module.settings.app_mode
+    config_module.settings.testing = True
+    config_module.settings.jwt_secret = config_module.DEFAULT_JWT_SECRET
+    config_module.settings.pod_otp_hmac_secret = config_module.DEFAULT_POD_OTP_HMAC_SECRET
+    config_module.settings.ui_service_mode = "hybrid"
+    config_module.settings.database_url = "sqlite+pysqlite:///./test.db"
+    config_module.settings.app_mode = "production"
+    try:
+        with pytest.raises(RuntimeError, match="APP_MODE=production"):
+            config_module.ensure_secure_runtime_settings()
+    finally:
+        config_module.settings.testing = original_testing
+        config_module.settings.jwt_secret = original_jwt
+        config_module.settings.pod_otp_hmac_secret = original_pod
+        config_module.settings.ui_service_mode = original_mode
+        config_module.settings.database_url = original_db
+        config_module.settings.app_mode = original_app_mode
+
+
 def test_settings_reads_redis_url_from_env_alias():
     settings = config_module.Settings(REDIS_URL="redis://localhost:6379/0")
 

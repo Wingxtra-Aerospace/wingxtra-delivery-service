@@ -9,6 +9,7 @@ from typing import Any, Callable
 
 from fastapi import HTTPException, status
 from sqlalchemy import String, and_, func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import AuthContext
@@ -70,6 +71,10 @@ def _append_event(
     job_id: uuid.UUID | None = None,
     payload: dict[str, Any] | None = None,
     created_at: datetime | None = None,
+    ingest_source: str | None = None,
+    ingest_event_id: str | None = None,
+    ingest_event_type: str | None = None,
+    ingest_occurred_at: datetime | None = None,
 ) -> None:
     db.add(
         DeliveryEvent(
@@ -79,6 +84,10 @@ def _append_event(
             message=message,
             payload=payload or {},
             created_at=created_at,
+            ingest_source=ingest_source,
+            ingest_event_id=ingest_event_id,
+            ingest_event_type=ingest_event_type,
+            ingest_occurred_at=ingest_occurred_at,
         )
     )
 
@@ -100,34 +109,81 @@ def ingest_order_event(
     order_id: str,
     event_type: str,
     occurred_at: datetime | None,
+    source: str,
+    event_id: str | None,
 ) -> dict[str, Any]:
     if auth.role not in {"OPS", "ADMIN"}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
 
-    row = db.get(Order, _resolve_db_uuid(order_id))
+    oid = _resolve_db_uuid(order_id)
+    row = db.scalar(select(Order).where(Order.id == oid).with_for_update())
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
 
-    transitions = _event_transitions(event_type)
+    try:
+        transitions = _event_transitions(event_type)
+    except KeyError as err:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported event_type"
+        ) from err
+
     base_time = occurred_at or _now_utc()
     if base_time.tzinfo is None:
         base_time = base_time.replace(tzinfo=timezone.utc)
 
-    applied_events: list[str] = []
-    for idx, next_status in enumerate(transitions):
-        ensure_valid_transition(row.status, next_status)
-        if row.status == next_status:
-            continue
-        row.status = next_status
-        applied_events.append(next_status.value)
-        _append_event(
-            db,
-            order_id=row.id,
-            event_type=DeliveryEventType[next_status.value],
-            message=f"Mission event ingested: {next_status.value}",
-            payload={"source": "ops_event_ingest", "event_type": event_type},
-            created_at=base_time + timedelta(microseconds=idx),
+    idempotency_query = select(DeliveryEvent.id).where(
+        DeliveryEvent.order_id == row.id,
+        DeliveryEvent.ingest_source == source,
+        DeliveryEvent.ingest_event_type == event_type,
+        DeliveryEvent.ingest_occurred_at == base_time,
+    )
+    if event_id is not None:
+        idempotency_query = select(DeliveryEvent.id).where(
+            DeliveryEvent.order_id == row.id,
+            DeliveryEvent.ingest_source == source,
+            DeliveryEvent.ingest_event_id == event_id,
         )
+
+    existing = db.scalar(idempotency_query)
+    if existing is not None:
+        return {
+            "order_id": _public_order_id(row.id),
+            "status": row.status.value,
+            "applied_events": [],
+        }
+
+    applied_events: list[str] = []
+    try:
+        for idx, next_status in enumerate(transitions):
+            ensure_valid_transition(row.status, next_status)
+            if row.status == next_status:
+                continue
+            row.status = next_status
+            applied_events.append(next_status.value)
+            _append_event(
+                db,
+                order_id=row.id,
+                event_type=DeliveryEventType[next_status.value],
+                message=f"Mission event ingested: {next_status.value}",
+                payload={"source": source, "event_type": event_type},
+                created_at=base_time + timedelta(microseconds=idx),
+                ingest_source=source if idx == 0 else None,
+                ingest_event_id=event_id if idx == 0 else None,
+                ingest_event_type=event_type if idx == 0 else None,
+                ingest_occurred_at=base_time if idx == 0 else None,
+            )
+    except IntegrityError:
+        db.rollback()
+        existing_row = db.get(Order, oid)
+        if existing_row is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Order not found"
+            ) from None
+        return {
+            "order_id": _public_order_id(existing_row.id),
+            "status": existing_row.status.value,
+            "applied_events": [],
+        }
 
     row.updated_at = _now_utc()
     db.commit()

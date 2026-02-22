@@ -11,6 +11,7 @@ from app.services.idempotency_service import (
     save_idempotency_result,
     validate_idempotency_key,
 )
+from app.services.safety import assert_production_safe
 from app.services.ui_service import run_auto_dispatch
 
 router = APIRouter(prefix="/api/v1/dispatch", tags=["dispatch"])
@@ -27,6 +28,7 @@ def run_dispatch_endpoint(
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     auth: AuthContext = Depends(require_roles("OPS", "ADMIN")),
 ) -> DispatchRunResponse:
+    assert_production_safe()
     request_payload = request.model_dump(mode="json", exclude_none=True)
     route_scope = build_scope("POST:/api/v1/dispatch/run", user_id=auth.user_id)
     idempotency_key = validate_idempotency_key(idempotency_key)

@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.integrations.errors import IntegrationError
 from app.integrations.fleet_api_client import FleetApiClientProtocol
+from app.integrations.gcs_bridge_client import MissionPublisherProtocol
 from app.observability import log_event, metrics_store
 
 ReadinessStatus = Literal["ok", "error"]
@@ -78,3 +79,17 @@ def fleet_dependency_status(fleet_client: FleetApiClientProtocol) -> ReadinessSt
     except IntegrationError:
         return "error"
     return "ok"
+
+
+def fleet_dependency_health_status(fleet_client: FleetApiClientProtocol) -> str:
+    try:
+        return fleet_client.dependency_status()
+    except Exception:
+        return "down"
+
+
+def gcs_bridge_dependency_health_status(gcs_client: MissionPublisherProtocol) -> str:
+    try:
+        return gcs_client.dependency_status()
+    except Exception:
+        return "down"

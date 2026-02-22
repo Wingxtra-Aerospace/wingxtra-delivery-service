@@ -47,6 +47,7 @@ from app.services.idempotency_service import (
     save_idempotency_result,
     validate_idempotency_key,
 )
+from app.services.safety import assert_production_safe
 from app.services.ui_service import (
     build_public_tracking_payload,
     cancel_order,
@@ -108,7 +109,7 @@ async def create_order_endpoint(
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     auth: AuthContext = Depends(require_roles("MERCHANT", "OPS", "ADMIN")),
 ) -> OrderDetailResponse:
-    rate_limit = rate_limit_order_creation(request)
+    rate_limit = rate_limit_order_creation(request, user_id=auth.user_id)
     _set_rate_limit_headers(response, rate_limit)
 
     request_payload = await request.json()
@@ -194,6 +195,7 @@ def update_order_endpoint(
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(require_roles("MERCHANT", "OPS", "ADMIN")),
 ) -> OrderDetailResponse:
+    assert_production_safe(order_id=order_id)
     order = update_order(
         auth=auth,
         db=db,
@@ -212,6 +214,7 @@ def get_order_endpoint(
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(require_roles("MERCHANT", "OPS", "ADMIN")),
 ) -> OrderDetailResponse:
+    assert_production_safe(order_id=order_id)
     return OrderDetailResponse.model_validate(get_order(auth, db, order_id))
 
 
@@ -227,6 +230,7 @@ def get_events_endpoint(
     page_size: int = Query(default=20, ge=1, le=100),
     auth: AuthContext = Depends(require_roles("MERCHANT", "OPS", "ADMIN")),
 ) -> EventsTimelineResponse:
+    assert_production_safe(order_id=order_id)
     events = [EventResponse.model_validate(event) for event in list_events(auth, db, order_id)]
     total = len(events)
     start = (page - 1) * page_size
@@ -250,12 +254,15 @@ def ingest_order_event_endpoint(
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(require_backoffice_write),
 ) -> OrderEventIngestResponse:
+    assert_production_safe(order_id=order_id)
     result = ingest_order_event(
         auth=auth,
         db=db,
         order_id=order_id,
         event_type=payload.event_type,
         occurred_at=payload.occurred_at,
+        source=payload.source,
+        event_id=payload.event_id,
     )
     return OrderEventIngestResponse.model_validate(result)
 
@@ -268,6 +275,7 @@ def assign_endpoint(
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     auth: AuthContext = Depends(require_roles("OPS", "ADMIN")),
 ) -> OrderActionResponse:
+    assert_production_safe(order_id=order_id)
     request_payload = {"order_id": order_id, "drone_id": payload.drone_id}
     route_scope = build_scope(
         "POST:/api/v1/orders/{order_id}/assign",
@@ -318,6 +326,7 @@ def cancel_endpoint(
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     auth: AuthContext = Depends(require_roles("CUSTOMER", "MERCHANT", "OPS", "ADMIN")),
 ) -> OrderActionResponse:
+    assert_production_safe(order_id=order_id)
     request_payload = {"order_id": order_id}
     route_scope = build_scope(
         "POST:/api/v1/orders/{order_id}/cancel",
@@ -374,6 +383,7 @@ async def submit_mission_endpoint(
     auth: AuthContext = Depends(require_roles("OPS", "ADMIN")),
     publisher=Depends(get_gcs_bridge_client),
 ) -> MissionSubmitResponse:
+    assert_production_safe(order_id=order_id)
     request_payload = {"order_id": order_id}
     route_scope = build_scope(
         "POST:/api/v1/orders/{order_id}/submit-mission-intent",
@@ -457,6 +467,7 @@ def create_pod_endpoint(
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     auth: AuthContext = Depends(require_roles("OPS", "ADMIN")),
 ) -> PodResponse:
+    assert_production_safe(order_id=order_id)
     request_payload = {
         "order_id": order_id,
         "method": payload.method,
@@ -522,6 +533,7 @@ def public_tracking_endpoint(
     db: Session = Depends(get_db),
     rate_limit: RateLimitStatus = Depends(rate_limit_public_tracking),
 ) -> TrackingViewResponse:
+    assert_production_safe(order_id=public_tracking_id)
     _set_rate_limit_headers(response, rate_limit)
 
     payload = build_public_tracking_payload(db, public_tracking_id)
@@ -534,6 +546,7 @@ def get_pod_endpoint(
     db: Session = Depends(get_db),
     auth: AuthContext = Depends(require_roles("OPS", "ADMIN")),
 ) -> PodResponse:
+    assert_production_safe(order_id=order_id)
     pod = get_pod(db, order_id)
     if pod is None:
         return PodResponse.model_validate({"order_id": order_id, "method": None})

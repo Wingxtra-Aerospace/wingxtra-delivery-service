@@ -26,7 +26,8 @@ async def lifespan(_app: FastAPI):
 
     ensure_secure_runtime_settings()
     Base.metadata.create_all(bind=engine)
-    seed_data()
+    if settings.app_mode == "demo":
+        seed_data()
     yield
 
 

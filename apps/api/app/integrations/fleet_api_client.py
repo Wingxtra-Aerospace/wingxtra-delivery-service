@@ -34,6 +34,8 @@ class FleetDroneTelemetry(BaseModel):
 class FleetApiClientProtocol(Protocol):
     def get_latest_telemetry(self) -> list[FleetDroneTelemetry]: ...
 
+    def dependency_status(self) -> str: ...
+
 
 class FleetApiClient:
     def __init__(
@@ -115,6 +117,29 @@ class FleetApiClient:
             time.sleep(self.backoff_s * (2**attempt))
 
         return []
+
+    def dependency_status(self) -> str:
+        if not self.base_url:
+            return "down"
+        try:
+            timeout = httpx.Timeout(
+                connect=self.timeout_s,
+                read=self.timeout_s,
+                write=self.timeout_s,
+                pool=self.timeout_s,
+            )
+            with httpx.Client(timeout=timeout) as client:
+                response = client.get(f"{self.base_url}/api/v1/telemetry/latest")
+        except httpx.TimeoutException:
+            return "degraded"
+        except httpx.TransportError:
+            return "down"
+
+        if response.status_code >= 500:
+            return "down"
+        if response.status_code >= 400:
+            return "degraded"
+        return "ok"
 
 
 def get_fleet_api_client() -> FleetApiClientProtocol:

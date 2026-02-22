@@ -3,10 +3,13 @@ from fastapi import APIRouter, Response, status
 from app.config import settings
 from app.db.session import SessionLocal
 from app.integrations.fleet_api_client import get_fleet_api_client
+from app.integrations.gcs_bridge_client import get_gcs_bridge_client
 from app.schemas.health import HealthResponse, ReadinessDependency, ReadinessResponse
 from app.services.readiness_service import (
     database_dependency_status,
+    fleet_dependency_health_status,
     fleet_dependency_status,
+    gcs_bridge_dependency_health_status,
     redis_dependency_status,
     safe_dependency_status,
 )
@@ -16,7 +19,11 @@ router = APIRouter(tags=["health"])
 
 @router.get("/health", summary="Health check", response_model=HealthResponse)
 def health() -> HealthResponse:
-    return HealthResponse(status="ok")
+    dependencies = {
+        "fleet_api": fleet_dependency_health_status(get_fleet_api_client()),
+        "gcs_bridge": gcs_bridge_dependency_health_status(get_gcs_bridge_client()),
+    }
+    return HealthResponse(status="ok", dependencies=dependencies)
 
 
 @router.get(

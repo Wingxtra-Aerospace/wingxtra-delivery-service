@@ -1,4 +1,5 @@
 import time
+from concurrent.futures import ThreadPoolExecutor
 from uuid import UUID
 
 from sqlalchemy import select
@@ -9,6 +10,7 @@ from app.config import settings
 from app.integrations.fleet_api_client import FleetDroneTelemetry, get_fleet_api_client
 from app.integrations.gcs_bridge_client import get_gcs_bridge_client
 from app.main import app
+from app.models.delivery_event import DeliveryEvent, DeliveryEventType
 from app.models.delivery_job import DeliveryJob, DeliveryJobStatus
 from app.models.order import Order, OrderStatus
 
@@ -632,6 +634,95 @@ def test_create_pod_rejected_for_non_delivered_order(client):
         json={"method": "OPERATOR_CONFIRM", "confirmed_by": "ops"},
     )
     assert response.status_code == 409
+
+
+def test_order_event_ingestion_idempotent_by_event_id(client, db_session):
+    _set_fleet_override(
+        [FleetDroneTelemetry(drone_id="DRONE-1", lat=6.45, lng=3.39, battery=95, is_available=True)]
+    )
+    publisher = FakePublisher()
+    app.dependency_overrides[get_gcs_bridge_client] = lambda: publisher
+
+    order = _create_order(client).json()
+    assert (
+        client.post(
+            f"/api/v1/orders/{order['id']}/assign", json={"drone_id": "DRONE-1"}
+        ).status_code
+        == 200
+    )
+    assert client.post(f"/api/v1/orders/{order['id']}/submit-mission-intent").status_code == 200
+
+    payload = {
+        "event_type": "MISSION_LAUNCHED",
+        "occurred_at": "2030-01-01T10:00:00Z",
+        "source": "gcs",
+        "event_id": "evt-123",
+    }
+    first = client.post(f"/api/v1/orders/{order['id']}/events", json=payload)
+    second = client.post(f"/api/v1/orders/{order['id']}/events", json=payload)
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.json()["status"] == "LAUNCHED"
+    assert second.json()["status"] == "LAUNCHED"
+
+    order_uuid = UUID(order["id"])
+    launched_count = len(
+        list(
+            db_session.scalars(
+                select(DeliveryEvent).where(
+                    DeliveryEvent.order_id == order_uuid,
+                    DeliveryEvent.type == DeliveryEventType.LAUNCHED,
+                )
+            )
+        )
+    )
+    assert launched_count == 1
+
+
+def test_order_event_ingestion_concurrent_duplicate_submission_is_race_safe(client, db_session):
+    _set_fleet_override(
+        [FleetDroneTelemetry(drone_id="DRONE-1", lat=6.45, lng=3.39, battery=95, is_available=True)]
+    )
+    publisher = FakePublisher()
+    app.dependency_overrides[get_gcs_bridge_client] = lambda: publisher
+
+    order = _create_order(client).json()
+    assert (
+        client.post(
+            f"/api/v1/orders/{order['id']}/assign", json={"drone_id": "DRONE-1"}
+        ).status_code
+        == 200
+    )
+    assert client.post(f"/api/v1/orders/{order['id']}/submit-mission-intent").status_code == 200
+
+    payload = {
+        "event_type": "MISSION_LAUNCHED",
+        "occurred_at": "2030-01-01T10:00:00Z",
+        "source": "gcs",
+        "event_id": "evt-concurrent-1",
+    }
+
+    def _send():
+        return client.post(f"/api/v1/orders/{order['id']}/events", json=payload)
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        responses = [f.result() for f in [executor.submit(_send), executor.submit(_send)]]
+
+    assert all(resp.status_code == 200 for resp in responses)
+
+    order_uuid = UUID(order["id"])
+    launched_count = len(
+        list(
+            db_session.scalars(
+                select(DeliveryEvent).where(
+                    DeliveryEvent.order_id == order_uuid,
+                    DeliveryEvent.type == DeliveryEventType.LAUNCHED,
+                )
+            )
+        )
+    )
+    assert launched_count == 1
 
 
 def test_cancel_rejected_for_terminal_state(client, db_session):

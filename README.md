@@ -380,12 +380,13 @@ Document in `docs/security.md`.
 - Python 3.11+
 - Docker + Docker Compose
 
-### Start (example)
-1) `docker compose up -d`
-2) `cd apps/api`
-3) `pip install -r requirements.txt`
-4) `alembic upgrade head`
-5) `uvicorn app.main:app --reload --port 8000`
+### Start with containers (API + UI)
+1) `docker compose up --build`
+2) UI: `http://localhost:8080`
+3) API docs: `http://localhost:8000/docs`
+
+The web container proxies `/api`, `/health`, `/ready`, and `/metrics` to the API container.
+SPA routes (for example `/orders` and `/tracking/<id>`) are served with an `index.html` fallback.
 
 ### Test commands
 - From repo root: `pytest -q`

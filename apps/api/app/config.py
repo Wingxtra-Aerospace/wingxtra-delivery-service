@@ -46,6 +46,8 @@ class Settings(BaseSettings):
     gcs_bridge_max_retries: int = 2
     gcs_bridge_backoff_s: float = 0.2
 
+    redis_url: str = Field(default="", validation_alias="REDIS_URL")
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
     @field_validator("ui_service_mode")
@@ -56,6 +58,16 @@ class Settings(BaseSettings):
             allowed = ", ".join(sorted(ALLOWED_UI_SERVICE_MODES))
             raise ValueError(f"WINGXTRA_UI_SERVICE_MODE must be one of: {allowed}")
         return mode
+
+    @field_validator("redis_url")
+    @classmethod
+    def validate_redis_url(cls, value: str) -> str:
+        redis_url = value.strip()
+        if not redis_url:
+            return ""
+        if not redis_url.startswith("redis://"):
+            raise ValueError("REDIS_URL must use redis:// scheme")
+        return redis_url
 
 
 settings = Settings()

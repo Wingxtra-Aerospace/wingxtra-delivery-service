@@ -98,13 +98,16 @@ In non-test runtime (`WINGXTRA_TESTING=false`), startup fails fast when `WINGXTR
 Set `WINGXTRA_TESTING=true` in test environments to disable startup demo-data seeding.
 This keeps API list endpoints deterministic for integration tests.
 
-Set `WINGXTRA_UI_SERVICE_MODE` to explicitly select the UI service strategy:
+Set `WINGXTRA_UI_SERVICE_MODE` to select the UI service strategy:
 
+- `auto` (default): resolves to `hybrid` when `WINGXTRA_TESTING=true`, otherwise `db`.
 - `db`: only database-backed order and tracking flows.
 - `store`: only in-memory placeholder/test flows (test/dev only).
-- `hybrid` (default): DB-backed API flows with placeholder/store adapters enabled for UI test IDs like `ord-1` and `ord-2` (test/dev only).
+- `hybrid`: DB-backed API flows with placeholder/store adapters enabled for UI test IDs like `ord-1` and `ord-2` (test/dev only).
 
-In non-test runtime (`WINGXTRA_TESTING=false`), startup fails fast unless `WINGXTRA_UI_SERVICE_MODE=db`.
+In non-test runtime (`WINGXTRA_TESTING=false`), startup fails fast unless the resolved mode is `db` (for example: `db` or `auto`).
+Invalid `WINGXTRA_UI_SERVICE_MODE` values are rejected during settings validation at startup.
+Values are normalized case-insensitively (for example, `HYBRID` resolves to `hybrid`).
 
 
 ## Local infrastructure (Docker Compose)

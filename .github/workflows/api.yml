@@ -43,7 +43,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
       - name: Ruff version
-        run: ruff --version
+        run: |
+          command -v ruff
+          ruff --version
+          python -m pip show ruff
       - name: Format check
         run: ruff format --check .
       - name: Lint

@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.auth.dependencies import AuthContext, require_backoffice_write
 from app.db.session import get_db
-from app.schemas.ui import JobResponse, JobsListResponse
+from app.schemas.ui import JobResponse, JobsListResponse, PaginationMeta
 from app.services.ui_service import list_jobs
 
 router = APIRouter(prefix="/api/v1/jobs", tags=["jobs"])
@@ -20,5 +20,5 @@ def list_jobs_endpoint(
     items, total = list_jobs(auth, db, active, page, page_size)
     return JobsListResponse(
         items=[JobResponse.model_validate(job) for job in items],
-        pagination={"page": page, "page_size": page_size, "total": total},
+        pagination=PaginationMeta(page=page, page_size=page_size, total=total),
     )

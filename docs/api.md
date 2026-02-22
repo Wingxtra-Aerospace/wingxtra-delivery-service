@@ -17,7 +17,6 @@ Core UI integration endpoints:
 - `GET /api/v1/orders/{order_id}/pod`
 - `GET /api/v1/orders/track/{public_tracking_id}`
 - `GET /api/v1/jobs` (pagination: `page`, `page_size`; filter: `active`)
-- `POST /api/v1/dispatch/run`
 - `GET /api/v1/tracking/{public_tracking_id}`
 - `GET /health`
 - `GET /ready`

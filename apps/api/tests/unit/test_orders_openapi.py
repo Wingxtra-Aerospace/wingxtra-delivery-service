@@ -54,3 +54,16 @@ def test_tracking_response_schema_includes_milestones(client):
 
     tracking_schema = openapi.json()["components"]["schemas"]["TrackingViewResponse"]
     assert "milestones" in tracking_schema["properties"]
+
+
+def test_jobs_list_response_schema_includes_pagination(client):
+    openapi = client.get("/openapi.json")
+    assert openapi.status_code == 200
+
+    jobs_get = openapi.json()["paths"]["/api/v1/jobs"]["get"]
+    assert jobs_get["responses"]["200"]["content"]["application/json"]["schema"]["$ref"] == (
+        "#/components/schemas/JobsListResponse"
+    )
+
+    jobs_schema = openapi.json()["components"]["schemas"]["JobsListResponse"]
+    assert "pagination" in jobs_schema["properties"]

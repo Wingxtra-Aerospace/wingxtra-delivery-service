@@ -43,6 +43,7 @@ from app.services.idempotency_service import (
     validate_idempotency_key,
 )
 from app.services.ui_service import (
+    build_public_tracking_payload,
     cancel_order,
     create_order,
     create_pod,
@@ -52,7 +53,6 @@ from app.services.ui_service import (
     list_orders,
     manual_assign,
     submit_mission,
-    tracking_view,
     update_order,
 )
 
@@ -469,7 +469,9 @@ def public_tracking_endpoint(
     rate_limit: RateLimitStatus = Depends(rate_limit_public_tracking),
 ) -> TrackingViewResponse:
     _set_rate_limit_headers(response, rate_limit)
-    return TrackingViewResponse.model_validate(tracking_view(db, public_tracking_id))
+
+    payload = build_public_tracking_payload(db, public_tracking_id)
+    return TrackingViewResponse.model_validate(payload)
 
 
 @router.get("/{order_id}/pod", response_model=PodResponse, summary="Get proof of delivery")

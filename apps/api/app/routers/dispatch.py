@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Body, Depends, Header
 from sqlalchemy.orm import Session
 
-from app.auth.dependencies import AuthContext, require_backoffice_write
+from app.auth.dependencies import AuthContext, require_roles
 from app.db.session import get_db
 from app.observability import metrics_store, observe_timing
 from app.schemas.ui import DispatchRunRequest, DispatchRunResponse
@@ -25,7 +25,7 @@ def run_dispatch_endpoint(
     request: DispatchRunRequest = Body(default_factory=DispatchRunRequest),
     db: Session = Depends(get_db),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
-    auth: AuthContext = Depends(require_backoffice_write),
+    auth: AuthContext = Depends(require_roles("OPS", "ADMIN")),
 ) -> DispatchRunResponse:
     request_payload = request.model_dump(mode="json", exclude_none=True)
     route_scope = build_scope("POST:/api/v1/dispatch/run", user_id=auth.user_id)

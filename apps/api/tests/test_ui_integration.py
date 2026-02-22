@@ -381,7 +381,7 @@ def test_manual_assign_requires_ops_or_admin():
         headers=_headers("MERCHANT", sub="merchant-11"),
     )
     assert denied.status_code == 403
-    assert denied.json()["detail"] == "Write action requires OPS/ADMIN"
+    assert denied.json()["detail"] == "Insufficient role"
 
 
 def test_idempotency_for_cancel_replay_and_order_scope():

@@ -27,11 +27,9 @@ If valid, request role is mapped to `OPS`.
 
 ## RBAC matrix
 
-- `CUSTOMER`: no protected endpoint access; can use public tracking only.
-- `MERCHANT`: create order, list own orders, view own order details/events.
-- `OPS`/`ADMIN`: all write actions (`assign`, `cancel`, `submit mission intent`, `POD create`), jobs, and dispatch execution.
-
-Write endpoints now use a strict backoffice check and return `403` with `Write action requires OPS/ADMIN` when a merchant/customer token attempts a mutating ops action.
+- `CUSTOMER`: can cancel only their own orders (identity matched against stored order customer phone); no other protected access.
+- `MERCHANT`: create order, list own orders, view/update own order details/events, and cancel own orders.
+- `OPS`/`ADMIN`: all operational actions (`assign`, `cancel`, `submit mission intent`, `POD create`), jobs, and dispatch execution.
 
 ## Public tracking
 
@@ -44,7 +42,7 @@ Tracking output is sanitized to:
 - `milestones` (event type milestones only; no internal actor/operator data)
 
 When proof-of-delivery exists, tracking also includes:
-- `pod_summary` (with at least `method`)
+- `pod_summary` (`method`, `created_at` only; no image/contact fields)
 
 Rate limiting is applied per client IP:
 - Public tracking (`GET /api/v1/tracking/{public_tracking_id}` and `GET /api/v1/orders/track/{public_tracking_id}`):

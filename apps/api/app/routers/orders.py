@@ -8,7 +8,6 @@ from app.auth.dependencies import (
     RateLimitStatus,
     rate_limit_order_creation,
     rate_limit_public_tracking,
-    require_backoffice_write,
     require_roles,
 )
 from app.config import settings
@@ -231,7 +230,7 @@ def assign_endpoint(
     payload: ManualAssignRequest,
     db: Session = Depends(get_db),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
-    auth: AuthContext = Depends(require_backoffice_write),
+    auth: AuthContext = Depends(require_roles("OPS", "ADMIN")),
 ) -> OrderActionResponse:
     request_payload = {"order_id": order_id, "drone_id": payload.drone_id}
     route_scope = build_scope(
@@ -281,7 +280,7 @@ def cancel_endpoint(
     order_id: str,
     db: Session = Depends(get_db),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
-    auth: AuthContext = Depends(require_backoffice_write),
+    auth: AuthContext = Depends(require_roles("CUSTOMER", "MERCHANT", "OPS", "ADMIN")),
 ) -> OrderActionResponse:
     request_payload = {"order_id": order_id}
     route_scope = build_scope(
@@ -336,7 +335,7 @@ async def submit_mission_endpoint(
     request: Request,
     db: Session = Depends(get_db),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
-    auth: AuthContext = Depends(require_backoffice_write),
+    auth: AuthContext = Depends(require_roles("OPS", "ADMIN")),
     publisher=Depends(get_gcs_bridge_client),
 ) -> MissionSubmitResponse:
     request_payload = {"order_id": order_id}
@@ -420,7 +419,7 @@ def create_pod_endpoint(
     payload: PodCreateRequest,
     db: Session = Depends(get_db),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
-    auth: AuthContext = Depends(require_backoffice_write),
+    auth: AuthContext = Depends(require_roles("OPS", "ADMIN")),
 ) -> PodResponse:
     request_payload = {
         "order_id": order_id,
@@ -497,7 +496,7 @@ def public_tracking_endpoint(
 def get_pod_endpoint(
     order_id: str,
     db: Session = Depends(get_db),
-    auth: AuthContext = Depends(require_backoffice_write),
+    auth: AuthContext = Depends(require_roles("OPS", "ADMIN")),
 ) -> PodResponse:
     pod = get_pod(db, order_id)
     if pod is None:

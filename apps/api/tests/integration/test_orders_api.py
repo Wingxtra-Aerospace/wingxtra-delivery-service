@@ -4,6 +4,7 @@ from uuid import UUID
 from sqlalchemy import select
 
 from app.auth.dependencies import reset_rate_limits
+from app.auth.jwt import issue_jwt
 from app.config import settings
 from app.integrations.fleet_api_client import FleetDroneTelemetry, get_fleet_api_client
 from app.integrations.gcs_bridge_client import get_gcs_bridge_client
@@ -11,6 +12,12 @@ from app.main import app
 from app.models.delivery_job import DeliveryJob, DeliveryJobStatus
 from app.models.order import Order, OrderStatus
 
+
+
+
+def _auth_headers(role: str, sub: str) -> dict[str, str]:
+    token = issue_jwt({"sub": sub, "role": role}, settings.jwt_secret)
+    return {"Authorization": f"Bearer {token}"}
 
 class FakeFleetApiClient:
     def __init__(self, drones: list[FleetDroneTelemetry]) -> None:
@@ -946,3 +953,64 @@ def test_create_pod_accepts_confirmed_by_alias(client, db_session):
     body = response.json()
     assert body["method"] == "OPERATOR_CONFIRM"
     assert body["operator_name"] == "ops-agent"
+
+
+def test_customer_cannot_cancel_other_tenant_order(client):
+    created = _create_order(client).json()
+
+    denied = client.post(
+        f"/api/v1/orders/{created['id']}/cancel",
+        headers=_auth_headers("CUSTOMER", "+19998887777"),
+    )
+
+    assert denied.status_code == 403
+
+
+def test_customer_can_cancel_own_order_when_identity_matches_customer_phone(client):
+    created = _create_order(client).json()
+
+    allowed = client.post(
+        f"/api/v1/orders/{created['id']}/cancel",
+        headers=_auth_headers("CUSTOMER", "+123456789"),
+    )
+
+    assert allowed.status_code == 200
+    assert allowed.json()["status"] == "CANCELED"
+
+
+def test_public_tracking_redacts_contact_and_photo_fields(client, db_session):
+    created = _create_order(client).json()
+    client.post(
+        f"/api/v1/orders/{created['id']}/assign",
+        json={"drone_id": "DRONE-1"},
+    )
+
+    order = db_session.get(Order, UUID(created["id"]))
+    order.status = OrderStatus.DELIVERED
+    db_session.commit()
+
+    pod_create = client.post(
+        f"/api/v1/orders/{created['id']}/pod",
+        json={"method": "PHOTO", "photo_url": "https://cdn.example.com/private-face.jpg"},
+    )
+    assert pod_create.status_code == 200
+
+    tracking = client.get(f"/api/v1/tracking/{created['public_tracking_id']}")
+    assert tracking.status_code == 200
+    body = tracking.json()
+
+    assert "customer_name" not in body
+    assert "customer_phone" not in body
+    assert "merchant_id" not in body
+    assert "photo_url" not in body.get("pod_summary", {})
+
+
+def test_customer_cannot_access_other_tenant_order_detail(client):
+    created = _create_order(client).json()
+
+    denied = client.get(
+        f"/api/v1/orders/{created['id']}",
+        headers=_auth_headers("CUSTOMER", "+19998887777"),
+    )
+
+    assert denied.status_code == 403

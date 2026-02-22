@@ -264,7 +264,6 @@ def build_public_tracking_payload(db: Session, public_tracking_id: str) -> dict[
     if pod is not None:
         payload["pod_summary"] = {
             "method": pod.method.value,
-            "photo_url": pod.photo_url,
             "created_at": pod.created_at,
         }
 

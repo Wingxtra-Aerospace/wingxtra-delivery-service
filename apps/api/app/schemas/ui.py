@@ -93,7 +93,6 @@ class JobsListResponse(ResponseModel):
 
 class TrackingPodSummary(ResponseModel):
     method: str
-    photo_url: str | None = None
     created_at: datetime
 
 

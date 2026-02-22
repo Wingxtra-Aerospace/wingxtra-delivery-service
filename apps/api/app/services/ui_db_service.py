@@ -53,6 +53,8 @@ def _assert_can_access_order(auth: AuthContext, order: Order) -> None:
         return
     if auth.role == "MERCHANT" and order.merchant_id == auth.user_id:
         return
+    if auth.role == "CUSTOMER" and order.customer_phone == auth.user_id:
+        return
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN, detail="Access denied for this order"
     )
@@ -283,6 +285,11 @@ def manual_assign(auth: AuthContext, db: Session, order_id: str, drone_id: str) 
         db.commit()
         db.refresh(row)
     log_event("order_assigned", order_id=str(row.id), drone_id=drone_id)
+    log_event(
+        f"audit_ops_action:manual_assign actor={auth.user_id} role={auth.role} status={row.status.value}",
+        order_id=str(row.id),
+        drone_id=drone_id,
+    )
     return _order_to_dict(row)
 
 
@@ -342,6 +349,11 @@ def submit_mission(
         db.refresh(row)
         db.refresh(job)
 
+    log_event(
+        f"audit_ops_action:status_change actor={auth.user_id} role={auth.role} status={row.status.value}",
+        order_id=str(row.id),
+        drone_id=job.assigned_drone_id,
+    )
     return _order_to_dict(row), mission_payload
 
 
@@ -548,11 +560,10 @@ def get_pod(db: Session, order_id: str) -> ProofOfDelivery | None:
 
 
 def cancel_order(auth: AuthContext, db: Session, order_id: str) -> dict[str, Any]:
-    if auth.role not in {"OPS", "ADMIN"}:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
     row = db.get(Order, _resolve_db_uuid(order_id))
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
+    _assert_can_access_order(auth, row)
     if row.status in TERMINAL:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail="Order is in terminal state"
@@ -567,6 +578,10 @@ def cancel_order(auth: AuthContext, db: Session, order_id: str) -> dict[str, Any
     )
     db.commit()
     db.refresh(row)
+    log_event(
+        f"audit_ops_action:cancel_order actor={auth.user_id} role={auth.role} status={row.status.value}",
+        order_id=str(row.id),
+    )
     return _order_to_dict(row)
 
 

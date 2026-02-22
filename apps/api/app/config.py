@@ -5,6 +5,7 @@ DEFAULT_JWT_SECRET = "wingxtra-jwt-secret"
 DEFAULT_POD_OTP_HMAC_SECRET = "wingxtra-pod-otp-secret"
 ALLOWED_RUNTIME_UI_SERVICE_MODES = {"db"}
 ALLOWED_UI_SERVICE_MODES = {"store", "db", "hybrid", "auto"}
+ALLOWED_RATE_LIMIT_BACKENDS = {"redis", "memory", "off"}
 MIN_SECRET_LENGTH = 32
 
 
@@ -29,9 +30,7 @@ class Settings(BaseSettings):
 
     order_create_rate_limit_requests: int = 1000
     order_create_rate_limit_window_s: int = 60
-    rate_limit_use_redis: bool = Field(
-        default=False, validation_alias="WINGXTRA_RATE_LIMIT_USE_REDIS"
-    )
+    rate_limit_backend: str | None = Field(default=None, validation_alias="RATE_LIMIT_BACKEND")
 
     idempotency_ttl_s: int = 24 * 60 * 60
     pod_otp_hmac_secret: str = Field(
@@ -56,6 +55,9 @@ class Settings(BaseSettings):
     redis_url: str = Field(default="", validation_alias="REDIS_URL")
     redis_readiness_timeout_s: float = Field(
         default=1.0, validation_alias="REDIS_READINESS_TIMEOUT_S"
+    )
+    redis_rate_limit_timeout_s: float = Field(
+        default=0.2, validation_alias="REDIS_RATE_LIMIT_TIMEOUT_S"
     )
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
@@ -86,6 +88,26 @@ class Settings(BaseSettings):
             raise ValueError("redis_readiness_timeout_s must be greater than 0")
         return value
 
+    @field_validator("redis_rate_limit_timeout_s")
+    @classmethod
+    def validate_redis_rate_limit_timeout_s(cls, value: float) -> float:
+        if value <= 0:
+            raise ValueError("redis_rate_limit_timeout_s must be greater than 0")
+        return value
+
+    @field_validator("rate_limit_backend")
+    @classmethod
+    def validate_rate_limit_backend(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        backend = value.strip().lower()
+        if not backend:
+            return None
+        if backend not in ALLOWED_RATE_LIMIT_BACKENDS:
+            allowed = ", ".join(sorted(ALLOWED_RATE_LIMIT_BACKENDS))
+            raise ValueError(f"RATE_LIMIT_BACKEND must be one of: {allowed}")
+        return backend
+
     @field_validator(
         "fleet_api_timeout_s",
         "fleet_api_cache_ttl_s",
@@ -114,6 +136,12 @@ def allowed_origins() -> list[str]:
 
 def allowed_roles_list() -> list[str]:
     return [value.strip() for value in settings.allowed_roles.split(",") if value.strip()]
+
+
+def resolved_rate_limit_backend() -> str:
+    if settings.rate_limit_backend:
+        return settings.rate_limit_backend
+    return "memory" if settings.testing else "redis"
 
 
 def ensure_secure_runtime_settings() -> None:

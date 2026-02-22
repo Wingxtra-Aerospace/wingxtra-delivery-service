@@ -6,7 +6,11 @@ from fastapi import Depends, Header, HTTPException, Request, status
 from app.auth.jwt import decode_jwt, jwt_http_exception
 from app.config import allowed_roles_list, settings
 from app.observability import metrics_store
-from app.services.rate_limiter import get_rate_limiter, reset_rate_limiter_state
+from app.services.rate_limiter import (
+    RateLimiterBackendUnavailable,
+    get_rate_limiter,
+    reset_rate_limiter_state,
+)
 
 AllowedRole = str
 
@@ -86,9 +90,33 @@ class RateLimitStatus:
     reset_at_s: int
 
 
-def _apply_rate_limit(key: str, max_requests: int, window_s: int, detail: str) -> RateLimitStatus:
+def _apply_rate_limit(
+    key: str,
+    max_requests: int,
+    window_s: int,
+    detail: str,
+    *,
+    fail_open: bool,
+) -> RateLimitStatus:
     limiter = get_rate_limiter()
-    result = limiter.check(key, max_requests=max_requests, window_s=window_s)
+    try:
+        result = limiter.check(key, max_requests=max_requests, window_s=window_s)
+    except RateLimiterBackendUnavailable:
+        # Public unauthenticated endpoints are fail-closed to protect the service from abuse
+        # when centralized throttling is down; authenticated endpoints fail-open to preserve
+        # business operations for known users during transient Redis outages.
+        if not fail_open:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=detail,
+                headers={"Retry-After": str(window_s)},
+            ) from None
+        return RateLimitStatus(
+            limit=max_requests,
+            remaining=max_requests,
+            reset_after_s=window_s,
+            reset_at_s=0,
+        )
 
     metrics_store.increment("rate_limit_checked_total")
     if not result.allowed:
@@ -119,16 +147,21 @@ def rate_limit_public_tracking(request: Request) -> RateLimitStatus:
         settings.public_tracking_rate_limit_requests,
         settings.public_tracking_rate_limit_window_s,
         "Public tracking rate limit exceeded",
+        fail_open=False,
     )
 
 
-def rate_limit_order_creation(request: Request) -> RateLimitStatus:
-    key = f"order-create:{request.client.host if request.client else 'unknown'}"
+def rate_limit_order_creation(request: Request, user_id: str | None = None) -> RateLimitStatus:
+    if user_id:
+        key = f"order-create:user:{user_id}"
+    else:
+        key = f"order-create:ip:{request.client.host if request.client else 'unknown'}"
     return _apply_rate_limit(
         key,
         settings.order_create_rate_limit_requests,
         settings.order_create_rate_limit_window_s,
         "Order creation rate limit exceeded",
+        fail_open=True,
     )
 
 

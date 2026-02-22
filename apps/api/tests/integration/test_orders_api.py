@@ -259,6 +259,41 @@ def test_get_job_detail_404_for_missing_job(client):
     assert missing.status_code == 404
 
 
+def test_jobs_endpoint_returns_newest_first(client):
+    _set_fleet_override(
+        [
+            FleetDroneTelemetry(
+                drone_id="DRONE-1", lat=6.45, lng=3.39, battery=95, is_available=True
+            ),
+            FleetDroneTelemetry(
+                drone_id="DRONE-2", lat=6.46, lng=3.40, battery=94, is_available=True
+            ),
+        ]
+    )
+
+    first = _create_order(client).json()
+    second = _create_order(client).json()
+
+    assert (
+        client.post(
+            f"/api/v1/orders/{first['id']}/assign", json={"drone_id": "DRONE-1"}
+        ).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            f"/api/v1/orders/{second['id']}/assign", json={"drone_id": "DRONE-2"}
+        ).status_code
+        == 200
+    )
+
+    jobs = client.get("/api/v1/jobs?active=false&page=1&page_size=10")
+    assert jobs.status_code == 200
+    items = jobs.json()["items"]
+    assert len(items) >= 2
+    assert items[0]["created_at"] >= items[1]["created_at"]
+
+
 def test_jobs_endpoint_active_filter_and_total_count(client, db_session):
     _set_fleet_override(
         [

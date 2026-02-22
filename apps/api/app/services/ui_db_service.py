@@ -390,7 +390,7 @@ def list_jobs(
             DeliveryJob.status.in_({DeliveryJobStatus.PENDING, DeliveryJobStatus.ACTIVE})
         )
 
-    stmt = select(DeliveryJob).order_by(DeliveryJob.created_at.asc())
+    stmt = select(DeliveryJob).order_by(DeliveryJob.created_at.desc())
     if filters:
         stmt = stmt.where(*filters)
 

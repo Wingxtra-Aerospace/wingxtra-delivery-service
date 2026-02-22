@@ -54,6 +54,7 @@ from app.services.ui_service import (
     cancel_order,
     create_order,
     create_pod,
+    etag_matches,
     get_order,
     get_pod,
     ingest_order_event,
@@ -542,7 +543,7 @@ def public_tracking_endpoint(
     etag = build_public_tracking_etag(payload)
     response.headers["ETag"] = etag
 
-    if if_none_match == etag:
+    if etag_matches(if_none_match, etag):
         response.status_code = 304
         return response
 

@@ -658,6 +658,37 @@ def test_tracking_endpoints_support_etag_conditional_get(client):
     assert legacy_not_modified.headers.get("etag") == legacy_etag
 
 
+def test_tracking_conditional_get_supports_weak_and_listed_etags(client):
+    order = _create_order(client).json()
+
+    direct = client.get(f"/api/v1/tracking/{order['public_tracking_id']}")
+    assert direct.status_code == 200
+    etag = direct.headers["etag"]
+
+    weak = client.get(
+        f"/api/v1/tracking/{order['public_tracking_id']}",
+        headers={"If-None-Match": f"W/{etag}"},
+    )
+    listed = client.get(
+        f"/api/v1/tracking/{order['public_tracking_id']}",
+        headers={"If-None-Match": f'"different", {etag}'},
+    )
+
+    assert weak.status_code == 304
+    assert listed.status_code == 304
+
+
+def test_tracking_conditional_get_supports_wildcard_etag(client):
+    order = _create_order(client).json()
+
+    direct = client.get(
+        f"/api/v1/orders/track/{order['public_tracking_id']}",
+        headers={"If-None-Match": "*"},
+    )
+
+    assert direct.status_code == 304
+
+
 def test_create_pod_rejected_for_non_delivered_order(client):
     order = _create_order(client).json()
     response = client.post(

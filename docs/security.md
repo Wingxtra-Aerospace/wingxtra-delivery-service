@@ -15,6 +15,8 @@ Config:
 - `JWT_SECRET`
 - `ALLOWED_ROLES`
 
+In non-test runtime (`WINGXTRA_TESTING=false`), startup fails fast if `JWT_SECRET` is left at the default value.
+
 ## Wingxtra Cloud GCS header integration
 
 When JWT claim `source=gcs`, the API also validates:

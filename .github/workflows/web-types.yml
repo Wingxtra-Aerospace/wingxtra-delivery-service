@@ -29,6 +29,8 @@ jobs:
           pip install -r requirements.txt
 
       - name: Start API for OpenAPI schema
+        env:
+          WINGXTRA_TESTING: "true"
         run: |
           cd apps/api
           uvicorn app.main:app --host 0.0.0.0 --port 8000 &

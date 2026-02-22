@@ -13,7 +13,11 @@ from app.auth.dependencies import (
 )
 from app.config import settings
 from app.db.session import get_db
-from app.integrations.errors import IntegrationBadGatewayError, IntegrationError
+from app.integrations.errors import (
+    IntegrationBadGatewayError,
+    IntegrationError,
+    IntegrationUnavailableError,
+)
 from app.integrations.gcs_bridge_client import get_gcs_bridge_client
 from app.observability import observe_timing
 from app.routers.rate_limit_headers import (
@@ -47,8 +51,8 @@ from app.services.ui_service import (
     cancel_order,
     create_order,
     create_pod,
-    get_pod,
     get_order,
+    get_pod,
     list_events,
     list_orders,
     manual_assign,
@@ -369,18 +373,28 @@ async def submit_mission_endpoint(
                     }
                 )
         else:
-            order_out, mission_intent_payload = submit_mission(auth, db, order_id)
-            publisher.publish_mission_intent(mission_intent_payload)
+            order_out, mission_intent_payload = submit_mission(
+                auth,
+                db,
+                order_id,
+                publish=publisher.publish_mission_intent,
+            )
 
             response_payload = MissionSubmitResponse(
                 order_id=str(order_out["id"]),
                 mission_intent_id=mission_intent_payload.get("mission_intent_id", ""),
                 status=order_out["status"],
             ).model_dump(mode="json")
+    except HTTPException:
+        raise
     except IntegrationBadGatewayError as err:
         raise _translate_integration_error(err) from err
     except IntegrationError as err:
         raise _translate_integration_error(err) from err
+    except Exception as err:
+        raise _translate_integration_error(
+            IntegrationUnavailableError("gcs_bridge", f"Mission publish failed: {err}")
+        ) from err
 
     if idempotency_key:
         save_idempotency_result(

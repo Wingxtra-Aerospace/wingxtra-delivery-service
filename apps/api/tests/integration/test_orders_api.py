@@ -45,6 +45,11 @@ class FakePublisher:
         self.published.append(mission_intent)
 
 
+class FailingPublisher:
+    def publish_mission_intent(self, mission_intent: dict) -> None:
+        raise RuntimeError(f"publish failure for {mission_intent['order_id']}")
+
+
 def test_create_get_list_cancel_tracking_and_events(client):
     create_response = _create_order(client)
     assert create_response.status_code == 201
@@ -182,6 +187,43 @@ def test_submit_mission_intent_for_assigned_order(client):
     assert payload["mission_intent_id"].startswith("mi_")
     assert len(publisher.published) == 1
 
+
+
+
+def test_submit_mission_idempotency_recovers_after_failed_publish(client):
+    _set_fleet_override(
+        [FleetDroneTelemetry(drone_id="DRONE-1", lat=6.45, lng=3.39, battery=95, is_available=True)]
+    )
+
+    order = _create_order(client).json()
+    assign = client.post(f"/api/v1/orders/{order['id']}/assign", json={"drone_id": "DRONE-1"})
+    assert assign.status_code == 200
+
+    app.dependency_overrides[get_gcs_bridge_client] = lambda: FailingPublisher()
+    failed = client.post(
+        f"/api/v1/orders/{order['id']}/submit-mission-intent",
+        headers={"Idempotency-Key": "mission-retry-key"},
+    )
+    assert failed.status_code == 503
+
+    publisher = FakePublisher()
+    app.dependency_overrides[get_gcs_bridge_client] = lambda: publisher
+
+    recovered = client.post(
+        f"/api/v1/orders/{order['id']}/submit-mission-intent",
+        headers={"Idempotency-Key": "mission-retry-key"},
+    )
+    assert recovered.status_code == 200
+    assert recovered.json()["status"] == "MISSION_SUBMITTED"
+    assert len(publisher.published) == 1
+
+    replay = client.post(
+        f"/api/v1/orders/{order['id']}/submit-mission-intent",
+        headers={"Idempotency-Key": "mission-retry-key"},
+    )
+    assert replay.status_code == 200
+    assert replay.json() == recovered.json()
+    assert len(publisher.published) == 1
 
 def test_submit_mission_intent_rejected_when_not_assigned(client):
     order = _create_order(client).json()

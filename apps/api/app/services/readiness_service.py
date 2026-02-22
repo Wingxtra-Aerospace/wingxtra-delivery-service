@@ -27,9 +27,16 @@ def safe_dependency_status(
         )
         return "error"
 
-    if status != "ok":
-        metrics_store.increment("readiness_dependency_error_total")
-    return status
+    if status == "ok":
+        return "ok"
+
+    metrics_store.increment("readiness_dependency_error_total")
+    if status != "error":
+        log_event(
+            "readiness_dependency_status_invalid",
+            order_id=f"{dependency_name}:{status}",
+        )
+    return "error"
 
 
 def database_dependency_status(

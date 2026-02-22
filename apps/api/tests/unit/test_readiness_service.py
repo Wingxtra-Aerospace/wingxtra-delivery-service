@@ -139,3 +139,24 @@ def test_safe_dependency_status_increments_metrics_for_ok_status():
     assert result == "ok"
     assert snapshot.counters.get("readiness_dependency_checked_total") == 1
     assert snapshot.counters.get("readiness_dependency_error_total", 0) == 0
+
+
+def test_safe_dependency_status_treats_unexpected_status_as_error(monkeypatch):
+    from app.observability import metrics_store
+    from app.services import readiness_service
+
+    events: list[tuple[str, str | None]] = []
+
+    def _record_event(message: str, *, order_id: str | None = None, **kwargs):
+        events.append((message, order_id))
+
+    monkeypatch.setattr(readiness_service, "log_event", _record_event)
+
+    metrics_store.reset()
+    result = readiness_service.safe_dependency_status("redis", lambda: "degraded")
+
+    snapshot = metrics_store.snapshot()
+    assert result == "error"
+    assert snapshot.counters.get("readiness_dependency_checked_total") == 1
+    assert snapshot.counters.get("readiness_dependency_error_total") == 1
+    assert events == [("readiness_dependency_status_invalid", "redis:degraded")]

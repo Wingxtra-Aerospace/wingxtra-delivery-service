@@ -44,6 +44,7 @@ Redis readiness check behavior:
 - Supports `redis://` URLs.
 - Opens a short-lived TCP connection and performs a Redis `PING`/`PONG` check.
 - Reports `error` when URL is invalid/unset for scheme expectations, connection fails, or ping is unsuccessful.
+- Any unexpected dependency checker status is coerced to `error` (fail-closed) and logged for diagnostics.
 
 Response shape:
 - `status`: `ok` or `degraded`

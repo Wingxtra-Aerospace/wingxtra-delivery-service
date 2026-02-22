@@ -70,6 +70,20 @@ from app.services.ui_service import (
 
 router = APIRouter(prefix="/api/v1/orders", tags=["orders"])
 
+ETAG_RESPONSE_HEADER = {
+    "ETag": {
+        "description": "Entity tag representing the current tracking payload",
+        "schema": {"type": "string"},
+    }
+}
+
+CACHE_CONTROL_HEADER = {
+    "Cache-Control": {
+        "description": "Caching policy for conditional tracking responses",
+        "schema": {"type": "string"},
+    }
+}
+
 
 def _is_placeholder_order_id(order_id: str) -> bool:
     return order_id.startswith("ord-")

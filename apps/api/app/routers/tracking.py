@@ -21,6 +21,20 @@ from app.services.ui_service import (
 
 router = APIRouter(prefix="/api/v1/tracking", tags=["tracking"])
 
+ETAG_RESPONSE_HEADER = {
+    "ETag": {
+        "description": "Entity tag representing the current tracking payload",
+        "schema": {"type": "string"},
+    }
+}
+
+CACHE_CONTROL_HEADER = {
+    "Cache-Control": {
+        "description": "Caching policy for conditional tracking responses",
+        "schema": {"type": "string"},
+    }
+}
+
 
 @router.get(
     "/{public_tracking_id}",

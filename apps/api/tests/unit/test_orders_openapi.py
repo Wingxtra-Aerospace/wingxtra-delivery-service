@@ -36,3 +36,13 @@ def test_rate_limit_headers_documented_in_openapi(client):
     assert "X-RateLimit-Limit" in tracking_429_headers
     assert tracking_429_headers["Retry-After"]["schema"]["type"] == "string"
     assert tracking_429_headers["Retry-After"]["schema"]["pattern"] == r"^\d+$"
+
+
+def test_dispatch_run_request_schema_in_openapi(client):
+    openapi = client.get("/openapi.json")
+    assert openapi.status_code == 200
+
+    dispatch_post = openapi.json()["paths"]["/api/v1/dispatch/run"]["post"]
+    assert dispatch_post["requestBody"]["content"]["application/json"]["schema"]["$ref"] == (
+        "#/components/schemas/DispatchRunRequest"
+    )

@@ -175,7 +175,11 @@ def submit_mission(
     return ui_db_service.submit_mission(auth, db, order_id)
 
 
-def run_auto_dispatch(auth: AuthContext, db: Session) -> dict[str, int | list[dict[str, str]]]:
+def run_auto_dispatch(
+    auth: AuthContext,
+    db: Session,
+    max_assignments: int | None = None,
+) -> dict[str, int | list[dict[str, str]]]:
     drones = [
         drone_id
         for drone_id, info in ui_store_service.store.drones.items()
@@ -184,17 +188,31 @@ def run_auto_dispatch(auth: AuthContext, db: Session) -> dict[str, int | list[di
 
     mode = _mode()
     if mode == "store":
-        return ui_store_service.run_auto_dispatch(drones)
+        return ui_store_service.run_auto_dispatch(drones, max_assignments=max_assignments)
 
-    result = ui_db_service.run_auto_dispatch(auth, db, drones)
-    if mode == "hybrid":
-        # Preserve placeholder dispatch behavior for tests, but don't append it
-        # when real DB orders were already assigned.
+    result = ui_db_service.run_auto_dispatch(auth, db, drones, max_assignments=max_assignments)
+    if mode != "hybrid":
+        return result
+
+    if max_assignments is None:
+        # Preserve legacy placeholder behavior when the caller did not provide
+        # an explicit assignment cap.
         if int(result["assigned"]) == 0:
             store_result = ui_store_service.run_auto_dispatch(drones)
             combined = [*result["assignments"], *store_result["assignments"]]
             return {"assigned": len(combined), "assignments": combined}
-    return result
+        return result
+
+    remaining_capacity = max(max_assignments - len(result["assignments"]), 0)
+    if remaining_capacity == 0:
+        return result
+
+    store_result = ui_store_service.run_auto_dispatch(
+        drones,
+        max_assignments=remaining_capacity,
+    )
+    combined = [*result["assignments"], *store_result["assignments"]]
+    return {"assigned": len(combined), "assignments": combined}
 
 
 def list_jobs(auth: AuthContext, db: Session, active_only: bool) -> list[dict[str, Any]]:

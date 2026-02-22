@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.auth.dependencies import RateLimitStatus, rate_limit_public_tracking
 from app.db.session import get_db
+from app.routers.rate_limit_headers import RATE_LIMIT_SUCCESS_HEADERS, RATE_LIMIT_THROTTLED_HEADERS
 from app.schemas.ui import TrackingViewResponse
 from app.services.ui_service import get_pod, tracking_view
 
@@ -14,6 +15,10 @@ router = APIRouter(prefix="/api/v1/tracking", tags=["tracking"])
     response_model=TrackingViewResponse,
     response_model_exclude_none=True,
     summary="Tracking view",
+    responses={
+        200: {"headers": RATE_LIMIT_SUCCESS_HEADERS},
+        429: {"description": "Rate limit exceeded", "headers": RATE_LIMIT_THROTTLED_HEADERS},
+    },
 )
 def tracking_endpoint(
     public_tracking_id: str,

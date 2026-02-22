@@ -16,6 +16,7 @@ from app.db.session import get_db
 from app.integrations.errors import IntegrationBadGatewayError, IntegrationError
 from app.integrations.gcs_bridge_client import get_gcs_bridge_client
 from app.observability import observe_timing
+from app.routers.rate_limit_headers import RATE_LIMIT_SUCCESS_HEADERS, RATE_LIMIT_THROTTLED_HEADERS
 from app.schemas.ui import (
     EventResponse,
     EventsTimelineResponse,
@@ -76,7 +77,16 @@ def _set_rate_limit_headers(response, rate_limit: RateLimitStatus) -> None:
     response.headers["X-RateLimit-Reset"] = str(rate_limit.reset_at_s)
 
 
-@router.post("", response_model=OrderDetailResponse, summary="Create order", status_code=201)
+@router.post(
+    "",
+    response_model=OrderDetailResponse,
+    summary="Create order",
+    status_code=201,
+    responses={
+        201: {"headers": RATE_LIMIT_SUCCESS_HEADERS},
+        429: {"description": "Rate limit exceeded", "headers": RATE_LIMIT_THROTTLED_HEADERS},
+    },
+)
 async def create_order_endpoint(
     request: Request,
     response: Response,
@@ -440,6 +450,10 @@ def create_pod_endpoint(
     response_model=TrackingViewResponse,
     response_model_exclude_none=True,
     summary="Public tracking",
+    responses={
+        200: {"headers": RATE_LIMIT_SUCCESS_HEADERS},
+        429: {"description": "Rate limit exceeded", "headers": RATE_LIMIT_THROTTLED_HEADERS},
+    },
 )
 def public_tracking_endpoint(
     public_tracking_id: str,

@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models.idempotency_record import IdempotencyRecord
+from app.observability import metrics_store
 
 IDEMPOTENCY_KEY_MAX_LENGTH = 255
 
@@ -27,12 +28,14 @@ def validate_idempotency_key(idempotency_key: str | None) -> str | None:
 
     normalized_key = idempotency_key.strip()
     if not normalized_key:
+        metrics_store.increment("idempotency_invalid_key_total")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Idempotency-Key must not be empty",
         )
 
     if len(normalized_key) > IDEMPOTENCY_KEY_MAX_LENGTH:
+        metrics_store.increment("idempotency_invalid_key_total")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Idempotency-Key exceeds max length {IDEMPOTENCY_KEY_MAX_LENGTH}",
@@ -42,6 +45,7 @@ def validate_idempotency_key(idempotency_key: str | None) -> str | None:
 
 
 def _raise_payload_conflict() -> None:
+    metrics_store.increment("idempotency_conflict_total")
     raise HTTPException(
         status_code=status.HTTP_409_CONFLICT,
         detail="Idempotency key reused with different payload",
@@ -86,6 +90,7 @@ def check_idempotency(
     if record.request_hash != payload_hash:
         _raise_payload_conflict()
 
+    metrics_store.increment("idempotency_replay_total")
     return IdempotencyResult(replay=True, response_payload=record.response_payload)
 
 
@@ -136,6 +141,7 @@ def save_idempotency_result(
 
     try:
         db.commit()
+        metrics_store.increment("idempotency_store_total")
     except IntegrityError:
         db.rollback()
         existing = db.scalar(
@@ -156,3 +162,4 @@ def save_idempotency_result(
         if expired_count:
             _purge_expired_records(db, now)
         db.commit()
+        metrics_store.increment("idempotency_store_total")

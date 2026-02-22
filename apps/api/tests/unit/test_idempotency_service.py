@@ -5,7 +5,12 @@ from fastapi import HTTPException
 from sqlalchemy import func, select, update
 
 from app.models.idempotency_record import IdempotencyRecord
-from app.services.idempotency_service import check_idempotency, save_idempotency_result
+from app.observability import metrics_store
+from app.services.idempotency_service import (
+    check_idempotency,
+    save_idempotency_result,
+    validate_idempotency_key,
+)
 
 
 def test_idempotency_record_expires(db_session):
@@ -152,3 +157,47 @@ def test_save_idempotency_result_rejects_payload_mismatch_for_existing_key(db_se
         )
 
     assert exc_info.value.status_code == 409
+
+
+def test_idempotency_metrics_are_recorded(db_session):
+    snapshot_before = metrics_store.snapshot().counters
+
+    def counter(name: str) -> int:
+        current_value = int(metrics_store.snapshot().counters.get(name, 0))
+        initial_value = int(snapshot_before.get(name, 0))
+        return current_value - initial_value
+
+    with pytest.raises(HTTPException):
+        validate_idempotency_key("   ")
+
+    save_idempotency_result(
+        db=db_session,
+        user_id="ops-metrics",
+        route="POST:/api/v1/orders:user=ops-metrics",
+        idempotency_key="idem-metrics",
+        request_payload={"a": 1},
+        response_payload={"ok": True},
+    )
+
+    replay = check_idempotency(
+        db=db_session,
+        user_id="ops-metrics",
+        route="POST:/api/v1/orders:user=ops-metrics",
+        idempotency_key="idem-metrics",
+        request_payload={"a": 1},
+    )
+    assert replay.replay is True
+
+    with pytest.raises(HTTPException):
+        check_idempotency(
+            db=db_session,
+            user_id="ops-metrics",
+            route="POST:/api/v1/orders:user=ops-metrics",
+            idempotency_key="idem-metrics",
+            request_payload={"a": 2},
+        )
+
+    assert counter("idempotency_invalid_key_total") == 1
+    assert counter("idempotency_store_total") == 1
+    assert counter("idempotency_replay_total") == 1
+    assert counter("idempotency_conflict_total") == 1

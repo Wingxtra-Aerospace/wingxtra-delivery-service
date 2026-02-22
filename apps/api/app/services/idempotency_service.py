@@ -74,6 +74,7 @@ def check_idempotency(
     expired_count = _purge_expired_records(db, now)
     if expired_count:
         db.commit()
+        metrics_store.increment("idempotency_purged_total", expired_count)
 
     payload_hash = _hash_payload(request_payload)
     record = db.scalar(
@@ -141,6 +142,8 @@ def save_idempotency_result(
 
     try:
         db.commit()
+        if expired_count:
+            metrics_store.increment("idempotency_purged_total", expired_count)
         metrics_store.increment("idempotency_store_total")
     except IntegrityError:
         db.rollback()
@@ -162,4 +165,6 @@ def save_idempotency_result(
         if expired_count:
             _purge_expired_records(db, now)
         db.commit()
+        if expired_count:
+            metrics_store.increment("idempotency_purged_total", expired_count)
         metrics_store.increment("idempotency_store_total")

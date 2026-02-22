@@ -188,6 +188,30 @@ def test_idempotency_metrics_are_recorded(db_session):
     )
     assert replay.replay is True
 
+    db_session.execute(
+        update(IdempotencyRecord)
+        .where(IdempotencyRecord.user_id == "ops-metrics")
+        .values(expires_at=datetime.now(timezone.utc) - timedelta(seconds=1))
+    )
+    db_session.commit()
+
+    check_idempotency(
+        db=db_session,
+        user_id="ops-metrics",
+        route="POST:/api/v1/orders:user=ops-metrics",
+        idempotency_key="idem-metrics",
+        request_payload={"a": 1},
+    )
+
+    save_idempotency_result(
+        db=db_session,
+        user_id="ops-metrics",
+        route="POST:/api/v1/orders:user=ops-metrics",
+        idempotency_key="idem-metrics",
+        request_payload={"a": 1},
+        response_payload={"ok": True},
+    )
+
     with pytest.raises(HTTPException):
         check_idempotency(
             db=db_session,
@@ -198,6 +222,7 @@ def test_idempotency_metrics_are_recorded(db_session):
         )
 
     assert counter("idempotency_invalid_key_total") == 1
-    assert counter("idempotency_store_total") == 1
+    assert counter("idempotency_store_total") == 2
     assert counter("idempotency_replay_total") == 1
     assert counter("idempotency_conflict_total") == 1
+    assert counter("idempotency_purged_total") == 1

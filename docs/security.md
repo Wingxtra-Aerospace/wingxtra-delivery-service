@@ -35,6 +35,13 @@ If valid, request role is mapped to `OPS`.
 
 `GET /api/v1/tracking/{public_tracking_id}` remains unauthenticated.
 
+Application mode hardening:
+
+- `APP_MODE=production` disables demo placeholder flows and enforces DB-backed paths only.
+- In production mode, order/tracking endpoints reject placeholder or non-UUID order IDs (HTTP `400`).
+- `APP_MODE=demo` retains legacy placeholder/demo behavior for demos and local UI smoke paths.
+
+
 Tracking output is sanitized to:
 - `order_id`
 - `public_tracking_id`
@@ -52,7 +59,18 @@ Rate limiting is applied per client IP:
   - `ORDER_CREATE_RATE_LIMIT_REQUESTS` (default `1000`)
   - `ORDER_CREATE_RATE_LIMIT_WINDOW_S` (default `60`)
 
-- Set `WINGXTRA_RATE_LIMIT_USE_REDIS=true` with `REDIS_URL` to share limiter state across instances. When disabled (default), an in-memory limiter is used for local/dev.
+Rate limiter backend is configured with:
+
+- `RATE_LIMIT_BACKEND=redis|memory|off`
+  - default behavior: `memory` when `WINGXTRA_TESTING=true`, `redis` otherwise.
+  - recommended production value: `redis`
+- `REDIS_URL=redis://...`
+- `REDIS_RATE_LIMIT_TIMEOUT_S` (strict connect/read timeout for limiter operations; default `0.2`)
+
+If Redis limiter operations fail:
+- unauthenticated public tracking endpoints fail closed (`429`) to reduce abuse risk.
+- authenticated endpoints fail open to preserve operator/merchant continuity during transient backend outages.
+
 When limits are exceeded, the API returns `429 Too Many Requests` with `Retry-After` (delta seconds), `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset` (Unix epoch seconds) headers.
 `X-RateLimit-Reset` is computed from the active window deadline (not by adding rounded deltas), so it stays consistent with `Retry-After` under sub-second timing and transport latency.
 

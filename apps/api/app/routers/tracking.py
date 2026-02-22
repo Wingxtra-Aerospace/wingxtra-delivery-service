@@ -9,6 +9,7 @@ from app.routers.rate_limit_headers import (
     apply_rate_limit_headers,
 )
 from app.schemas.ui import TrackingViewResponse
+from app.services.safety import assert_production_safe
 from app.services.ui_service import build_public_tracking_payload
 
 router = APIRouter(prefix="/api/v1/tracking", tags=["tracking"])
@@ -30,6 +31,7 @@ def tracking_endpoint(
     db: Session = Depends(get_db),
     rate_limit: RateLimitStatus = Depends(rate_limit_public_tracking),
 ) -> TrackingViewResponse:
+    assert_production_safe(order_id=public_tracking_id)
     apply_rate_limit_headers(
         response,
         limit=rate_limit.limit,

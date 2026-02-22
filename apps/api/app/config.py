@@ -29,6 +29,9 @@ class Settings(BaseSettings):
 
     order_create_rate_limit_requests: int = 1000
     order_create_rate_limit_window_s: int = 60
+    rate_limit_use_redis: bool = Field(
+        default=False, validation_alias="WINGXTRA_RATE_LIMIT_USE_REDIS"
+    )
 
     idempotency_ttl_s: int = 24 * 60 * 60
     pod_otp_hmac_secret: str = Field(

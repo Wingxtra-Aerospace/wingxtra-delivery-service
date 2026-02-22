@@ -6,6 +6,7 @@ from fastapi import Depends, Header, HTTPException, Request, status
 from app.auth.jwt import decode_jwt, jwt_http_exception
 from app.config import allowed_roles_list, settings
 from app.observability import metrics_store
+from app.services.rate_limiter import get_rate_limiter, reset_rate_limiter_state
 
 AllowedRole = str
 
@@ -77,9 +78,6 @@ def assert_merchant_ownership(auth: AuthContext, merchant_id: str | None) -> Non
     )
 
 
-_RATE_LIMIT_BUCKETS: dict[str, list[float]] = {}
-
-
 @dataclass
 class RateLimitStatus:
     limit: int
@@ -89,42 +87,28 @@ class RateLimitStatus:
 
 
 def _apply_rate_limit(key: str, max_requests: int, window_s: int, detail: str) -> RateLimitStatus:
-    import math
-    import time
-
-    now = time.time()
-    history = _RATE_LIMIT_BUCKETS.get(key, [])
-    history = [value for value in history if value > now - window_s]
+    limiter = get_rate_limiter()
+    result = limiter.check(key, max_requests=max_requests, window_s=window_s)
 
     metrics_store.increment("rate_limit_checked_total")
-    if len(history) >= max_requests:
+    if not result.allowed:
         metrics_store.increment("rate_limit_rejected_total")
-        oldest = min(history)
-        reset_deadline_s = oldest + window_s
-        reset_after_s = max(1, math.ceil(reset_deadline_s - now))
-        reset_at_s = max(math.ceil(reset_deadline_s), math.ceil(now))
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail=detail,
             headers={
-                "Retry-After": str(reset_after_s),
+                "Retry-After": str(result.reset_after_s),
                 "X-RateLimit-Limit": str(max_requests),
                 "X-RateLimit-Remaining": "0",
-                "X-RateLimit-Reset": str(reset_at_s),
+                "X-RateLimit-Reset": str(result.reset_at_s),
             },
         )
 
-    history.append(now)
-    _RATE_LIMIT_BUCKETS[key] = history
-    remaining = max_requests - len(history)
-    reset_deadline_s = history[0] + window_s
-    reset_after_s = max(1, math.ceil(reset_deadline_s - now))
-    reset_at_s = max(math.ceil(reset_deadline_s), math.ceil(now))
     return RateLimitStatus(
         limit=max_requests,
-        remaining=remaining,
-        reset_after_s=reset_after_s,
-        reset_at_s=reset_at_s,
+        remaining=result.remaining,
+        reset_after_s=result.reset_after_s,
+        reset_at_s=result.reset_at_s,
     )
 
 
@@ -149,4 +133,4 @@ def rate_limit_order_creation(request: Request) -> RateLimitStatus:
 
 
 def reset_rate_limits() -> None:
-    _RATE_LIMIT_BUCKETS.clear()
+    reset_rate_limiter_state()

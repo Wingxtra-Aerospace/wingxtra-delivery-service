@@ -15,6 +15,24 @@ def test_readiness_check(client):
     }
 
 
+def test_readiness_check_includes_fleet_when_configured(client, monkeypatch):
+    from app.routers import health
+
+    monkeypatch.setattr(health.settings, "fleet_api_base_url", "http://fleet")
+    monkeypatch.setattr(health, "fleet_dependency_status", lambda *_args, **_kwargs: "ok")
+
+    response = client.get("/ready")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "ok",
+        "dependencies": [
+            {"name": "database", "status": "ok"},
+            {"name": "fleet_api", "status": "ok"},
+        ],
+    }
+
+
 def test_readiness_check_includes_redis_when_configured(client, monkeypatch):
     from app.routers import health
 
@@ -100,5 +118,23 @@ def test_readiness_check_degraded_when_redis_unavailable(client, monkeypatch):
         "dependencies": [
             {"name": "database", "status": "ok"},
             {"name": "redis", "status": "error"},
+        ],
+    }
+
+
+def test_readiness_check_degraded_when_fleet_unavailable(client, monkeypatch):
+    from app.routers import health
+
+    monkeypatch.setattr(health.settings, "fleet_api_base_url", "http://fleet")
+    monkeypatch.setattr(health, "fleet_dependency_status", lambda *_args, **_kwargs: "error")
+
+    response = client.get("/ready")
+
+    assert response.status_code == 503
+    assert response.json() == {
+        "status": "degraded",
+        "dependencies": [
+            {"name": "database", "status": "ok"},
+            {"name": "fleet_api", "status": "error"},
         ],
     }

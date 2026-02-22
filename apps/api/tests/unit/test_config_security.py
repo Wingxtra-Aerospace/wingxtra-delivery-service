@@ -266,3 +266,17 @@ def test_settings_reads_redis_readiness_timeout_from_env_alias():
     settings = config_module.Settings(REDIS_READINESS_TIMEOUT_S="2.25")
 
     assert settings.redis_readiness_timeout_s == 2.25
+
+
+def test_settings_rejects_non_positive_fleet_timeout():
+    with pytest.raises(
+        ValidationError, match="fleet_api timeout/cache settings must be greater than 0"
+    ):
+        config_module.Settings(fleet_api_timeout_s=0)
+
+
+def test_settings_rejects_non_positive_fleet_cache_ttl():
+    with pytest.raises(
+        ValidationError, match="fleet_api timeout/cache settings must be greater than 0"
+    ):
+        config_module.Settings(fleet_api_cache_ttl_s=0)

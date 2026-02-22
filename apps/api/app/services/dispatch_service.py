@@ -5,10 +5,11 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.config import settings
+from app.integrations.errors import IntegrationError
 from app.integrations.fleet_api_client import FleetApiClientProtocol, FleetDroneTelemetry
 from app.models.delivery_job import DeliveryJob, DeliveryJobStatus
 from app.models.order import Order, OrderStatus
+from app.observability import log_event
 from app.services.orders_service import get_order, transition_order_status
 
 _MIN_BATTERY_FOR_ASSIGNMENT = 30.0
@@ -94,7 +95,17 @@ def run_auto_dispatch(
         )
     )
 
-    drones = list(fleet_client.get_latest_telemetry())
+    try:
+        telemetry = fleet_client.get_latest_telemetry()
+    except IntegrationError as err:
+        log_event("fleet_telemetry_unavailable", order_id=f"{err.service}:{err.code}")
+        telemetry = []
+
+    drones = [
+        drone
+        for drone in telemetry
+        if drone.is_available and drone.battery >= _MIN_BATTERY_FOR_ASSIGNMENT
+    ]
 
     assignments: list[tuple[Order, DeliveryJob]] = []
     used_drones: set[str] = set()
@@ -146,16 +157,18 @@ def manual_assign_order(
             detail=f"Order cannot be assigned from status {order.status.value}",
         )
 
-    drone = next(
-        (d for d in fleet_client.get_latest_telemetry() if d.drone_id == drone_id),
-        None,
-    )
-    if not drone:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Drone not found")
+    try:
+        telemetry = fleet_client.get_latest_telemetry()
+    except IntegrationError as err:
+        log_event("fleet_telemetry_unavailable", order_id=f"{err.service}:{err.code}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Fleet telemetry unavailable; retry shortly",
+        ) from err
 
-    incompatible_reason = _drone_incompatible_reason(order, drone)
-    if incompatible_reason is not None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=incompatible_reason)
+    drone = next((d for d in telemetry if d.drone_id == drone_id), None)
+    if not drone or not drone.is_available or drone.battery < _MIN_BATTERY_FOR_ASSIGNMENT:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Drone not assignable")
 
     job = _assign_order_to_drone(db, order, drone_id, reason="manual")
     db.commit()

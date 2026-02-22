@@ -2,9 +2,11 @@ from fastapi import APIRouter, Response, status
 
 from app.config import settings
 from app.db.session import SessionLocal
+from app.integrations.fleet_api_client import get_fleet_api_client
 from app.schemas.health import HealthResponse, ReadinessDependency, ReadinessResponse
 from app.services.readiness_service import (
     database_dependency_status,
+    fleet_dependency_status,
     redis_dependency_status,
     safe_dependency_status,
 )
@@ -39,6 +41,13 @@ def readiness(response: Response) -> ReadinessResponse:
             ),
         )
         dependencies.append(ReadinessDependency(name="redis", status=redis_status))
+
+    if settings.fleet_api_base_url.strip():
+        fleet_status = safe_dependency_status(
+            "fleet_api",
+            lambda: fleet_dependency_status(get_fleet_api_client()),
+        )
+        dependencies.append(ReadinessDependency(name="fleet_api", status=fleet_status))
 
     readiness_status = "ok" if all(dep.status == "ok" for dep in dependencies) else "degraded"
     if readiness_status != "ok":

@@ -7,6 +7,8 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from app.integrations.errors import IntegrationError
+from app.integrations.fleet_api_client import FleetApiClientProtocol
 from app.observability import log_event, metrics_store
 
 ReadinessStatus = Literal["ok", "error"]
@@ -68,3 +70,11 @@ def redis_dependency_status(redis_url: str, timeout_s: float = 1.0) -> Readiness
         return "error"
 
     return "ok" if payload.startswith(b"+PONG") else "error"
+
+
+def fleet_dependency_status(fleet_client: FleetApiClientProtocol) -> ReadinessStatus:
+    try:
+        fleet_client.get_latest_telemetry()
+    except IntegrationError:
+        return "error"
+    return "ok"

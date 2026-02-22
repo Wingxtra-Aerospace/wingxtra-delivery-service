@@ -43,14 +43,7 @@ class Settings(BaseSettings):
     fleet_api_timeout_s: float = 2.0
     fleet_api_max_retries: int = 2
     fleet_api_backoff_s: float = 0.2
-    dispatch_score_distance_weight: float = Field(
-        default=1.0,
-        validation_alias="WINGXTRA_DISPATCH_SCORE_DISTANCE_WEIGHT",
-    )
-    dispatch_score_battery_weight: float = Field(
-        default=1.0,
-        validation_alias="WINGXTRA_DISPATCH_SCORE_BATTERY_WEIGHT",
-    )
+    fleet_api_cache_ttl_s: float = 2.0
 
     gcs_bridge_base_url: str = ""
     gcs_bridge_timeout_s: float = 2.0
@@ -90,11 +83,11 @@ class Settings(BaseSettings):
             raise ValueError("redis_readiness_timeout_s must be greater than 0")
         return value
 
-    @field_validator("dispatch_score_distance_weight", "dispatch_score_battery_weight")
+    @field_validator("fleet_api_timeout_s", "fleet_api_cache_ttl_s")
     @classmethod
-    def validate_dispatch_weights(cls, value: float) -> float:
-        if value < 0:
-            raise ValueError("dispatch scoring weights must be greater than or equal to 0")
+    def validate_positive_fleet_values(cls, value: float) -> float:
+        if value <= 0:
+            raise ValueError("fleet_api timeout/cache settings must be greater than 0")
         return value
 
 

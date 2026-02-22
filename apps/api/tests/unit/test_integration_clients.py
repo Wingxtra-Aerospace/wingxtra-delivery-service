@@ -75,7 +75,9 @@ def test_fleet_client_retries_then_succeeds(monkeypatch):
         lambda timeout: _ClientStub(get_sequence=sequence),
     )
 
-    client = FleetApiClient("http://fleet", timeout_s=0.1, max_retries=2, backoff_s=0)
+    client = FleetApiClient(
+        "http://fleet", timeout_s=0.1, max_retries=2, backoff_s=0, cache_ttl_s=2
+    )
     telemetry = client.get_latest_telemetry()
     assert len(telemetry) == 1
     assert telemetry[0].drone_id == "DR-1"
@@ -87,7 +89,9 @@ def test_fleet_client_maps_4xx_to_bad_gateway(monkeypatch):
         lambda timeout: _ClientStub(get_sequence=[_Response(404, {})]),
     )
 
-    client = FleetApiClient("http://fleet", timeout_s=0.1, max_retries=0, backoff_s=0)
+    client = FleetApiClient(
+        "http://fleet", timeout_s=0.1, max_retries=0, backoff_s=0, cache_ttl_s=2
+    )
     with pytest.raises(IntegrationBadGatewayError):
         client.get_latest_telemetry()
 
@@ -111,7 +115,43 @@ def test_gcs_client_rejects_invalid_mission_intent_contract():
 
 
 def test_fleet_client_requires_base_url():
-    client = FleetApiClient("", timeout_s=0.1, max_retries=0, backoff_s=0)
+    client = FleetApiClient("", timeout_s=0.1, max_retries=0, backoff_s=0, cache_ttl_s=2)
 
     with pytest.raises(IntegrationUnavailableError):
         client.get_latest_telemetry()
+
+
+def test_fleet_client_uses_ttl_cache(monkeypatch):
+    calls = {"count": 0}
+
+    def _client_factory(timeout):
+        _ = timeout
+        calls["count"] += 1
+        return _ClientStub(
+            get_sequence=[
+                _Response(
+                    200,
+                    [
+                        {
+                            "drone_id": "DR-1",
+                            "lat": 1.0,
+                            "lng": 2.0,
+                            "battery": 99,
+                            "is_available": True,
+                        }
+                    ],
+                )
+            ]
+        )
+
+    monkeypatch.setattr("app.integrations.fleet_api_client.httpx.Client", _client_factory)
+
+    client = FleetApiClient(
+        "http://fleet", timeout_s=0.1, max_retries=0, backoff_s=0, cache_ttl_s=5
+    )
+    first = client.get_latest_telemetry()
+    second = client.get_latest_telemetry()
+
+    assert len(first) == 1
+    assert len(second) == 1
+    assert calls["count"] == 1

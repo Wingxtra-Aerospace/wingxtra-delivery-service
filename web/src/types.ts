@@ -13,3 +13,21 @@ export type OrdersListResponse = {
   page_size: number;
   total: number;
 };
+
+export type JobItem = {
+  id: string;
+  order_id: string;
+  assigned_drone_id: string;
+  status: string;
+  created_at: string;
+  updated_at?: string | null;
+  mission_intent_id?: string | null;
+  eta_seconds?: number | null;
+};
+
+export type JobsListResponse = {
+  items: JobItem[];
+  page: number;
+  page_size: number;
+  total: number;
+};

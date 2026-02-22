@@ -20,9 +20,11 @@ type OrderDetail = {
 
 type EventItem = {
   id: string;
+  order_id: string;
   type: string;
   message: string;
   created_at: string;
+  job_id?: string | null;
   mission_id?: string | null;
   mission_intent_id?: string | null;
 };
@@ -283,6 +285,11 @@ export function OrderDetailPage() {
               {events.map((event) => (
                 <li key={event.id}>
                   <strong>{event.type}</strong> · {new Date(event.created_at).toLocaleString()} · {event.message}
+                  {event.job_id ? (
+                    <>
+                      {" "}· <Link to={`/jobs/${event.job_id}`}>job:{event.job_id}</Link>
+                    </>
+                  ) : null}
                 </li>
               ))}
             </ul>

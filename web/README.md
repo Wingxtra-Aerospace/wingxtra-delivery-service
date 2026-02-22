@@ -95,3 +95,10 @@ Includes Vitest + Testing Library coverage for Orders page loading and URL/filte
 - Fetches order detail, timeline events, and POD (OPS/ADMIN)
 - Includes role-gated actions (assign/cancel/ingest event/submit mission intent)
 - Includes public tracking link copy button and Wingxtra GCS deep links (drone/mission when available)
+
+
+## Jobs pages
+
+- `/jobs`: paginated jobs table with URL-driven `page`, `page_size`, and `active_only` toggle (`active_only` maps to API `active`).
+- `/jobs/:jobId`: fetches `GET /api/v1/jobs/{jobId}` when available, with fallback message `Job detail endpoint not available.` if not accessible.
+- Job detail links back to related Order at `/orders/:orderId`.

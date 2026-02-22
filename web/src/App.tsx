@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { Navigation } from "./components/Navigation";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { HomePage } from "./pages/HomePage";
+import { JobDetailPage } from "./pages/JobDetailPage";
 import { JobsPage } from "./pages/JobsPage";
 import { LoginPage } from "./pages/LoginPage";
 import { OpsConsolePage } from "./pages/OpsConsolePage";
@@ -38,6 +39,14 @@ export default function App() {
             element={
               <ProtectedRoute roles={["OPS", "ADMIN"]}>
                 <JobsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/jobs/:jobId"
+            element={
+              <ProtectedRoute roles={["OPS", "ADMIN"]}>
+                <JobDetailPage />
               </ProtectedRoute>
             }
           />

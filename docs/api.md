@@ -19,11 +19,13 @@ Core UI integration endpoints:
 - `POST /api/v1/dispatch/run`
 - `GET /api/v1/tracking/{public_tracking_id}`
 - `GET /health`
+- `GET /ready`
 - `GET /metrics` (OPS/ADMIN)
 
 
 Health and observability endpoints now publish explicit response schemas in OpenAPI:
 - `GET /health` → `HealthResponse` (`status`)
+- `GET /ready` → `ReadinessResponse` (`status`, `dependencies`)
 - `GET /metrics` → `MetricsResponse` (`counters`, `timings`)
 
 Security headers for Ops endpoints:

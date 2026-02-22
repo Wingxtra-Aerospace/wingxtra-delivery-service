@@ -198,8 +198,17 @@ def run_auto_dispatch(
         # Preserve legacy placeholder behavior when the caller did not provide
         # an explicit assignment cap.
         if int(result["assigned"]) == 0:
-            store_result = ui_store_service.run_auto_dispatch(drones)
-            combined = [*result["assignments"], *store_result["assignments"]]
+            store_result = ui_store_service.run_auto_dispatch(
+                drones,
+                max_assignments=max_assignments,
+            )
+            remaining_capacity = None
+            if max_assignments is not None:
+                remaining_capacity = max(max_assignments - len(result["assignments"]), 0)
+            store_assignments = store_result["assignments"]
+            if remaining_capacity is not None:
+                store_assignments = store_assignments[:remaining_capacity]
+            combined = [*result["assignments"], *store_assignments]
             return {"assigned": len(combined), "assignments": combined}
         return result
 

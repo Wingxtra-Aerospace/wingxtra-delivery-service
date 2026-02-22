@@ -400,6 +400,23 @@ def test_idempotency_for_assign_and_pod_replay_and_conflict(db_session):
     assert conflict_pod.status_code == 409
 
 
+def test_idempotency_for_dispatch_run_replay_and_user_scope():
+    idem_headers = _headers("OPS", sub="ops-dispatch-idem")
+    idem_headers["Idempotency-Key"] = "idem-dispatch-1"
+
+    first_run = client.post("/api/v1/dispatch/run", headers=idem_headers)
+    replay_run = client.post("/api/v1/dispatch/run", headers=idem_headers)
+
+    second_user_headers = _headers("OPS", sub="ops-dispatch-idem-2")
+    second_user_headers["Idempotency-Key"] = "idem-dispatch-1"
+    second_user_run = client.post("/api/v1/dispatch/run", headers=second_user_headers)
+
+    assert first_run.status_code == 200
+    assert replay_run.status_code == 200
+    assert replay_run.json() == first_run.json()
+    assert second_user_run.status_code == 200
+
+
 def test_get_pod_returns_nullable_method_when_record_missing():
     order = client.post(
         "/api/v1/orders",

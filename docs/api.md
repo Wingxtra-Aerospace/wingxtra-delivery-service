@@ -13,6 +13,7 @@ Core UI integration endpoints:
 - `POST /api/v1/orders/{order_id}/assign`
 - `POST /api/v1/orders/{order_id}/cancel`
 - `POST /api/v1/orders/{order_id}/pod`
+- `POST /api/v1/dispatch/run`
 - `GET /api/v1/orders/{order_id}/pod`
 - `GET /api/v1/orders/track/{public_tracking_id}`
 - `GET /api/v1/jobs`
@@ -42,6 +43,7 @@ Idempotency support:
 - `POST /api/v1/orders/{order_id}/submit-mission-intent`
 - `POST /api/v1/orders/{order_id}/assign`
 - `POST /api/v1/orders/{order_id}/pod`
+- `POST /api/v1/dispatch/run`
 
 Provide `Idempotency-Key` header.
 Replay with same payload returns same response; reused key with different payload returns `409`.

@@ -664,3 +664,31 @@ def test_metrics_exposes_idempotency_conflict_counter_after_conflict(client):
         before_counters.get("idempotency_conflict_total", 0)
     )
     assert delta >= 1
+
+
+def test_create_pod_validates_method_specific_fields(client, db_session):
+    order = _create_order(client).json()
+
+    db_order = db_session.get(Order, UUID(order["id"]))
+    db_order.status = OrderStatus.DELIVERED
+    db_session.commit()
+
+    missing_photo = client.post(
+        f"/api/v1/orders/{order['id']}/pod",
+        json={"method": "PHOTO"},
+    )
+    missing_otp = client.post(
+        f"/api/v1/orders/{order['id']}/pod",
+        json={"method": "OTP"},
+    )
+    missing_operator = client.post(
+        f"/api/v1/orders/{order['id']}/pod",
+        json={"method": "OPERATOR_CONFIRM"},
+    )
+
+    assert missing_photo.status_code == 400
+    assert missing_photo.json()["detail"] == "photo_url is required"
+    assert missing_otp.status_code == 400
+    assert missing_otp.json()["detail"] == "otp_code is required"
+    assert missing_operator.status_code == 400
+    assert missing_operator.json()["detail"] == "operator_name is required"

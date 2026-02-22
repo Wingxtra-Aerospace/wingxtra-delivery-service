@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-import hashlib
+import hmac
 import re
 import uuid
 from datetime import datetime, timezone
+from hashlib import sha256
 from typing import Any
 
 from fastapi import HTTPException, status
@@ -11,6 +12,7 @@ from sqlalchemy import String, and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import AuthContext
+from app.config import settings
 from app.models.delivery_event import DeliveryEvent, DeliveryEventType
 from app.models.delivery_job import DeliveryJob, DeliveryJobStatus
 from app.models.order import Order, OrderPriority, OrderStatus
@@ -431,7 +433,26 @@ def create_pod(
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid POD method"
         ) from err
-    otp_hash = hashlib.sha256(otp_code.encode("utf-8")).hexdigest() if otp_code else None
+
+    if m == ProofOfDeliveryMethod.PHOTO and not photo_url:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="photo_url is required")
+    if m == ProofOfDeliveryMethod.OTP and not otp_code:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="otp_code is required")
+    if m == ProofOfDeliveryMethod.OPERATOR_CONFIRM and not operator_name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="operator_name is required",
+        )
+
+    otp_hash = (
+        hmac.new(
+            settings.pod_otp_hmac_secret.encode(),
+            otp_code.encode(),
+            sha256,
+        ).hexdigest()
+        if otp_code
+        else None
+    )
     pod = ProofOfDelivery(
         order_id=order.id,
         method=m,

@@ -60,6 +60,9 @@ Public tracking response is sanitized to: `order_id`, `public_tracking_id`, `sta
 
 POD read endpoint (`GET /api/v1/orders/{order_id}/pod`) returns `PodResponse`; when no POD record exists yet, `method` is `null`.
 
+POD create validation is method-specific: `PHOTO` requires `photo_url`, `OTP` requires `otp_code`, and `OPERATOR_CONFIRM` requires `operator_name` (invalid combinations return `400`).
+
+
 
 Observability headers:
 - `X-Request-ID` accepted on requests and echoed on responses.

@@ -18,7 +18,12 @@ def health() -> HealthResponse:
     return HealthResponse(status="ok")
 
 
-@router.get("/ready", summary="Readiness check", response_model=ReadinessResponse)
+@router.get(
+    "/ready",
+    summary="Readiness check",
+    response_model=ReadinessResponse,
+    responses={status.HTTP_503_SERVICE_UNAVAILABLE: {"model": ReadinessResponse}},
+)
 def readiness(response: Response) -> ReadinessResponse:
     try:
         database_status = _database_dependency_status(SessionLocal)

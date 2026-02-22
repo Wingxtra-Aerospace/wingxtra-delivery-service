@@ -32,6 +32,9 @@ def test_health_endpoint_exposes_explicit_response_schema(client):
     assert ready_get["responses"]["200"]["content"]["application/json"]["schema"]["$ref"] == (
         "#/components/schemas/ReadinessResponse"
     )
+    assert ready_get["responses"]["503"]["content"]["application/json"]["schema"]["$ref"] == (
+        "#/components/schemas/ReadinessResponse"
+    )
 
 
 def test_readiness_check_degraded_when_database_unavailable(client, monkeypatch):

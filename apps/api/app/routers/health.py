@@ -10,6 +10,8 @@ from app.db.session import SessionLocal
 from app.observability import log_event
 from app.schemas.health import HealthResponse, ReadinessDependency, ReadinessResponse
 
+ReadinessStatus = Literal["ok", "error"]
+
 router = APIRouter(tags=["health"])
 
 
@@ -25,11 +27,9 @@ def health() -> HealthResponse:
     responses={status.HTTP_503_SERVICE_UNAVAILABLE: {"model": ReadinessResponse}},
 )
 def readiness(response: Response) -> ReadinessResponse:
-    try:
-        database_status = _database_dependency_status(SessionLocal)
-    except Exception:
-        log_event("readiness_dependency_check_failed")
-        database_status = "error"
+    database_status = _safe_dependency_status(
+        "database", lambda: _database_dependency_status(SessionLocal)
+    )
 
     dependencies = [ReadinessDependency(name="database", status=database_status)]
     readiness_status = "ok" if database_status == "ok" else "degraded"
@@ -38,9 +38,23 @@ def readiness(response: Response) -> ReadinessResponse:
     return ReadinessResponse(status=readiness_status, dependencies=dependencies)
 
 
+def _safe_dependency_status(
+    dependency_name: str,
+    checker: Callable[[], ReadinessStatus],
+) -> ReadinessStatus:
+    try:
+        return checker()
+    except Exception as exc:  # defensive: readiness must fail closed to degraded
+        log_event(
+            "readiness_dependency_check_failed",
+            order_id=f"{dependency_name}:{type(exc).__name__}",
+        )
+        return "error"
+
+
 def _database_dependency_status(
     session_factory: Callable[[], Session],
-) -> Literal["ok", "error"]:
+) -> ReadinessStatus:
     try:
         with session_factory() as db:
             db.execute(text("SELECT 1"))

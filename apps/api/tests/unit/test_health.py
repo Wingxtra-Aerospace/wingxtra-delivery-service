@@ -85,3 +85,22 @@ def test_database_dependency_status_handles_sqlalchemy_error():
             raise SQLAlchemyError("db down")
 
     assert _database_dependency_status(BrokenSession) == "error"
+
+
+def test_safe_dependency_status_logs_unexpected_exception(monkeypatch):
+    from app.routers import health
+
+    events: list[tuple[str, str | None]] = []
+
+    def _record_event(message: str, *, order_id: str | None = None, **kwargs):
+        events.append((message, order_id))
+
+    def _raises():
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(health, "log_event", _record_event)
+
+    result = health._safe_dependency_status("database", _raises)
+
+    assert result == "error"
+    assert events == [("readiness_dependency_check_failed", "database:RuntimeError")]

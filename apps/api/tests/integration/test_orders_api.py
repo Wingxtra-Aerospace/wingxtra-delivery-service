@@ -1,3 +1,4 @@
+import time
 from uuid import UUID
 
 from app.auth.dependencies import reset_rate_limits
@@ -465,10 +466,14 @@ def test_metrics_exposes_rate_limit_counters_when_limited(client):
     try:
         first = _create_order(client)
         assert first.status_code == 201
+        assert first.headers["X-RateLimit-Limit"] == "1"
 
         second = _create_order(client)
         assert second.status_code == 429
         assert second.json()["detail"] == "Order creation rate limit exceeded"
+        assert second.headers["X-RateLimit-Remaining"] == "0"
+        assert "Retry-After" in second.headers
+        assert int(second.headers["X-RateLimit-Reset"]) >= int(time.time())
     finally:
         settings.order_create_rate_limit_requests = original_requests
         settings.order_create_rate_limit_window_s = original_window
@@ -499,10 +504,14 @@ def test_public_tracking_rate_limit_increments_rate_limit_metrics(client):
     try:
         first = client.get("/api/v1/tracking/11111111-1111-4111-8111-111111111111")
         assert first.status_code == 200
+        assert first.headers["X-RateLimit-Limit"] == "1"
 
         second = client.get("/api/v1/tracking/11111111-1111-4111-8111-111111111111")
         assert second.status_code == 429
         assert second.json()["detail"] == "Public tracking rate limit exceeded"
+        assert second.headers["X-RateLimit-Remaining"] == "0"
+        assert "Retry-After" in second.headers
+        assert int(second.headers["X-RateLimit-Reset"]) >= int(time.time())
     finally:
         settings.public_tracking_rate_limit_requests = original_requests
         settings.public_tracking_rate_limit_window_s = original_window

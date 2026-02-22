@@ -1,10 +1,11 @@
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response, status
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import (
     AuthContext,
+    RateLimitStatus,
     rate_limit_order_creation,
     rate_limit_public_tracking,
     require_backoffice_write,
@@ -15,6 +16,11 @@ from app.db.session import get_db
 from app.integrations.errors import IntegrationBadGatewayError, IntegrationError
 from app.integrations.gcs_bridge_client import get_gcs_bridge_client
 from app.observability import observe_timing
+from app.routers.rate_limit_headers import (
+    RATE_LIMIT_SUCCESS_HEADERS,
+    RATE_LIMIT_THROTTLED_HEADERS,
+    apply_rate_limit_headers,
+)
 from app.schemas.ui import (
     EventResponse,
     EventsTimelineResponse,
@@ -69,15 +75,35 @@ def _translate_integration_error(err: IntegrationError) -> HTTPException:
     )
 
 
-@router.post("", response_model=OrderDetailResponse, summary="Create order", status_code=201)
+def _set_rate_limit_headers(response: Response, rate_limit: RateLimitStatus) -> None:
+    apply_rate_limit_headers(
+        response,
+        limit=rate_limit.limit,
+        remaining=rate_limit.remaining,
+        reset_at_s=rate_limit.reset_at_s,
+    )
+
+
+@router.post(
+    "",
+    response_model=OrderDetailResponse,
+    summary="Create order",
+    status_code=201,
+    responses={
+        201: {"headers": RATE_LIMIT_SUCCESS_HEADERS},
+        429: {"description": "Rate limit exceeded", "headers": RATE_LIMIT_THROTTLED_HEADERS},
+    },
+)
 async def create_order_endpoint(
     request: Request,
+    response: Response,
     payload: OrderCreateRequest,
     db: Session = Depends(get_db),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     auth: AuthContext = Depends(require_roles("MERCHANT", "OPS", "ADMIN")),
 ) -> OrderDetailResponse:
-    rate_limit_order_creation(request)
+    rate_limit = rate_limit_order_creation(request)
+    _set_rate_limit_headers(response, rate_limit)
 
     request_payload = await request.json()
     route_scope = build_scope("POST:/api/v1/orders", user_id=auth.user_id)
@@ -431,12 +457,18 @@ def create_pod_endpoint(
     response_model=TrackingViewResponse,
     response_model_exclude_none=True,
     summary="Public tracking",
+    responses={
+        200: {"headers": RATE_LIMIT_SUCCESS_HEADERS},
+        429: {"description": "Rate limit exceeded", "headers": RATE_LIMIT_THROTTLED_HEADERS},
+    },
 )
 def public_tracking_endpoint(
     public_tracking_id: str,
+    response: Response,
     db: Session = Depends(get_db),
-    _rate_limit: None = Depends(rate_limit_public_tracking),
+    rate_limit: RateLimitStatus = Depends(rate_limit_public_tracking),
 ) -> TrackingViewResponse:
+    _set_rate_limit_headers(response, rate_limit)
     return TrackingViewResponse.model_validate(tracking_view(db, public_tracking_id))
 
 

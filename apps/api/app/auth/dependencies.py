@@ -80,7 +80,16 @@ def assert_merchant_ownership(auth: AuthContext, merchant_id: str | None) -> Non
 _RATE_LIMIT_BUCKETS: dict[str, list[float]] = {}
 
 
-def _apply_rate_limit(key: str, max_requests: int, window_s: int, detail: str) -> None:
+@dataclass
+class RateLimitStatus:
+    limit: int
+    remaining: int
+    reset_after_s: int
+    reset_at_s: int
+
+
+def _apply_rate_limit(key: str, max_requests: int, window_s: int, detail: str) -> RateLimitStatus:
+    import math
     import time
 
     now = time.time()
@@ -90,15 +99,36 @@ def _apply_rate_limit(key: str, max_requests: int, window_s: int, detail: str) -
     metrics_store.increment("rate_limit_checked_total")
     if len(history) >= max_requests:
         metrics_store.increment("rate_limit_rejected_total")
-        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=detail)
+        oldest = min(history)
+        reset_after_s = max(1, math.ceil((oldest + window_s) - now))
+        reset_at_s = math.ceil(now + reset_after_s)
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=detail,
+            headers={
+                "Retry-After": str(reset_after_s),
+                "X-RateLimit-Limit": str(max_requests),
+                "X-RateLimit-Remaining": "0",
+                "X-RateLimit-Reset": str(reset_at_s),
+            },
+        )
 
     history.append(now)
     _RATE_LIMIT_BUCKETS[key] = history
+    remaining = max_requests - len(history)
+    reset_after_s = max(1, math.ceil((history[0] + window_s) - now))
+    reset_at_s = math.ceil(now + reset_after_s)
+    return RateLimitStatus(
+        limit=max_requests,
+        remaining=remaining,
+        reset_after_s=reset_after_s,
+        reset_at_s=reset_at_s,
+    )
 
 
-def rate_limit_public_tracking(request: Request) -> None:
+def rate_limit_public_tracking(request: Request) -> RateLimitStatus:
     key = f"tracking:{request.client.host if request.client else 'unknown'}"
-    _apply_rate_limit(
+    return _apply_rate_limit(
         key,
         settings.public_tracking_rate_limit_requests,
         settings.public_tracking_rate_limit_window_s,
@@ -106,9 +136,9 @@ def rate_limit_public_tracking(request: Request) -> None:
     )
 
 
-def rate_limit_order_creation(request: Request) -> None:
+def rate_limit_order_creation(request: Request) -> RateLimitStatus:
     key = f"order-create:{request.client.host if request.client else 'unknown'}"
-    _apply_rate_limit(
+    return _apply_rate_limit(
         key,
         settings.order_create_rate_limit_requests,
         settings.order_create_rate_limit_window_s,

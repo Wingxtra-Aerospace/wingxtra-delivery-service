@@ -78,7 +78,9 @@ def test_auto_dispatch_filters_incompatible_drones_before_scoring(db_session):
     client = FakeFleetApiClient(
         [
             FleetDroneTelemetry(drone_id="bad-weight", lat=1, lng=2, battery=95, max_payload_kg=1),
-            FleetDroneTelemetry(drone_id="bad-type", lat=1, lng=2, battery=95, payload_type="MEDICAL"),
+            FleetDroneTelemetry(
+                drone_id="bad-type", lat=1, lng=2, battery=95, payload_type="MEDICAL"
+            ),
             FleetDroneTelemetry(
                 drone_id="bad-area",
                 lat=1,

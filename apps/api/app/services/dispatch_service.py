@@ -36,7 +36,10 @@ def _drone_incompatible_reason(order: Order, drone: FleetDroneTelemetry) -> str 
         return "Drone battery too low"
     if order.payload_weight_kg > drone.max_payload_kg:
         return "Drone payload capacity exceeded"
-    if drone.payload_type.upper() != "ANY" and drone.payload_type.upper() != order.payload_type.upper():
+    if (
+        drone.payload_type.upper() != "ANY"
+        and drone.payload_type.upper() != order.payload_type.upper()
+    ):
         return "Drone payload type incompatible"
     if not _is_within_service_area(order, drone):
         return "Drone outside order service area"
@@ -107,7 +110,8 @@ def run_auto_dispatch(
         compatible = [
             drone
             for drone in drones
-            if drone.drone_id not in used_drones and _drone_incompatible_reason(order, drone) is None
+            if drone.drone_id not in used_drones
+            and _drone_incompatible_reason(order, drone) is None
         ]
         if not compatible:
             continue

@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import Response
 
-from app.config import allowed_origins, settings
+from app.config import allowed_origins, ensure_secure_runtime_settings, settings
 from app.db.base import Base
 from app.db.session import engine
 from app.observability import log_event, metrics_store, set_request_id
@@ -24,6 +24,7 @@ from app.services.store import seed_data
 async def lifespan(_app: FastAPI):
     import app.models  # noqa: F401 (register all SQLAlchemy models)
 
+    ensure_secure_runtime_settings()
     Base.metadata.create_all(bind=engine)
     seed_data()
     yield

@@ -1,6 +1,8 @@
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+DEFAULT_POD_OTP_HMAC_SECRET = "wingxtra-pod-otp-secret"
+
 
 class Settings(BaseSettings):
     app_name: str = "Wingxtra Delivery Service"
@@ -26,7 +28,7 @@ class Settings(BaseSettings):
 
     idempotency_ttl_s: int = 24 * 60 * 60
     pod_otp_hmac_secret: str = Field(
-        default="wingxtra-pod-otp-secret",
+        default=DEFAULT_POD_OTP_HMAC_SECRET,
         validation_alias="POD_OTP_HMAC_SECRET",
     )
 
@@ -52,3 +54,11 @@ def allowed_origins() -> list[str]:
 
 def allowed_roles_list() -> list[str]:
     return [value.strip() for value in settings.allowed_roles.split(",") if value.strip()]
+
+
+def ensure_secure_runtime_settings() -> None:
+    """Fail fast when production-like runtime uses insecure defaults."""
+    if not settings.testing and settings.pod_otp_hmac_secret == DEFAULT_POD_OTP_HMAC_SECRET:
+        raise RuntimeError(
+            "POD_OTP_HMAC_SECRET must be set to a non-default value when WINGXTRA_TESTING is false"
+        )

@@ -58,6 +58,7 @@ When limits are exceeded, the API returns `429 Too Many Requests`.
 For OTP-based POD submissions (`method=OTP`):
 - OTP values are never stored in plaintext.
 - The API stores only an HMAC-SHA256 digest using `POD_OTP_HMAC_SECRET`.
+- In non-test runtime (`WINGXTRA_TESTING=false`), startup fails fast if `POD_OTP_HMAC_SECRET` is left at the default value.
 
 ## Idempotency
 

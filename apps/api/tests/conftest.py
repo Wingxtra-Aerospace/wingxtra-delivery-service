@@ -54,3 +54,11 @@ def enable_test_auth_bypass():
     settings.enable_test_auth_bypass = True
     yield
     settings.enable_test_auth_bypass = original
+
+
+@pytest.fixture(scope="session", autouse=True)
+def enable_testing_mode():
+    original = settings.testing
+    settings.testing = True
+    yield
+    settings.testing = original

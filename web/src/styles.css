@@ -210,3 +210,13 @@ code {
   flex-direction: column;
   gap: 0.25rem;
 }
+
+.primary-link-button {
+  display: inline-block;
+  background: #0f766e;
+  color: #ffffff;
+  text-decoration: none;
+  padding: 0.5rem 0.9rem;
+  border-radius: 0.35rem;
+  font-weight: 600;
+}

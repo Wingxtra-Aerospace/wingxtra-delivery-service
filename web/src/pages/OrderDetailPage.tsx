@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useAuth } from "../AuthProvider";
 import { apiFetch } from "../api";
+import { DroneGcsLink, MissionGcsLink } from "../components/GcsLinks";
 
 type OrderDetail = {
   id: string;
@@ -255,24 +256,12 @@ export function OrderDetailPage() {
             </p>
             {order.assigned_drone_id ? (
               <p>
-                <a
-                  href={`https://gcs.wingxtra.com/?drone=${encodeURIComponent(order.assigned_drone_id)}`}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Open Drone in Wingxtra GCS
-                </a>
+                <DroneGcsLink droneId={order.assigned_drone_id} />
               </p>
             ) : null}
             {missionId ? (
               <p>
-                <a
-                  href={`https://gcs.wingxtra.com/?mission=${encodeURIComponent(missionId)}`}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Open Mission in Wingxtra GCS
-                </a>
+                <MissionGcsLink missionId={missionId} />
               </p>
             ) : null}
           </div>

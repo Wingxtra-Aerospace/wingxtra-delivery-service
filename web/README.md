@@ -110,3 +110,11 @@ Includes Vitest + Testing Library coverage for Orders page loading and URL/filte
 - Calls only `GET /api/v1/tracking/{public_tracking_id}` from this view (no private order endpoint calls).
 - Handles API `429` with user-friendly cooldown messaging to avoid hammering retries.
 - Displays only fields returned by tracking API response, including optional `pod_summary`.
+
+
+## Ops console page
+
+- Route: `/ops-console` (OPS/ADMIN guarded by app routing).
+- Link-out only integration: opens `https://gcs.wingxtra.com` in a new tab.
+- No iframe embedding, no postMessage integration, and no token query params.
+- Reusable GCS deep-link helpers are used on Order/Job detail pages for drone and mission links.

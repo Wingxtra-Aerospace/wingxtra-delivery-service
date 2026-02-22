@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { apiFetch } from "../api";
+import { DroneGcsLink, MissionGcsLink } from "../components/GcsLinks";
 import type { JobItem } from "../types";
 
 export function JobDetailPage() {
@@ -72,24 +73,38 @@ export function JobDetailPage() {
       {fallbackMessage ? <p className="notice">{fallbackMessage}</p> : null}
 
       {!loading && !error && job ? (
-        <dl className="detail-grid">
-          <dt>job_id</dt>
-          <dd>{job.id}</dd>
-          <dt>order_id</dt>
-          <dd>
-            <Link to={`/orders/${job.order_id}`}>{job.order_id}</Link>
-          </dd>
-          <dt>assigned_drone_id</dt>
-          <dd>{job.assigned_drone_id}</dd>
-          <dt>status</dt>
-          <dd>{job.status}</dd>
-          <dt>created_at</dt>
-          <dd>{new Date(job.created_at).toLocaleString()}</dd>
-          <dt>updated_at</dt>
-          <dd>{job.updated_at ? new Date(job.updated_at).toLocaleString() : "—"}</dd>
-          <dt>mission_intent_id</dt>
-          <dd>{job.mission_intent_id || "—"}</dd>
-        </dl>
+        <>
+          <dl className="detail-grid">
+            <dt>job_id</dt>
+            <dd>{job.id}</dd>
+            <dt>order_id</dt>
+            <dd>
+              <Link to={`/orders/${job.order_id}`}>{job.order_id}</Link>
+            </dd>
+            <dt>assigned_drone_id</dt>
+            <dd>{job.assigned_drone_id}</dd>
+            <dt>status</dt>
+            <dd>{job.status}</dd>
+            <dt>created_at</dt>
+            <dd>{new Date(job.created_at).toLocaleString()}</dd>
+            <dt>updated_at</dt>
+            <dd>{job.updated_at ? new Date(job.updated_at).toLocaleString() : "—"}</dd>
+            <dt>mission_intent_id</dt>
+            <dd>{job.mission_intent_id || "—"}</dd>
+          </dl>
+          <div className="detail-links">
+            {job.assigned_drone_id ? (
+              <p>
+                <DroneGcsLink droneId={job.assigned_drone_id} />
+              </p>
+            ) : null}
+            {job.mission_intent_id ? (
+              <p>
+                <MissionGcsLink missionId={job.mission_intent_id} />
+              </p>
+            ) : null}
+          </div>
+        </>
       ) : null}
     </section>
   );

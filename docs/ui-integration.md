@@ -39,6 +39,10 @@ Query params:
 ### Events timeline
 `GET /api/v1/orders/{order_id}/events`
 
+Query params:
+- `page` (default `1`)
+- `page_size` (default `20`, max `100`)
+
 ### Manual assignment
 `POST /api/v1/orders/{order_id}/assign`
 ```json
@@ -53,6 +57,19 @@ Query params:
 
 ### Public tracking view
 `GET /api/v1/tracking/{public_tracking_id}`
+
+
+List endpoints (`/api/v1/orders`, `/api/v1/jobs`, `/api/v1/orders/{order_id}/events`) return a shared paging envelope:
+```json
+{
+  "items": [],
+  "page": 1,
+  "page_size": 20,
+  "total": 0,
+  "pagination": {"page": 1, "page_size": 20, "total": 0}
+}
+```
+The nested `pagination` object is a compatibility shim for existing clients; new clients should consume top-level `page`, `page_size`, and `total`.
 
 ## Example requests
 ```bash

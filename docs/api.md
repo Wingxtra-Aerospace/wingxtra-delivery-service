@@ -24,6 +24,19 @@ Core UI integration endpoints:
 - `GET /metrics` (OPS/ADMIN)
 
 
+
+Pagination contract for list endpoints is standardized as a generic `Page[T]` shape:
+- `items`: array of resource objects
+- `page`: current page number
+- `page_size`: requested page size
+- `total`: total number of matching records
+- `pagination`: backward-compatible nested object (`{page, page_size, total}`) retained for legacy clients
+
+Applied to:
+- `GET /api/v1/orders`
+- `GET /api/v1/jobs`
+- `GET /api/v1/orders/{order_id}/events` (also supports `page` and `page_size`)
+
 Health and observability endpoints now publish explicit response schemas in OpenAPI:
 - `GET /health` → `HealthResponse` (`status`)
 - `GET /ready` → `ReadinessResponse` (`status`, `dependencies`), returns HTTP `200` when ready and `503` when degraded

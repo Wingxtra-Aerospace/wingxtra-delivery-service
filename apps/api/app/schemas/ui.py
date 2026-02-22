@@ -1,7 +1,7 @@
 from datetime import datetime
-from typing import Literal
+from typing import Generic, Literal, TypeVar
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, computed_field
 
 
 class ResponseModel(BaseModel):
@@ -12,6 +12,22 @@ class PaginationMeta(ResponseModel):
     page: int
     page_size: int
     total: int
+
+
+T = TypeVar("T")
+
+
+class Page(ResponseModel, Generic[T]):
+    items: list[T]
+    page: int
+    page_size: int
+    total: int
+
+    @computed_field(return_type=PaginationMeta)
+    @property
+    def pagination(self) -> PaginationMeta:
+        """Backward-compatible shim for clients still reading nested pagination."""
+        return PaginationMeta(page=self.page, page_size=self.page_size, total=self.total)
 
 
 class OrderCreateRequest(BaseModel):
@@ -46,9 +62,8 @@ class OrderSummary(ResponseModel):
     updated_at: datetime
 
 
-class OrdersListResponse(ResponseModel):
-    items: list[OrderSummary]
-    pagination: PaginationMeta
+class OrdersListResponse(Page[OrderSummary]):
+    pass
 
 
 class OrderDetailResponse(OrderSummary):
@@ -63,8 +78,8 @@ class EventResponse(ResponseModel):
     created_at: datetime
 
 
-class EventsTimelineResponse(ResponseModel):
-    items: list[EventResponse]
+class EventsTimelineResponse(Page[EventResponse]):
+    pass
 
 
 class ManualAssignRequest(BaseModel):
@@ -86,9 +101,8 @@ class JobResponse(ResponseModel):
     created_at: datetime
 
 
-class JobsListResponse(ResponseModel):
-    items: list[JobResponse]
-    pagination: PaginationMeta
+class JobsListResponse(Page[JobResponse]):
+    pass
 
 
 class TrackingPodSummary(ResponseModel):

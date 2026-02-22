@@ -7,15 +7,12 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import AuthContext
-from app.config import settings
+from app.config import resolved_ui_service_mode
 from app.services import ui_db_service, ui_store_service
 
 
 def _mode() -> str:
-    mode = settings.ui_service_mode.lower().strip()
-    if mode in {"store", "db", "hybrid"}:
-        return mode
-    return "hybrid"
+    return resolved_ui_service_mode()
 
 
 def _is_placeholder_order_id(order_id: str) -> bool:

@@ -118,9 +118,7 @@ return {1, math.max(max_requests - new_count, 0), reset_at}
             self._script_sha = str(self._client.execute("SCRIPT", "LOAD", self._SCRIPT))
 
         try:
-            result = self._client.execute(
-                "EVALSHA", self._script_sha, "1", key, *argv
-            )
+            result = self._client.execute("EVALSHA", self._script_sha, "1", key, *argv)
         except RedisProtocolError:
             result = self._client.execute("EVAL", self._SCRIPT, "1", key, *argv)
             self._script_sha = str(self._client.execute("SCRIPT", "LOAD", self._SCRIPT))

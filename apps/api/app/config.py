@@ -4,6 +4,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 DEFAULT_JWT_SECRET = "wingxtra-jwt-secret"
 DEFAULT_POD_OTP_HMAC_SECRET = "wingxtra-pod-otp-secret"
 ALLOWED_RUNTIME_UI_SERVICE_MODES = {"db"}
+MIN_SECRET_LENGTH = 32
 
 
 class Settings(BaseSettings):
@@ -67,6 +68,16 @@ def ensure_secure_runtime_settings() -> None:
     if not settings.testing and settings.pod_otp_hmac_secret == DEFAULT_POD_OTP_HMAC_SECRET:
         raise RuntimeError(
             "POD_OTP_HMAC_SECRET must be set to a non-default value when WINGXTRA_TESTING is false"
+        )
+    if not settings.testing and len(settings.jwt_secret) < MIN_SECRET_LENGTH:
+        raise RuntimeError(
+            "JWT_SECRET must be at least "
+            f"{MIN_SECRET_LENGTH} characters when WINGXTRA_TESTING is false"
+        )
+    if not settings.testing and len(settings.pod_otp_hmac_secret) < MIN_SECRET_LENGTH:
+        raise RuntimeError(
+            "POD_OTP_HMAC_SECRET must be at least "
+            f"{MIN_SECRET_LENGTH} characters when WINGXTRA_TESTING is false"
         )
     if not settings.testing and settings.ui_service_mode not in ALLOWED_RUNTIME_UI_SERVICE_MODES:
         raise RuntimeError("WINGXTRA_UI_SERVICE_MODE must be 'db' when WINGXTRA_TESTING is false")

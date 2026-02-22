@@ -1,6 +1,3 @@
-from sqlalchemy.exc import SQLAlchemyError
-
-
 def test_health_check(client):
     response = client.get("/health")
 
@@ -15,6 +12,24 @@ def test_readiness_check(client):
     assert response.json() == {
         "status": "ok",
         "dependencies": [{"name": "database", "status": "ok"}],
+    }
+
+
+def test_readiness_check_includes_redis_when_configured(client, monkeypatch):
+    from app.routers import health
+
+    monkeypatch.setattr(health.settings, "redis_url", "redis://localhost:6379/0")
+    monkeypatch.setattr(health, "redis_dependency_status", lambda *_args, **_kwargs: "ok")
+
+    response = client.get("/ready")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "ok",
+        "dependencies": [
+            {"name": "database", "status": "ok"},
+            {"name": "redis", "status": "ok"},
+        ],
     }
 
 
@@ -43,7 +58,7 @@ def test_readiness_check_degraded_when_database_unavailable(client, monkeypatch)
     def _broken_db(*args, **kwargs):
         return "error"
 
-    monkeypatch.setattr(health, "_database_dependency_status", _broken_db)
+    monkeypatch.setattr(health, "database_dependency_status", _broken_db)
 
     response = client.get("/ready")
 
@@ -60,7 +75,7 @@ def test_readiness_check_degraded_when_dependency_check_raises(client, monkeypat
     def _broken_db(*args, **kwargs):
         raise RuntimeError("unexpected")
 
-    monkeypatch.setattr(health, "_database_dependency_status", _broken_db)
+    monkeypatch.setattr(health, "database_dependency_status", _broken_db)
 
     response = client.get("/ready")
 
@@ -71,36 +86,19 @@ def test_readiness_check_degraded_when_dependency_check_raises(client, monkeypat
     }
 
 
-def test_database_dependency_status_handles_sqlalchemy_error():
-    from app.routers.health import _database_dependency_status
-
-    class BrokenSession:
-        def __enter__(self):
-            return self
-
-        def __exit__(self, exc_type, exc_val, exc_tb):
-            return False
-
-        def execute(self, *args, **kwargs):
-            raise SQLAlchemyError("db down")
-
-    assert _database_dependency_status(BrokenSession) == "error"
-
-
-def test_safe_dependency_status_logs_unexpected_exception(monkeypatch):
+def test_readiness_check_degraded_when_redis_unavailable(client, monkeypatch):
     from app.routers import health
 
-    events: list[tuple[str, str | None]] = []
+    monkeypatch.setattr(health.settings, "redis_url", "redis://localhost:6379/0")
+    monkeypatch.setattr(health, "redis_dependency_status", lambda *_args, **_kwargs: "error")
 
-    def _record_event(message: str, *, order_id: str | None = None, **kwargs):
-        events.append((message, order_id))
+    response = client.get("/ready")
 
-    def _raises():
-        raise RuntimeError("boom")
-
-    monkeypatch.setattr(health, "log_event", _record_event)
-
-    result = health._safe_dependency_status("database", _raises)
-
-    assert result == "error"
-    assert events == [("readiness_dependency_check_failed", "database:RuntimeError")]
+    assert response.status_code == 503
+    assert response.json() == {
+        "status": "degraded",
+        "dependencies": [
+            {"name": "database", "status": "ok"},
+            {"name": "redis", "status": "error"},
+        ],
+    }

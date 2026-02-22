@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
-import type { TrackingViewResponse } from "../api/types";
+import type { TrackingViewResponse } from "../api/schema-types";
 
 type TrackingResponse = TrackingViewResponse & {
   order_id: string;

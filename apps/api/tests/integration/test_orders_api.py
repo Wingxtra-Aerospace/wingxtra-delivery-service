@@ -305,3 +305,74 @@ def test_create_order_rejects_oversized_idempotency_key(client):
     )
     assert response.status_code == 400
     assert "Idempotency-Key exceeds max length" in response.json()["detail"]
+
+
+def test_assign_rejects_empty_idempotency_key(client):
+    _set_fleet_override(
+        [
+            FleetDroneTelemetry(
+                drone_id="DRONE-1", lat=6.45, lng=3.39, battery=95, is_available=True
+            ),
+        ]
+    )
+    order = _create_order(client).json()
+
+    response = client.post(
+        f"/api/v1/orders/{order['id']}/assign",
+        json={"drone_id": "DRONE-1"},
+        headers={"Idempotency-Key": "   "},
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Idempotency-Key must not be empty"
+
+
+def test_submit_mission_rejects_oversized_idempotency_key(client):
+    _set_fleet_override(
+        [
+            FleetDroneTelemetry(
+                drone_id="DRONE-1", lat=6.45, lng=3.39, battery=95, is_available=True
+            ),
+        ]
+    )
+    order = _create_order(client).json()
+
+    assign = client.post(f"/api/v1/orders/{order['id']}/assign", json={"drone_id": "DRONE-1"})
+    assert assign.status_code == 200
+
+    response = client.post(
+        f"/api/v1/orders/{order['id']}/submit-mission-intent",
+        headers={"Idempotency-Key": "x" * 256},
+    )
+    assert response.status_code == 400
+    assert "Idempotency-Key exceeds max length" in response.json()["detail"]
+
+
+def test_create_pod_rejects_empty_idempotency_key(client, db_session):
+    order = _create_order(client).json()
+
+    db_order = db_session.get(Order, UUID(order["id"]))
+    db_order.status = OrderStatus.DELIVERED
+    db_session.commit()
+
+    response = client.post(
+        f"/api/v1/orders/{order['id']}/pod",
+        json={
+            "method": "PHOTO",
+            "photo_url": "https://cdn.example/pod.jpg",
+            "metadata": {"camera": "ops-device"},
+        },
+        headers={"Idempotency-Key": "   "},
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Idempotency-Key must not be empty"
+
+
+def test_cancel_rejects_oversized_idempotency_key(client):
+    order = _create_order(client).json()
+
+    response = client.post(
+        f"/api/v1/orders/{order['id']}/cancel",
+        headers={"Idempotency-Key": "x" * 256},
+    )
+    assert response.status_code == 400
+    assert "Idempotency-Key exceeds max length" in response.json()["detail"]

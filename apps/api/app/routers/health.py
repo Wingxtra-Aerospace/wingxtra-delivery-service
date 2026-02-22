@@ -7,6 +7,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.db.session import SessionLocal
+from app.observability import log_event
 from app.schemas.health import HealthResponse, ReadinessDependency, ReadinessResponse
 
 router = APIRouter(tags=["health"])
@@ -19,7 +20,12 @@ def health() -> HealthResponse:
 
 @router.get("/ready", summary="Readiness check", response_model=ReadinessResponse)
 def readiness() -> ReadinessResponse:
-    database_status = _database_dependency_status(SessionLocal)
+    try:
+        database_status = _database_dependency_status(SessionLocal)
+    except Exception:
+        log_event("readiness_dependency_check_failed")
+        database_status = "error"
+
     dependencies = [ReadinessDependency(name="database", status=database_status)]
     readiness_status = "ok" if database_status == "ok" else "degraded"
     return ReadinessResponse(status=readiness_status, dependencies=dependencies)
@@ -32,7 +38,5 @@ def _database_dependency_status(
         with session_factory() as db:
             db.execute(text("SELECT 1"))
     except SQLAlchemyError:
-        return "error"
-    except Exception:
         return "error"
     return "ok"

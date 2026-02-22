@@ -19,7 +19,7 @@ from app.integrations.errors import (
     IntegrationUnavailableError,
 )
 from app.integrations.gcs_bridge_client import get_gcs_bridge_client
-from app.observability import observe_timing
+from app.observability import log_event, observe_timing
 from app.routers.rate_limit_headers import (
     RATE_LIMIT_SUCCESS_HEADERS,
     RATE_LIMIT_THROTTLED_HEADERS,
@@ -392,8 +392,13 @@ async def submit_mission_endpoint(
     except IntegrationError as err:
         raise _translate_integration_error(err) from err
     except Exception as err:
+        log_event(
+            "mission_publish_unhandled_error",
+            order_id=order_id,
+            drone_id=type(err).__name__,
+        )
         raise _translate_integration_error(
-            IntegrationUnavailableError("gcs_bridge", f"Mission publish failed: {err}")
+            IntegrationUnavailableError("gcs_bridge", "Mission publish failed")
         ) from err
 
     if idempotency_key:

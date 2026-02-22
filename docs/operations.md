@@ -99,7 +99,7 @@ Error translation for API callers:
 - retryable integration failures translate to `503 Service Unavailable`
 - non-retryable upstream response failures translate to `502 Bad Gateway`
 - response body includes `{service, code, message}` for debugging and runbook routing.
-- unexpected mission-publish exceptions are normalized to retryable `503` (`service=gcs_bridge`, `code=UNAVAILABLE`) to avoid raw 500s.
+- unexpected mission-publish exceptions are normalized to retryable `503` (`service=gcs_bridge`, `code=UNAVAILABLE`) with a stable message (`Mission publish failed`) to avoid raw 500s and internal error leakage.
 
 ## Database configuration
 

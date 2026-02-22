@@ -184,7 +184,7 @@ def test_readiness_failure_paths(client, db_session):
     assert failed_submit.json()["detail"] == {
         "service": "gcs_bridge",
         "code": "UNAVAILABLE",
-        "message": f"Mission publish failed: gcs publish failure for {failing['id']}",
+        "message": "Mission publish failed",
     }
 
     db_order = db_session.get(Order, UUID(failing["id"]))

@@ -112,6 +112,28 @@ def test_auto_dispatch_and_manual_assign(client):
     assert [event["type"] for event in events] == ["CREATED", "VALIDATED", "QUEUED", "ASSIGNED"]
 
 
+def test_auto_dispatch_respects_max_assignments(client):
+    _set_fleet_override(
+        [
+            FleetDroneTelemetry(
+                drone_id="DRONE-1", lat=6.45, lng=3.39, battery=95, is_available=True
+            ),
+            FleetDroneTelemetry(
+                drone_id="DRONE-2", lat=6.46, lng=3.40, battery=94, is_available=True
+            ),
+        ]
+    )
+
+    _create_order(client)
+    _create_order(client)
+
+    auto_response = client.post("/api/v1/dispatch/run", json={"max_assignments": 1})
+    assert auto_response.status_code == 200
+    assignments = auto_response.json()["assignments"]
+    assert auto_response.json()["assigned"] == 1
+    assert len(assignments) == 1
+
+
 def test_manual_assign_rejects_invalid_drone(client):
     _set_fleet_override(
         [

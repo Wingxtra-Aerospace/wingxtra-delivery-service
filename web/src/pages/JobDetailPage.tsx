@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { apiFetch } from "../api";
 import { DroneGcsLink, MissionGcsLink } from "../components/GcsLinks";
-import type { JobResponse } from "../api/schema-types";
-type JobItem = JobResponse;
+import type { JobListItem } from "../api/schema-types";
+type JobItem = JobListItem;
 
 export function JobDetailPage() {
   const { jobId } = useParams<{ jobId: string }>();

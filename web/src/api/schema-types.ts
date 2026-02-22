@@ -7,3 +7,8 @@ export type PodResponse = components["schemas"]["PodResponse"];
 export type JobsListResponse = components["schemas"]["JobsListResponse"];
 export type JobResponse = components["schemas"]["JobResponse"];
 export type TrackingViewResponse = components["schemas"]["TrackingViewResponse"];
+
+
+export type JobListItem = components["schemas"]["JobResponse"] & {
+  updated_at?: string | null;
+};

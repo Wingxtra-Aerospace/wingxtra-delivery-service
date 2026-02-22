@@ -28,7 +28,7 @@ describe("OrderDetailPage", () => {
   it("renders timeline events", async () => {
     useAuthMock.mockReturnValue({ claims: { role: "OPS" } });
 
-    const fetchMock = vi.spyOn(global, "fetch").mockResolvedValueOnce(
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
       new Response(
         JSON.stringify({
           id: "ord-123",
@@ -68,7 +68,7 @@ describe("OrderDetailPage", () => {
   it("hides ops-only actions for merchant", async () => {
     useAuthMock.mockReturnValue({ claims: { role: "MERCHANT" } });
 
-    vi.spyOn(global, "fetch")
+    vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(
         new Response(
           JSON.stringify({

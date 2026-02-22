@@ -5,7 +5,7 @@ import re
 import uuid
 from datetime import datetime, timezone
 from hashlib import sha256
-from typing import Any
+from typing import Any, Callable
 
 from fastapi import HTTPException, status
 from sqlalchemy import String, and_, func, or_, select
@@ -374,16 +374,33 @@ def run_auto_dispatch(
     return {"assigned": len(assignments), "assignments": assignments}
 
 
-def list_jobs(auth: AuthContext, db: Session, active_only: bool) -> list[dict[str, Any]]:
+def list_jobs(
+    auth: AuthContext,
+    db: Session,
+    active_only: bool,
+    page: int,
+    page_size: int,
+) -> tuple[list[dict[str, Any]], int]:
     if auth.role not in {"OPS", "ADMIN"}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
-    stmt = select(DeliveryJob).order_by(DeliveryJob.created_at.asc())
+
+    filters: list[Any] = []
     if active_only:
-        stmt = stmt.where(
+        filters.append(
             DeliveryJob.status.in_({DeliveryJobStatus.PENDING, DeliveryJobStatus.ACTIVE})
         )
-    rows = list(db.scalars(stmt))
-    return [
+
+    stmt = select(DeliveryJob).order_by(DeliveryJob.created_at.asc())
+    if filters:
+        stmt = stmt.where(*filters)
+
+    count_stmt = select(func.count()).select_from(DeliveryJob)
+    if filters:
+        count_stmt = count_stmt.where(*filters)
+
+    total = int(db.scalar(count_stmt) or 0)
+    rows = list(db.scalars(stmt.offset((page - 1) * page_size).limit(page_size)))
+    items = [
         {
             "id": str(job.id),
             "order_id": _public_order_id(job.order_id),
@@ -395,6 +412,7 @@ def list_jobs(auth: AuthContext, db: Session, active_only: bool) -> list[dict[st
         }
         for job in rows
     ]
+    return items, total
 
 
 def tracking_view(db: Session, public_tracking_id: str) -> dict[str, Any]:

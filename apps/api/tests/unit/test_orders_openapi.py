@@ -80,3 +80,14 @@ def test_jobs_list_query_params_documented(client):
     assert by_name["page"]["schema"]["minimum"] == 1
     assert by_name["page_size"]["schema"]["minimum"] == 1
     assert by_name["page_size"]["schema"]["maximum"] == 100
+
+
+def test_jobs_item_schema_exposes_nullable_eta_seconds(client):
+    openapi = client.get("/openapi.json")
+    assert openapi.status_code == 200
+
+    job_schema = openapi.json()["components"]["schemas"]["JobResponse"]
+    eta_schema = job_schema["properties"]["eta_seconds"]
+
+    assert eta_schema["anyOf"][0]["type"] == "integer"
+    assert eta_schema["anyOf"][1]["type"] == "null"

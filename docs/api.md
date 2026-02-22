@@ -70,7 +70,7 @@ Observability headers:
 Dispatch run accepts optional JSON body `{"max_assignments": <int>}` (1-100) to cap assignments per run.
 In hybrid mode, when `max_assignments` is provided, the service can combine DB-backed and placeholder assignments up to the requested cap.
 Dispatch run response contains `assigned` and `assignments` list entries with `order_id` and `status`.
-Jobs list item schema includes `eta_seconds` (nullable) for ETA visibility.
+Jobs list item schema includes `eta_seconds` (nullable integer) for ETA visibility.
 
 
 Manual assignment validates drone availability and battery threshold. Low-battery or unavailable drones return `400`.

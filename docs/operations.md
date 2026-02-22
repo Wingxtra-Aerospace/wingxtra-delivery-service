@@ -119,6 +119,15 @@ This keeps API list endpoints deterministic for integration tests.
 
 Set `WINGXTRA_UI_SERVICE_MODE` to select the UI service strategy:
 
+Set `APP_MODE` to control environment behavior:
+
+- `demo`: allows placeholder/demo flows (for local demos only).
+- `pilot`: transitional mode (default) for controlled rollouts.
+- `production`: hard-disables demo/store/hybrid behaviors, requires DB-backed paths, and rejects placeholder/non-UUID order IDs at API boundaries.
+
+In production mode, placeholder IDs such as `ord-1` and non-UUID order IDs return HTTP `400` from order/tracking endpoints.
+
+
 - `auto` (default): resolves to `hybrid` when `WINGXTRA_TESTING=true`, otherwise `db`.
 - `db`: only database-backed order and tracking flows.
 - `store`: only in-memory placeholder/test flows (test/dev only).

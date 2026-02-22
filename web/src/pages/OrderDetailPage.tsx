@@ -4,7 +4,7 @@ import { useAuth } from "../AuthProvider";
 import { apiFetch } from "../api";
 import { DroneGcsLink, MissionGcsLink } from "../components/GcsLinks";
 
-import type { EventsTimelineResponse, OrderDetailResponse, PodResponse } from "../api/types";
+import type { EventsTimelineResponse, OrderDetailResponse, PodResponse } from "../api/schema-types";
 
 type OrderDetail = OrderDetailResponse & {
   id: string;

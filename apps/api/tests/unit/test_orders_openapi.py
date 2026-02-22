@@ -123,3 +123,21 @@ def test_jobs_detail_endpoint_documents_auth_errors(client):
     jobs_detail_responses = openapi.json()["paths"]["/api/v1/jobs/{job_id}"]["get"]["responses"]
     # FastAPI always includes 422 for path/query validation.
     assert "422" in jobs_detail_responses
+
+
+def test_tracking_endpoints_document_etag_and_304_in_openapi(client):
+    openapi = client.get("/openapi.json")
+    assert openapi.status_code == 200
+
+    paths = openapi.json()["paths"]
+    direct_get = paths["/api/v1/tracking/{public_tracking_id}"]["get"]
+    legacy_get = paths["/api/v1/orders/track/{public_tracking_id}"]["get"]
+
+    for endpoint in (direct_get, legacy_get):
+        headers_200 = endpoint["responses"]["200"]["headers"]
+        assert "ETag" in headers_200
+        assert headers_200["ETag"]["schema"]["type"] == "string"
+
+        response_304 = endpoint["responses"]["304"]
+        assert response_304["description"] == "Not Modified"
+        assert "ETag" in response_304["headers"]

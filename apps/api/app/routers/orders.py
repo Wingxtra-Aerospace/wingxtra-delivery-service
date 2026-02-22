@@ -67,6 +67,13 @@ from app.services.ui_service import (
 
 router = APIRouter(prefix="/api/v1/orders", tags=["orders"])
 
+ETAG_RESPONSE_HEADER = {
+    "ETag": {
+        "description": "Entity tag representing the current tracking payload",
+        "schema": {"type": "string"},
+    }
+}
+
 
 def _is_placeholder_order_id(order_id: str) -> bool:
     return order_id.startswith("ord-")
@@ -525,7 +532,8 @@ def create_pod_endpoint(
     response_model_exclude_none=True,
     summary="Public tracking",
     responses={
-        200: {"headers": RATE_LIMIT_SUCCESS_HEADERS},
+        200: {"headers": {**RATE_LIMIT_SUCCESS_HEADERS, **ETAG_RESPONSE_HEADER}},
+        304: {"description": "Not Modified", "headers": ETAG_RESPONSE_HEADER},
         429: {"description": "Rate limit exceeded", "headers": RATE_LIMIT_THROTTLED_HEADERS},
     },
 )

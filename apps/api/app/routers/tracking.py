@@ -18,6 +18,13 @@ from app.services.ui_service import (
 
 router = APIRouter(prefix="/api/v1/tracking", tags=["tracking"])
 
+ETAG_RESPONSE_HEADER = {
+    "ETag": {
+        "description": "Entity tag representing the current tracking payload",
+        "schema": {"type": "string"},
+    }
+}
+
 
 @router.get(
     "/{public_tracking_id}",
@@ -25,7 +32,8 @@ router = APIRouter(prefix="/api/v1/tracking", tags=["tracking"])
     response_model_exclude_none=True,
     summary="Tracking view",
     responses={
-        200: {"headers": RATE_LIMIT_SUCCESS_HEADERS},
+        200: {"headers": {**RATE_LIMIT_SUCCESS_HEADERS, **ETAG_RESPONSE_HEADER}},
+        304: {"description": "Not Modified", "headers": ETAG_RESPONSE_HEADER},
         429: {"description": "Rate limit exceeded", "headers": RATE_LIMIT_THROTTLED_HEADERS},
     },
 )

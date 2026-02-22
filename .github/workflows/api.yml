@@ -51,9 +51,9 @@ jobs:
         run: |
           ruff check app/routers/orders.py --fix
           git diff --exit-code -- app/routers/orders.py
-      - name: Format check
+      - name: Format (ruff)
         run: ruff format --check .
-      - name: Lint
+      - name: Lint (ruff)
         run: ruff check .
       - name: Test
         run: pytest

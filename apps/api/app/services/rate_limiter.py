@@ -6,7 +6,7 @@ import time
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
-from app.config import settings
+from app.config import resolved_rate_limit_backend, settings
 
 
 @dataclass
@@ -51,6 +51,10 @@ class RedisProtocolError(RuntimeError):
     pass
 
 
+class RateLimiterBackendUnavailable(RuntimeError):
+    pass
+
+
 class RedisClient:
     def __init__(self, redis_url: str) -> None:
         parsed = urlparse(redis_url)
@@ -64,75 +68,39 @@ class RedisClient:
 
     def execute(self, *parts: str) -> object:
         payload = _encode_command(*parts)
-        with socket.create_connection((self.host, self.port), timeout=1.0) as conn:
-            if self.password:
-                conn.sendall(_encode_command("AUTH", self.password))
-                _read_response(conn)
-            if self.db:
-                conn.sendall(_encode_command("SELECT", str(self.db)))
-                _read_response(conn)
+        timeout = settings.redis_rate_limit_timeout_s
+        try:
+            with socket.create_connection((self.host, self.port), timeout=timeout) as conn:
+                conn.settimeout(timeout)
+                if self.password:
+                    conn.sendall(_encode_command("AUTH", self.password))
+                    _read_response(conn)
+                if self.db:
+                    conn.sendall(_encode_command("SELECT", str(self.db)))
+                    _read_response(conn)
 
-            conn.sendall(payload)
-            return _read_response(conn)
+                conn.sendall(payload)
+                return _read_response(conn)
+        except (OSError, TimeoutError, RedisProtocolError) as err:
+            raise RateLimiterBackendUnavailable("Redis rate limiter is unavailable") from err
 
 
 class RedisRateLimiter:
-    _SCRIPT = """
-local key = KEYS[1]
-local now = tonumber(ARGV[1])
-local window = tonumber(ARGV[2])
-local max_requests = tonumber(ARGV[3])
-local member = ARGV[4]
-
-redis.call('ZREMRANGEBYSCORE', key, '-inf', now - window)
-local count = redis.call('ZCARD', key)
-
-if count >= max_requests then
-  local oldest = redis.call('ZRANGE', key, 0, 0, 'WITHSCORES')
-  local reset_at = now + window
-  if oldest[2] then
-    reset_at = tonumber(oldest[2]) + window
-  end
-  return {0, 0, reset_at}
-end
-
-redis.call('ZADD', key, now, member)
-redis.call('EXPIRE', key, math.max(window, 1))
-local new_count = redis.call('ZCARD', key)
-local oldest = redis.call('ZRANGE', key, 0, 0, 'WITHSCORES')
-local reset_at = now + window
-if oldest[2] then
-  reset_at = tonumber(oldest[2]) + window
-end
-return {1, math.max(max_requests - new_count, 0), reset_at}
-""".strip()
-
     def __init__(self, redis_url: str) -> None:
         self._client = RedisClient(redis_url)
-        self._script_sha: str | None = None
-
-    def _eval(self, key: str, *, max_requests: int, window_s: int, now: float) -> list[object]:
-        member = f"{now}:{time.time_ns()}"
-        argv = [str(now), str(window_s), str(max_requests), member]
-        if not self._script_sha:
-            self._script_sha = str(self._client.execute("SCRIPT", "LOAD", self._SCRIPT))
-
-        try:
-            result = self._client.execute("EVALSHA", self._script_sha, "1", key, *argv)
-        except RedisProtocolError:
-            result = self._client.execute("EVAL", self._SCRIPT, "1", key, *argv)
-            self._script_sha = str(self._client.execute("SCRIPT", "LOAD", self._SCRIPT))
-
-        if not isinstance(result, list):
-            raise RedisProtocolError("Unexpected Redis rate-limiter response")
-        return result
 
     def check(self, key: str, *, max_requests: int, window_s: int) -> RateLimitResult:
         now = time.time()
-        values = self._eval(key, max_requests=max_requests, window_s=window_s, now=now)
-        allowed = bool(int(values[0]))
-        remaining = int(values[1])
-        reset_deadline_s = float(values[2])
+        window_id = math.floor(now / window_s)
+        reset_deadline_s = (window_id + 1) * window_s
+        bucket_key = f"rl:{key}:{window_id}"
+
+        count = int(self._client.execute("INCR", bucket_key))
+        if count == 1:
+            self._client.execute("EXPIRE", bucket_key, str(max(window_s, 1)))
+
+        allowed = count <= max_requests
+        remaining = max(max_requests - count, 0)
         return _build_result(
             allowed=allowed,
             remaining=remaining,
@@ -218,6 +186,23 @@ _memory_rate_limiter = InMemoryRateLimiter()
 _redis_rate_limiter: RedisRateLimiter | None = None
 
 
+class DisabledRateLimiter:
+    def check(self, key: str, *, max_requests: int, window_s: int) -> RateLimitResult:  # noqa: ARG002
+        now = time.time()
+        return _build_result(
+            allowed=True,
+            remaining=max_requests,
+            now=now,
+            reset_deadline_s=now + max(window_s, 1),
+        )
+
+    def reset(self) -> None:
+        return None
+
+
+_disabled_rate_limiter = DisabledRateLimiter()
+
+
 def _get_redis_rate_limiter() -> RedisRateLimiter:
     global _redis_rate_limiter
     if _redis_rate_limiter is None:
@@ -226,8 +211,11 @@ def _get_redis_rate_limiter() -> RedisRateLimiter:
 
 
 def get_rate_limiter() -> InMemoryRateLimiter | RedisRateLimiter:
-    if settings.rate_limit_use_redis:
+    backend = resolved_rate_limit_backend()
+    if backend == "redis":
         return _get_redis_rate_limiter()
+    if backend == "off":
+        return _disabled_rate_limiter
     return _memory_rate_limiter
 
 

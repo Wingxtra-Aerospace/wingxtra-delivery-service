@@ -1,5 +1,5 @@
-from collections.abc import Callable
 import socket
+from collections.abc import Callable
 from typing import Literal
 from urllib.parse import urlparse
 
@@ -8,8 +8,8 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from app.db.session import SessionLocal
 from app.config import settings
+from app.db.session import SessionLocal
 from app.observability import log_event
 from app.schemas.health import HealthResponse, ReadinessDependency, ReadinessResponse
 
@@ -32,7 +32,9 @@ def health() -> HealthResponse:
 def readiness(response: Response) -> ReadinessResponse:
     dependencies: list[ReadinessDependency] = []
 
-    database_status = _safe_dependency_status("database", lambda: _database_dependency_status(SessionLocal))
+    database_status = _safe_dependency_status(
+        "database", lambda: _database_dependency_status(SessionLocal)
+    )
     dependencies.append(ReadinessDependency(name="database", status=database_status))
 
     if settings.redis_url.strip():

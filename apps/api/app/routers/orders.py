@@ -16,7 +16,11 @@ from app.db.session import get_db
 from app.integrations.errors import IntegrationBadGatewayError, IntegrationError
 from app.integrations.gcs_bridge_client import get_gcs_bridge_client
 from app.observability import observe_timing
-from app.routers.rate_limit_headers import RATE_LIMIT_SUCCESS_HEADERS, RATE_LIMIT_THROTTLED_HEADERS
+from app.routers.rate_limit_headers import (
+    RATE_LIMIT_SUCCESS_HEADERS,
+    RATE_LIMIT_THROTTLED_HEADERS,
+    apply_rate_limit_headers,
+)
 from app.schemas.ui import (
     EventResponse,
     EventsTimelineResponse,
@@ -71,10 +75,13 @@ def _translate_integration_error(err: IntegrationError) -> HTTPException:
     )
 
 
-def _set_rate_limit_headers(response, rate_limit: RateLimitStatus) -> None:
-    response.headers["X-RateLimit-Limit"] = str(rate_limit.limit)
-    response.headers["X-RateLimit-Remaining"] = str(rate_limit.remaining)
-    response.headers["X-RateLimit-Reset"] = str(rate_limit.reset_at_s)
+def _set_rate_limit_headers(response: Response, rate_limit: RateLimitStatus) -> None:
+    apply_rate_limit_headers(
+        response,
+        limit=rate_limit.limit,
+        remaining=rate_limit.remaining,
+        reset_at_s=rate_limit.reset_at_s,
+    )
 
 
 @router.post(

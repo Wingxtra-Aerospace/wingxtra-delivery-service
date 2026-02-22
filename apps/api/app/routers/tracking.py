@@ -3,7 +3,11 @@ from sqlalchemy.orm import Session
 
 from app.auth.dependencies import RateLimitStatus, rate_limit_public_tracking
 from app.db.session import get_db
-from app.routers.rate_limit_headers import RATE_LIMIT_SUCCESS_HEADERS, RATE_LIMIT_THROTTLED_HEADERS
+from app.routers.rate_limit_headers import (
+    RATE_LIMIT_SUCCESS_HEADERS,
+    RATE_LIMIT_THROTTLED_HEADERS,
+    apply_rate_limit_headers,
+)
 from app.schemas.ui import TrackingViewResponse
 from app.services.ui_service import get_pod, tracking_view
 
@@ -26,9 +30,12 @@ def tracking_endpoint(
     db: Session = Depends(get_db),
     rate_limit: RateLimitStatus = Depends(rate_limit_public_tracking),
 ) -> TrackingViewResponse:
-    response.headers["X-RateLimit-Limit"] = str(rate_limit.limit)
-    response.headers["X-RateLimit-Remaining"] = str(rate_limit.remaining)
-    response.headers["X-RateLimit-Reset"] = str(rate_limit.reset_at_s)
+    apply_rate_limit_headers(
+        response,
+        limit=rate_limit.limit,
+        remaining=rate_limit.remaining,
+        reset_at_s=rate_limit.reset_at_s,
+    )
 
     order = tracking_view(db, public_tracking_id)
     order_id = order.get("id") or order["order_id"]

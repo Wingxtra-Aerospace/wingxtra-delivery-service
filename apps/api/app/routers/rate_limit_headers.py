@@ -22,3 +22,9 @@ RATE_LIMIT_THROTTLED_HEADERS = {
         "schema": RATE_LIMIT_HEADER_SCHEMA,
     },
 }
+
+
+def apply_rate_limit_headers(response, *, limit: int, remaining: int, reset_at_s: int) -> None:
+    response.headers["X-RateLimit-Limit"] = str(limit)
+    response.headers["X-RateLimit-Remaining"] = str(remaining)
+    response.headers["X-RateLimit-Reset"] = str(reset_at_s)

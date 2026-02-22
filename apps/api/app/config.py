@@ -45,6 +45,9 @@ class Settings(BaseSettings):
     fleet_api_backoff_s: float = 0.2
     fleet_api_cache_ttl_s: float = 2.0
 
+    dispatch_score_distance_weight: float = 1.0
+    dispatch_score_battery_weight: float = 1.0
+
     gcs_bridge_base_url: str = ""
     gcs_bridge_timeout_s: float = 2.0
     gcs_bridge_max_retries: int = 2
@@ -83,7 +86,12 @@ class Settings(BaseSettings):
             raise ValueError("redis_readiness_timeout_s must be greater than 0")
         return value
 
-    @field_validator("fleet_api_timeout_s", "fleet_api_cache_ttl_s")
+    @field_validator(
+        "fleet_api_timeout_s",
+        "fleet_api_cache_ttl_s",
+        "dispatch_score_distance_weight",
+        "dispatch_score_battery_weight",
+    )
     @classmethod
     def validate_positive_fleet_values(cls, value: float) -> float:
         if value <= 0:

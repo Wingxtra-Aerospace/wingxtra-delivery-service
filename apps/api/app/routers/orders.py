@@ -8,6 +8,7 @@ from app.auth.dependencies import (
     RateLimitStatus,
     rate_limit_order_creation,
     rate_limit_public_tracking,
+    require_backoffice_write,
     require_roles,
 )
 from app.config import settings

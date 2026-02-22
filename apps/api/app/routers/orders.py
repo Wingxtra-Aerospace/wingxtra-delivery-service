@@ -261,6 +261,8 @@ def ingest_order_event_endpoint(
         order_id=order_id,
         event_type=payload.event_type,
         occurred_at=payload.occurred_at,
+        source=payload.source,
+        event_id=payload.event_id,
     )
     return OrderEventIngestResponse.model_validate(result)
 

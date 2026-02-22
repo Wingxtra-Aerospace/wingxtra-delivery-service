@@ -119,6 +119,8 @@ def ingest_order_event(
     order_id: str,
     event_type: str,
     occurred_at,
+    source: str = "ops_event_ingest",
+    event_id: str | None = None,
 ) -> dict[str, Any]:
     assert_production_safe(order_id=order_id)
     mode = _mode()
@@ -127,7 +129,15 @@ def ingest_order_event(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Placeholder orders do not support event ingestion",
         )
-    return ui_db_service.ingest_order_event(auth, db, order_id, event_type, occurred_at)
+    return ui_db_service.ingest_order_event(
+        auth,
+        db,
+        order_id,
+        event_type,
+        occurred_at,
+        source,
+        event_id,
+    )
 
 
 def cancel_order(auth: AuthContext, db: Session, order_id: str) -> dict[str, Any]:

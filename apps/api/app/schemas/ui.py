@@ -90,6 +90,8 @@ class OrderEventIngestRequest(BaseModel):
         default=None,
         validation_alias=AliasChoices("occurred_at", "timestamp"),
     )
+    source: str = Field(default="ops_event_ingest", min_length=1, max_length=64)
+    event_id: str | None = Field(default=None, min_length=1, max_length=128)
 
 
 class OrderEventIngestResponse(ResponseModel):

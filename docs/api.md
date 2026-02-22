@@ -96,6 +96,7 @@ Order create validation enforces optional bounds: `lat` in [-90, 90], `weight` >
 Dispatch run assigns at most one order per available drone and returns both `assigned` and `assignments`.
 
 Mission execution ingest endpoint accepts `MISSION_LAUNCHED`, `ENROUTE`, `ARRIVED`, `DELIVERED`, and `FAILED` with optional `occurred_at` timestamp (aliases: `event`/`type`, `timestamp`).
+Mission execution ingest supports optional idempotency markers `source` (default `ops_event_ingest`) and `event_id`; duplicates by `(order_id, source, event_id)` or `(order_id, source, event_type, occurred_at)` are treated as replay-safe no-ops.
 State-machine validation is enforced (`409` on invalid/backward transition).
 `DELIVERED` automatically applies `DELIVERING -> DELIVERED` so timeline progression remains auditable.
 

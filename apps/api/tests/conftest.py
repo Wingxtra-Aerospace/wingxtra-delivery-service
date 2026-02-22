@@ -26,6 +26,7 @@ def setup_test_schema():
 @pytest.fixture(autouse=True)
 def reset_db():
     reset_rate_limits()
+    app_engine.dispose()
     Base.metadata.drop_all(bind=app_engine)
     Base.metadata.create_all(bind=app_engine)
     yield

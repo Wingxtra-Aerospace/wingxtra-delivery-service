@@ -2,9 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { apiFetch } from "../api";
 import { DroneGcsLink, MissionGcsLink } from "../components/GcsLinks";
-import type { components } from "../api/types";
-
-type JobResponse = components["schemas"]["JobResponse"];
+import type { JobResponse } from "../api/schema-types";
 type JobItem = JobResponse;
 
 export function JobDetailPage() {

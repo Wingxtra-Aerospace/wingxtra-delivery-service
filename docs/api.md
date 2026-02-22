@@ -74,6 +74,8 @@ Rate limiting:
 
 Public tracking response is sanitized to: `order_id`, `public_tracking_id`, `status`, and `milestones` (timeline event types in chronological order). When proof-of-delivery exists, it includes `pod_summary` with only `method` and `created_at`. Merchant/customer contact fields and POD `photo_url` are redacted from public tracking responses. This sanitized contract applies to both `GET /api/v1/tracking/{public_tracking_id}` and `GET /api/v1/orders/track/{public_tracking_id}`.
 
+Both public tracking endpoints now return an `ETag` header and support conditional GET via `If-None-Match`; unchanged tracking payloads return `304 Not Modified` with an empty body.
+
 POD read endpoint (`GET /api/v1/orders/{order_id}/pod`) returns `PodResponse`; when no POD record exists yet, `method` is `null`.
 
 POD create validation is method-specific: `PHOTO` requires `photo_url`, `OTP` requires `otp_code`, and `OPERATOR_CONFIRM` requires `operator_name` (invalid combinations return `400`). For backward compatibility, `confirmed_by` is accepted as an alias of `operator_name` in request payloads.

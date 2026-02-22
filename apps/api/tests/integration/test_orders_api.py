@@ -188,8 +188,6 @@ def test_submit_mission_intent_for_assigned_order(client):
     assert len(publisher.published) == 1
 
 
-
-
 def test_submit_mission_idempotency_recovers_after_failed_publish(client):
     _set_fleet_override(
         [FleetDroneTelemetry(drone_id="DRONE-1", lat=6.45, lng=3.39, battery=95, is_available=True)]
@@ -224,6 +222,7 @@ def test_submit_mission_idempotency_recovers_after_failed_publish(client):
     assert replay.status_code == 200
     assert replay.json() == recovered.json()
     assert len(publisher.published) == 1
+
 
 def test_submit_mission_intent_rejected_when_not_assigned(client):
     order = _create_order(client).json()

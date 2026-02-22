@@ -25,7 +25,7 @@ Core UI integration endpoints:
 
 Health and observability endpoints now publish explicit response schemas in OpenAPI:
 - `GET /health` → `HealthResponse` (`status`)
-- `GET /ready` → `ReadinessResponse` (`status`, `dependencies`)
+- `GET /ready` → `ReadinessResponse` (`status`, `dependencies`), returns HTTP `200` when ready and `503` when degraded
 - `GET /metrics` → `MetricsResponse` (`counters`, `timings`)
 
 Security headers for Ops endpoints:

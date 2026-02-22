@@ -1,7 +1,7 @@
 from collections.abc import Callable
 from typing import Literal
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Response, status
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -19,7 +19,7 @@ def health() -> HealthResponse:
 
 
 @router.get("/ready", summary="Readiness check", response_model=ReadinessResponse)
-def readiness() -> ReadinessResponse:
+def readiness(response: Response) -> ReadinessResponse:
     try:
         database_status = _database_dependency_status(SessionLocal)
     except Exception:
@@ -28,6 +28,8 @@ def readiness() -> ReadinessResponse:
 
     dependencies = [ReadinessDependency(name="database", status=database_status)]
     readiness_status = "ok" if database_status == "ok" else "degraded"
+    if readiness_status != "ok":
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
     return ReadinessResponse(status=readiness_status, dependencies=dependencies)
 
 

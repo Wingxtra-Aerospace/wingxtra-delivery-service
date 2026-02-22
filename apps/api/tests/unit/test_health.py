@@ -44,7 +44,7 @@ def test_readiness_check_degraded_when_database_unavailable(client, monkeypatch)
 
     response = client.get("/ready")
 
-    assert response.status_code == 200
+    assert response.status_code == 503
     assert response.json() == {
         "status": "degraded",
         "dependencies": [{"name": "database", "status": "error"}],
@@ -61,7 +61,7 @@ def test_readiness_check_degraded_when_dependency_check_raises(client, monkeypat
 
     response = client.get("/ready")
 
-    assert response.status_code == 200
+    assert response.status_code == 503
     assert response.json() == {
         "status": "degraded",
         "dependencies": [{"name": "database", "status": "error"}],

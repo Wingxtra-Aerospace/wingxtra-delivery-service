@@ -28,6 +28,7 @@ If no request ID is supplied, the API generates one.
 ### Readiness
 
 `GET /ready` returns dependency-level readiness for deploy/load-balancer probes.
+It responds with HTTP `200` when all dependencies are healthy and HTTP `503` when any dependency is degraded.
 
 Current checks:
 

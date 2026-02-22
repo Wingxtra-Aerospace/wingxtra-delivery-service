@@ -44,7 +44,7 @@ def test_metrics_endpoint_rejects_non_backoffice_role(client):
         )
         response = client.get("/metrics", headers={"Authorization": f"Bearer {merchant_token}"})
         assert response.status_code == 403
-        assert response.json()["detail"] == "Write action requires OPS/ADMIN"
+        assert response.json()["detail"] == "Insufficient role"
     finally:
         settings.enable_test_auth_bypass = original
 

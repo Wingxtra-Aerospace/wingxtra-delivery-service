@@ -69,7 +69,7 @@ Rate limiting:
 - Successful and limited responses include numeric-string `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset` (Unix epoch seconds); limited responses also include numeric-string `Retry-After` (delta seconds).
 - OpenAPI documents these rate-limit headers on `POST /api/v1/orders`, `GET /api/v1/orders/track/{public_tracking_id}`, and `GET /api/v1/tracking/{public_tracking_id}` responses (including `429`).
 
-Public tracking response is sanitized to: `order_id`, `public_tracking_id`, `status`, and `milestones` (timeline event types in chronological order). When proof-of-delivery exists, it also includes `pod_summary` (including at least `method`). This sanitized contract applies to both `GET /api/v1/tracking/{public_tracking_id}` and `GET /api/v1/orders/track/{public_tracking_id}`.
+Public tracking response is sanitized to: `order_id`, `public_tracking_id`, `status`, and `milestones` (timeline event types in chronological order). When proof-of-delivery exists, it includes `pod_summary` with only `method` and `created_at`. Merchant/customer contact fields and POD `photo_url` are redacted from public tracking responses. This sanitized contract applies to both `GET /api/v1/tracking/{public_tracking_id}` and `GET /api/v1/orders/track/{public_tracking_id}`.
 
 POD read endpoint (`GET /api/v1/orders/{order_id}/pod`) returns `PodResponse`; when no POD record exists yet, `method` is `null`.
 

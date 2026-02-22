@@ -74,7 +74,8 @@ Dispatch run response contains `assigned` and `assignments` list entries with `o
 Jobs list item schema includes `eta_seconds` (nullable integer) for ETA visibility.
 
 
-Manual assignment validates drone availability and battery threshold. Low-battery or unavailable drones return `400`.
+Manual assignment validates availability, battery, payload constraints (`max_payload_kg`, `payload_type`), and pickup service area; incompatible drones return `400` with a specific reason.
+Dispatch scoring weights are configurable via `WINGXTRA_DISPATCH_SCORE_DISTANCE_WEIGHT` and `WINGXTRA_DISPATCH_SCORE_BATTERY_WEIGHT`.
 Order create validation enforces optional bounds: `lat` in [-90, 90], `weight` > 0, non-empty `payload_type` (invalid values return `422`).
 Dispatch run assigns at most one order per available drone and returns both `assigned` and `assignments`.
 

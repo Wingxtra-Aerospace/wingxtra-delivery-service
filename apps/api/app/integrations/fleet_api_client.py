@@ -12,12 +12,22 @@ from app.integrations.errors import (
 )
 
 
+class FleetServiceArea(BaseModel):
+    min_lat: float = Field(default=-90, ge=-90, le=90)
+    max_lat: float = Field(default=90, ge=-90, le=90)
+    min_lng: float = Field(default=-180, ge=-180, le=180)
+    max_lng: float = Field(default=180, ge=-180, le=180)
+
+
 class FleetDroneTelemetry(BaseModel):
     drone_id: str
     lat: float = Field(ge=-90, le=90)
     lng: float = Field(ge=-180, le=180)
     battery: float = Field(ge=0, le=100)
     is_available: bool = True
+    max_payload_kg: float = Field(default=999.0, ge=0)
+    payload_type: str = Field(default="ANY", min_length=1, max_length=100)
+    service_area: FleetServiceArea = Field(default_factory=FleetServiceArea)
 
 
 class FleetApiClientProtocol(Protocol):

@@ -13,7 +13,11 @@ from app.auth.dependencies import (
 )
 from app.config import settings
 from app.db.session import get_db
-from app.integrations.errors import IntegrationBadGatewayError, IntegrationError
+from app.integrations.errors import (
+    IntegrationBadGatewayError,
+    IntegrationError,
+    IntegrationUnavailableError,
+)
 from app.integrations.gcs_bridge_client import get_gcs_bridge_client
 from app.observability import observe_timing
 from app.routers.rate_limit_headers import (
@@ -381,10 +385,16 @@ async def submit_mission_endpoint(
                 mission_intent_id=mission_intent_payload.get("mission_intent_id", ""),
                 status=order_out["status"],
             ).model_dump(mode="json")
+    except HTTPException:
+        raise
     except IntegrationBadGatewayError as err:
         raise _translate_integration_error(err) from err
     except IntegrationError as err:
         raise _translate_integration_error(err) from err
+    except Exception as err:
+        raise _translate_integration_error(
+            IntegrationUnavailableError("gcs_bridge", f"Mission publish failed: {err}")
+        ) from err
 
     if idempotency_key:
         save_idempotency_result(

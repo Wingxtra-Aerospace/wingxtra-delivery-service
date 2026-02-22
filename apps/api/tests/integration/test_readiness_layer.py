@@ -179,11 +179,13 @@ def test_readiness_failure_paths(client, db_session):
 
     client.app.dependency_overrides[get_gcs_bridge_client] = lambda: FailingPublisher()
 
-    try:
-        client.post(f"/api/v1/orders/{failing['id']}/submit-mission-intent")
-        raise AssertionError("Expected publisher failure to bubble up")
-    except RuntimeError as exc:
-        assert "gcs publish failure" in str(exc)
+    failed_submit = client.post(f"/api/v1/orders/{failing['id']}/submit-mission-intent")
+    assert failed_submit.status_code == 503
+    assert failed_submit.json()["detail"] == {
+        "service": "gcs_bridge",
+        "code": "UNAVAILABLE",
+        "message": f"Mission publish failed: gcs publish failure for {failing['id']}",
+    }
 
     db_order = db_session.get(Order, UUID(failing["id"]))
     assert db_order is not None

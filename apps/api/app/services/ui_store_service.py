@@ -215,11 +215,15 @@ def tracking_view(public_tracking_id: str) -> dict[str, Any]:
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tracking record not found")
 
 
-def run_auto_dispatch(available_drones: list[str]) -> dict[str, int | list[dict[str, str]]]:
+def run_auto_dispatch(
+    available_drones: list[str],
+    max_assignments: int | None = None,
+) -> dict[str, int | list[dict[str, str]]]:
     seed_placeholders_in_store_if_needed()
     assignments: list[dict[str, str]] = []
     ord2 = store.orders.get("ord-2")
-    if ord2 is not None and ord2.status == "QUEUED" and available_drones:
+    can_assign = max_assignments is None or max_assignments > 0
+    if ord2 is not None and ord2.status == "QUEUED" and available_drones and can_assign:
         drone_id = available_drones[0]
         manual_assign(AuthContext(user_id="ops-auto", role="OPS"), "ord-2", drone_id)
         assignments.append({"order_id": "ord-2", "status": "ASSIGNED"})

@@ -15,6 +15,22 @@ class InMemoryStore:
 
 store = InMemoryStore()
 
+_DEFAULT_DRONES: dict[str, dict[str, int | bool]] = {
+    "DR-1": {"available": True, "battery": 95},
+    "DR-2": {"available": True, "battery": 10},
+    "DR-3": {"available": True, "battery": 80},
+}
+
+
+def reset_store() -> None:
+    store.orders.clear()
+    store.events.clear()
+    store.jobs.clear()
+    store.idempotency_records.clear()
+    store.pods.clear()
+    store.drones.clear()
+    store.drones.update({k: dict(v) for k, v in _DEFAULT_DRONES.items()})
+
 
 def seed_data() -> None:
     if store.orders:
@@ -51,10 +67,4 @@ def seed_data() -> None:
     )
 
 
-store.drones.update(
-    {
-        "DR-1": {"available": True, "battery": 95},
-        "DR-2": {"available": True, "battery": 10},
-        "DR-3": {"available": True, "battery": 80},
-    }
-)
+reset_store()

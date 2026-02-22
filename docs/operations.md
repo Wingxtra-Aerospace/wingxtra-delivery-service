@@ -42,6 +42,8 @@ Response shape:
 
 `GET /metrics` returns JSON with two sections:
 
+Test harness behavior: API tests reset in-memory counters/timings between tests to prevent metrics leakage across test cases.
+
 - `counters` (e.g. `http_requests_total`)
 - `timings` (aggregated timing stats with `count`, `avg_s`, `max_s`)
 
@@ -55,9 +57,11 @@ Counter metrics currently captured include:
 - `idempotency_purged_total`
 - `rate_limit_checked_total`
 - `rate_limit_rejected_total`
+- `dispatch_run_total`
 
 Timing metrics currently captured:
 
+- `dispatch_run_seconds`
 - `dispatch_assignment_seconds`
 - `mission_intent_generation_seconds`
 - `http_request_duration_seconds`

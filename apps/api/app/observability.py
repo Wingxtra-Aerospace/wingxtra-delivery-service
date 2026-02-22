@@ -48,6 +48,10 @@ class MetricsStore:
     def observe(self, name: str, value_s: float) -> None:
         self._timings[name].append(value_s)
 
+    def reset(self) -> None:
+        self._counters.clear()
+        self._timings.clear()
+
     def snapshot(self) -> MetricsSnapshot:
         timings: dict[str, dict[str, float]] = {}
         for key, values in self._timings.items():

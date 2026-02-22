@@ -122,3 +122,24 @@ Example start command:
 ```bash
 docker compose up -d
 ```
+
+
+## Dispatch worker
+
+`workers/dispatch_worker/worker.py` can run periodic auto-dispatch ticks against the API (`POST /api/v1/dispatch/run`).
+
+Environment variables:
+
+- `WINGXTRA_DISPATCH_WORKER_API_BASE_URL` (default `http://localhost:8000`)
+- `WINGXTRA_DISPATCH_WORKER_AUTH_TOKEN` (optional bearer token; required when dispatch endpoint auth is enabled)
+- `WINGXTRA_DISPATCH_WORKER_INTERVAL_S` (default `10`)
+- `WINGXTRA_DISPATCH_WORKER_TIMEOUT_S` (default `5`)
+- `WINGXTRA_DISPATCH_WORKER_MAX_ASSIGNMENTS` (optional, integer >= 1)
+
+Example:
+
+```bash
+WINGXTRA_DISPATCH_WORKER_API_BASE_URL=http://localhost:8000 \
+WINGXTRA_DISPATCH_WORKER_AUTH_TOKEN=<ops-jwt> \
+python workers/dispatch_worker/worker.py
+```

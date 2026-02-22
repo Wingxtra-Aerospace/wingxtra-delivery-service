@@ -59,6 +59,16 @@ class Settings(BaseSettings):
             raise ValueError(f"WINGXTRA_UI_SERVICE_MODE must be one of: {allowed}")
         return mode
 
+    @field_validator("redis_url")
+    @classmethod
+    def validate_redis_url(cls, value: str) -> str:
+        redis_url = value.strip()
+        if not redis_url:
+            return ""
+        if not redis_url.startswith("redis://"):
+            raise ValueError("REDIS_URL must use redis:// scheme")
+        return redis_url
+
 
 settings = Settings()
 

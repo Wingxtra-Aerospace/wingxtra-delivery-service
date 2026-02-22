@@ -238,3 +238,14 @@ def test_settings_reads_redis_url_from_env_alias():
     settings = config_module.Settings(REDIS_URL="redis://localhost:6379/0")
 
     assert settings.redis_url == "redis://localhost:6379/0"
+
+
+def test_settings_rejects_invalid_redis_url_scheme():
+    with pytest.raises(ValidationError, match="REDIS_URL must use redis:// scheme"):
+        config_module.Settings(REDIS_URL="rediss://localhost:6379/0")
+
+
+def test_settings_normalizes_redis_url_whitespace():
+    settings = config_module.Settings(REDIS_URL="  redis://localhost:6379/0  ")
+
+    assert settings.redis_url == "redis://localhost:6379/0"

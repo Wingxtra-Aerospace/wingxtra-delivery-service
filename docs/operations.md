@@ -36,7 +36,7 @@ Current checks:
 - `redis` (optional; checked only when `REDIS_URL` is configured)
 
 Readiness config env vars:
-- `REDIS_URL` (optional; enables Redis dependency check in `/ready` when set)
+- `REDIS_URL` (optional; enables Redis dependency check in `/ready` when set, must use `redis://`)
 
 Redis readiness check behavior:
 

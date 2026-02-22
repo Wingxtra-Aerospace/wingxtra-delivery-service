@@ -1,7 +1,10 @@
+from collections.abc import Callable
+from typing import Literal
+
 from fastapi import APIRouter
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.orm import Session
 
 from app.db.session import SessionLocal
 from app.schemas.health import HealthResponse, ReadinessDependency, ReadinessResponse
@@ -22,10 +25,14 @@ def readiness() -> ReadinessResponse:
     return ReadinessResponse(status=readiness_status, dependencies=dependencies)
 
 
-def _database_dependency_status(session_factory: sessionmaker[Session]) -> str:
+def _database_dependency_status(
+    session_factory: Callable[[], Session],
+) -> Literal["ok", "error"]:
     try:
         with session_factory() as db:
             db.execute(text("SELECT 1"))
     except SQLAlchemyError:
+        return "error"
+    except Exception:
         return "error"
     return "ok"

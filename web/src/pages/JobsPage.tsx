@@ -107,7 +107,6 @@ export function JobsPage() {
               <th>assigned_drone_id</th>
               <th>status</th>
               <th>created_at</th>
-              <th>updated_at</th>
             </tr>
           </thead>
           <tbody>
@@ -122,7 +121,6 @@ export function JobsPage() {
                 <td>{job.assigned_drone_id}</td>
                 <td>{job.status}</td>
                 <td>{new Date(job.created_at).toLocaleString()}</td>
-                <td>{job.updated_at ? new Date(job.updated_at).toLocaleString() : "—"}</td>
               </tr>
             ))}
           </tbody>

@@ -7,8 +7,8 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.integrations.fleet_api_client import FleetApiClientProtocol, FleetDroneTelemetry
-from app.models.order import Order, OrderStatus
 from app.models.delivery_job import DeliveryJob, DeliveryJobStatus
+from app.models.order import Order, OrderStatus
 from app.services.orders_service import get_order, transition_order_status
 
 _MIN_BATTERY_FOR_ASSIGNMENT = 30.0

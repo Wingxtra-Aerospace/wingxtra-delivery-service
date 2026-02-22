@@ -254,6 +254,109 @@ def test_submit_mission_intent_rejected_when_not_assigned(client):
     assert response.status_code == 409
 
 
+def test_order_event_ingestion_transitions_and_timeline_order(client):
+    _set_fleet_override(
+        [FleetDroneTelemetry(drone_id="DRONE-1", lat=6.45, lng=3.39, battery=95, is_available=True)]
+    )
+    publisher = FakePublisher()
+    app.dependency_overrides[get_gcs_bridge_client] = lambda: publisher
+
+    order = _create_order(client).json()
+    assert (
+        client.post(
+            f"/api/v1/orders/{order['id']}/assign", json={"drone_id": "DRONE-1"}
+        ).status_code
+        == 200
+    )
+    assert client.post(f"/api/v1/orders/{order['id']}/submit-mission-intent").status_code == 200
+
+    launched = client.post(
+        f"/api/v1/orders/{order['id']}/events",
+        json={"event_type": "MISSION_LAUNCHED", "occurred_at": "2030-01-01T10:00:00Z"},
+    )
+    assert launched.status_code == 200
+    assert launched.json()["status"] == "LAUNCHED"
+
+    enroute = client.post(
+        f"/api/v1/orders/{order['id']}/events",
+        json={"event_type": "ENROUTE", "occurred_at": "2030-01-01T10:01:00Z"},
+    )
+    assert enroute.status_code == 200
+    assert enroute.json()["status"] == "ENROUTE"
+
+    arrived = client.post(
+        f"/api/v1/orders/{order['id']}/events",
+        json={"event_type": "ARRIVED", "occurred_at": "2030-01-01T10:02:00Z"},
+    )
+    assert arrived.status_code == 200
+
+    delivered = client.post(
+        f"/api/v1/orders/{order['id']}/events",
+        json={"event": "DELIVERED", "timestamp": "2030-01-01T10:03:00Z"},
+    )
+    assert delivered.status_code == 200
+    assert delivered.json()["status"] == "DELIVERED"
+    assert delivered.json()["applied_events"] == ["DELIVERING", "DELIVERED"]
+
+    timeline = client.get(f"/api/v1/orders/{order['id']}/events")
+    assert timeline.status_code == 200
+    assert [event["type"] for event in timeline.json()["items"]] == [
+        "CREATED",
+        "VALIDATED",
+        "QUEUED",
+        "ASSIGNED",
+        "MISSION_SUBMITTED",
+        "LAUNCHED",
+        "ENROUTE",
+        "ARRIVED",
+        "DELIVERING",
+        "DELIVERED",
+    ]
+
+
+def test_order_event_ingestion_rejects_backward_transition(client):
+    _set_fleet_override(
+        [FleetDroneTelemetry(drone_id="DRONE-1", lat=6.45, lng=3.39, battery=95, is_available=True)]
+    )
+    order = _create_order(client).json()
+    assert (
+        client.post(
+            f"/api/v1/orders/{order['id']}/assign", json={"drone_id": "DRONE-1"}
+        ).status_code
+        == 200
+    )
+    assert client.post(f"/api/v1/orders/{order['id']}/submit-mission-intent").status_code == 200
+    assert (
+        client.post(
+            f"/api/v1/orders/{order['id']}/events", json={"event_type": "MISSION_LAUNCHED"}
+        ).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            f"/api/v1/orders/{order['id']}/events", json={"event_type": "ENROUTE"}
+        ).status_code
+        == 200
+    )
+
+    backwards = client.post(
+        f"/api/v1/orders/{order['id']}/events", json={"event_type": "MISSION_LAUNCHED"}
+    )
+    assert backwards.status_code == 409
+
+
+def test_order_event_ingestion_is_ops_only(client):
+    order = _create_order(client).json()
+    merchant_token = issue_jwt({"sub": "merchant-1", "role": "MERCHANT"}, settings.jwt_secret)
+
+    forbidden = client.post(
+        f"/api/v1/orders/{order['id']}/events",
+        json={"event_type": "FAILED"},
+        headers={"Authorization": f"Bearer {merchant_token}"},
+    )
+    assert forbidden.status_code == 403
+
+
 def test_get_job_detail_endpoint(client):
     _set_fleet_override(
         [FleetDroneTelemetry(drone_id="DRONE-1", lat=6.45, lng=3.39, battery=95, is_available=True)]

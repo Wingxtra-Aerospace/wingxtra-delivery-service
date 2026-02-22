@@ -108,6 +108,22 @@ def list_events(auth: AuthContext, db: Session, order_id: str) -> list[dict[str,
     return ui_db_service.list_events(auth, db, order_id)
 
 
+def ingest_order_event(
+    auth: AuthContext,
+    db: Session,
+    order_id: str,
+    event_type: str,
+    occurred_at,
+) -> dict[str, Any]:
+    mode = _mode()
+    if mode == "store" or (mode == "hybrid" and _is_placeholder_order_id(order_id)):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Placeholder orders do not support event ingestion",
+        )
+    return ui_db_service.ingest_order_event(auth, db, order_id, event_type, occurred_at)
+
+
 def cancel_order(auth: AuthContext, db: Session, order_id: str) -> dict[str, Any]:
     if _mode() == "store" or _is_placeholder_order_id(order_id):
         order = ui_store_service.get_order(auth, order_id)

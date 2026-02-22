@@ -263,3 +263,187 @@ def test_public_tracking_placeholder_without_pod_still_returns_200(client):
     body = response.json()
     assert body["order_id"] == "ord-1"
     assert body["public_tracking_id"] == "11111111-1111-4111-8111-111111111111"
+
+
+def test_create_order_rejects_empty_idempotency_key(client):
+    response = client.post(
+        "/api/v1/orders",
+        json={
+            "customer_name": "Jane Doe",
+            "customer_phone": "+123456789",
+            "pickup_lat": 6.5,
+            "pickup_lng": 3.4,
+            "dropoff_lat": 6.6,
+            "dropoff_lng": 3.5,
+            "dropoff_accuracy_m": 8,
+            "payload_weight_kg": 2.2,
+            "payload_type": "parcel",
+            "priority": "NORMAL",
+        },
+        headers={"Idempotency-Key": "   "},
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Idempotency-Key must not be empty"
+
+
+def test_create_order_rejects_oversized_idempotency_key(client):
+    response = client.post(
+        "/api/v1/orders",
+        json={
+            "customer_name": "Jane Doe",
+            "customer_phone": "+123456789",
+            "pickup_lat": 6.5,
+            "pickup_lng": 3.4,
+            "dropoff_lat": 6.6,
+            "dropoff_lng": 3.5,
+            "dropoff_accuracy_m": 8,
+            "payload_weight_kg": 2.2,
+            "payload_type": "parcel",
+            "priority": "NORMAL",
+        },
+        headers={"Idempotency-Key": "x" * 256},
+    )
+    assert response.status_code == 400
+    assert "Idempotency-Key exceeds max length" in response.json()["detail"]
+
+
+def test_assign_rejects_empty_idempotency_key(client):
+    _set_fleet_override(
+        [
+            FleetDroneTelemetry(
+                drone_id="DRONE-1", lat=6.45, lng=3.39, battery=95, is_available=True
+            ),
+        ]
+    )
+    order = _create_order(client).json()
+
+    response = client.post(
+        f"/api/v1/orders/{order['id']}/assign",
+        json={"drone_id": "DRONE-1"},
+        headers={"Idempotency-Key": "   "},
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Idempotency-Key must not be empty"
+
+
+def test_submit_mission_rejects_oversized_idempotency_key(client):
+    _set_fleet_override(
+        [
+            FleetDroneTelemetry(
+                drone_id="DRONE-1", lat=6.45, lng=3.39, battery=95, is_available=True
+            ),
+        ]
+    )
+    order = _create_order(client).json()
+
+    assign = client.post(f"/api/v1/orders/{order['id']}/assign", json={"drone_id": "DRONE-1"})
+    assert assign.status_code == 200
+
+    response = client.post(
+        f"/api/v1/orders/{order['id']}/submit-mission-intent",
+        headers={"Idempotency-Key": "x" * 256},
+    )
+    assert response.status_code == 400
+    assert "Idempotency-Key exceeds max length" in response.json()["detail"]
+
+
+def test_create_pod_rejects_empty_idempotency_key(client, db_session):
+    order = _create_order(client).json()
+
+    db_order = db_session.get(Order, UUID(order["id"]))
+    db_order.status = OrderStatus.DELIVERED
+    db_session.commit()
+
+    response = client.post(
+        f"/api/v1/orders/{order['id']}/pod",
+        json={
+            "method": "PHOTO",
+            "photo_url": "https://cdn.example/pod.jpg",
+            "metadata": {"camera": "ops-device"},
+        },
+        headers={"Idempotency-Key": "   "},
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Idempotency-Key must not be empty"
+
+
+def test_cancel_rejects_oversized_idempotency_key(client):
+    order = _create_order(client).json()
+
+    response = client.post(
+        f"/api/v1/orders/{order['id']}/cancel",
+        headers={"Idempotency-Key": "x" * 256},
+    )
+    assert response.status_code == 400
+    assert "Idempotency-Key exceeds max length" in response.json()["detail"]
+
+
+def test_metrics_exposes_idempotency_counters_after_requests(client):
+    before = client.get("/metrics")
+    assert before.status_code == 200
+    before_counters = before.json().get("counters", {})
+
+    create_response = client.post(
+        "/api/v1/orders",
+        json={
+            "customer_name": "Jane Doe",
+            "customer_phone": "+123456789",
+            "pickup_lat": 6.5,
+            "pickup_lng": 3.4,
+            "dropoff_lat": 6.6,
+            "dropoff_lng": 3.5,
+            "dropoff_accuracy_m": 8,
+            "payload_weight_kg": 2.2,
+            "payload_type": "parcel",
+            "priority": "NORMAL",
+        },
+        headers={"Idempotency-Key": "idem-metrics-order-create-1"},
+    )
+    assert create_response.status_code == 201
+
+    replay_response = client.post(
+        "/api/v1/orders",
+        json={
+            "customer_name": "Jane Doe",
+            "customer_phone": "+123456789",
+            "pickup_lat": 6.5,
+            "pickup_lng": 3.4,
+            "dropoff_lat": 6.6,
+            "dropoff_lng": 3.5,
+            "dropoff_accuracy_m": 8,
+            "payload_weight_kg": 2.2,
+            "payload_type": "parcel",
+            "priority": "NORMAL",
+        },
+        headers={"Idempotency-Key": "idem-metrics-order-create-1"},
+    )
+    assert replay_response.status_code == 201
+
+    invalid_header_response = client.post(
+        "/api/v1/orders",
+        json={
+            "customer_name": "Jane Doe",
+            "customer_phone": "+123456789",
+            "pickup_lat": 6.5,
+            "pickup_lng": 3.4,
+            "dropoff_lat": 6.6,
+            "dropoff_lng": 3.5,
+            "dropoff_accuracy_m": 8,
+            "payload_weight_kg": 2.2,
+            "payload_type": "parcel",
+            "priority": "NORMAL",
+        },
+        headers={"Idempotency-Key": "   "},
+    )
+    assert invalid_header_response.status_code == 400
+
+    after = client.get("/metrics")
+    assert after.status_code == 200
+    after_counters = after.json().get("counters", {})
+
+    def delta(name: str) -> int:
+        return int(after_counters.get(name, 0)) - int(before_counters.get(name, 0))
+
+    assert delta("idempotency_store_total") >= 1
+    assert delta("idempotency_replay_total") >= 1
+    assert delta("idempotency_invalid_key_total") >= 1

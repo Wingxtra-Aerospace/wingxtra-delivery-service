@@ -34,6 +34,7 @@ from app.services.idempotency_service import (
     build_scope,
     check_idempotency,
     save_idempotency_result,
+    validate_idempotency_key,
 )
 from app.services.ui_service import (
     cancel_order,
@@ -80,9 +81,11 @@ async def create_order_endpoint(
 
     request_payload = await request.json()
     route_scope = build_scope("POST:/api/v1/orders", user_id=auth.user_id)
+    idempotency_key = validate_idempotency_key(idempotency_key)
 
     if idempotency_key:
         idem = check_idempotency(
+            db=db,
             user_id=auth.user_id,
             route=route_scope,
             idempotency_key=idempotency_key,
@@ -112,6 +115,7 @@ async def create_order_endpoint(
 
     if idempotency_key:
         save_idempotency_result(
+            db=db,
             user_id=auth.user_id,
             route=route_scope,
             idempotency_key=idempotency_key,
@@ -205,9 +209,11 @@ def assign_endpoint(
         user_id=auth.user_id,
         order_id=order_id,
     )
+    idempotency_key = validate_idempotency_key(idempotency_key)
 
     if idempotency_key:
         idem = check_idempotency(
+            db=db,
             user_id=auth.user_id,
             route=route_scope,
             idempotency_key=idempotency_key,
@@ -229,6 +235,7 @@ def assign_endpoint(
 
     if idempotency_key:
         save_idempotency_result(
+            db=db,
             user_id=auth.user_id,
             route=route_scope,
             idempotency_key=idempotency_key,
@@ -252,9 +259,11 @@ def cancel_endpoint(
         user_id=auth.user_id,
         order_id=order_id,
     )
+    idempotency_key = validate_idempotency_key(idempotency_key)
 
     if idempotency_key:
         idem = check_idempotency(
+            db=db,
             user_id=auth.user_id,
             route=route_scope,
             idempotency_key=idempotency_key,
@@ -276,6 +285,7 @@ def cancel_endpoint(
 
     if idempotency_key:
         save_idempotency_result(
+            db=db,
             user_id=auth.user_id,
             route=route_scope,
             idempotency_key=idempotency_key,
@@ -304,9 +314,11 @@ async def submit_mission_endpoint(
         "POST:/api/v1/orders/{order_id}/submit-mission-intent",
         user_id=auth.user_id,
     )
+    idempotency_key = validate_idempotency_key(idempotency_key)
 
     if idempotency_key:
         idem = check_idempotency(
+            db=db,
             user_id=auth.user_id,
             route=route_scope,
             idempotency_key=idempotency_key,
@@ -346,6 +358,7 @@ async def submit_mission_endpoint(
 
     if idempotency_key:
         save_idempotency_result(
+            db=db,
             user_id=auth.user_id,
             route=route_scope,
             idempotency_key=idempotency_key,
@@ -376,9 +389,11 @@ def create_pod_endpoint(
         user_id=auth.user_id,
         order_id=order_id,
     )
+    idempotency_key = validate_idempotency_key(idempotency_key)
 
     if idempotency_key:
         idem = check_idempotency(
+            db=db,
             user_id=auth.user_id,
             route=route_scope,
             idempotency_key=idempotency_key,
@@ -400,6 +415,7 @@ def create_pod_endpoint(
 
     if idempotency_key:
         save_idempotency_result(
+            db=db,
             user_id=auth.user_id,
             route=route_scope,
             idempotency_key=idempotency_key,

@@ -224,8 +224,14 @@ def run_auto_dispatch(
     return {"assigned": len(combined), "assignments": combined}
 
 
-def list_jobs(auth: AuthContext, db: Session, active_only: bool) -> list[dict[str, Any]]:
-    return ui_db_service.list_jobs(auth, db, active_only)
+def list_jobs(
+    auth: AuthContext,
+    db: Session,
+    active_only: bool,
+    page: int,
+    page_size: int,
+) -> tuple[list[dict[str, Any]], int]:
+    return ui_db_service.list_jobs(auth, db, active_only, page, page_size)
 
 
 def tracking_view(db: Session, public_tracking_id: str) -> dict[str, Any]:

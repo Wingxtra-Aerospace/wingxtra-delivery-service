@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "gen:types": "openapi-typescript ${VITE_API_BASE_URL:-http://localhost:8000}/openapi.json --output src/api/types.ts",
+    "gen:types": "openapi-typescript ${VITE_API_BASE_URL:-http://localhost:8000}/openapi.json --output src/api/types.ts && node scripts/normalize-openapi-types.mjs",
     "gen:types:check": "npm run gen:types && git diff --exit-code -- src/api/types.ts"
   },
   "dependencies": {

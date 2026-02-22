@@ -1,6 +1,6 @@
 /**
  * This file is generated from FastAPI OpenAPI schema.
- * Source: ${VITE_API_BASE_URL}/openapi.json
+ * Source: <openapi-schema>
  * Generator: openapi-typescript
  */
 

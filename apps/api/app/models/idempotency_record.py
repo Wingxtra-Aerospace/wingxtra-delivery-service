@@ -11,7 +11,7 @@ from app.db.base import Base
 class IdempotencyRecord(Base):
     __tablename__ = "idempotency_records"
     __table_args__ = (
-        UniqueConstraint("user_id", "route", "idempotency_key", name="uq_idem_scope_key"),
+        UniqueConstraint("route", "idempotency_key", name="uq_idem_scope_key"),
         Index("ix_idempotency_records_expires_at", "expires_at"),
     )
 

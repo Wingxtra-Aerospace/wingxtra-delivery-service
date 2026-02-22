@@ -115,7 +115,7 @@ def test_save_idempotency_result_updates_existing_scope(db_session):
         response_payload={"ok": True},
     )
 
-    save_idempotency_result(
+    saved_payload = save_idempotency_result(
         db=db_session,
         user_id="ops-4",
         route=route,
@@ -132,7 +132,52 @@ def test_save_idempotency_result_updates_existing_scope(db_session):
         )
     ).all()
     assert len(rows) == 1
-    assert rows[0].response_payload == {"ok": "updated"}
+    assert rows[0].response_payload == {"ok": True}
+    assert saved_payload == {"ok": True}
+
+
+def test_save_idempotency_result_handles_duplicate_insert_with_stable_response(db_session, monkeypatch):
+    route = "POST:/api/v1/orders:user=ops-race"
+    save_idempotency_result(
+        db=db_session,
+        user_id="ops-race",
+        route=route,
+        idempotency_key="idem-race",
+        request_payload={"a": 1},
+        response_payload={"order_id": "ord-original"},
+    )
+
+    original_scalar = db_session.scalar
+    scalar_calls = {"count": 0}
+
+    def race_scalar(statement):
+        scalar_calls["count"] += 1
+        if scalar_calls["count"] == 1:
+            return None
+        return original_scalar(statement)
+
+    monkeypatch.setattr(db_session, "scalar", race_scalar)
+
+    result = save_idempotency_result(
+        db=db_session,
+        user_id="ops-race",
+        route=route,
+        idempotency_key="idem-race",
+        request_payload={"a": 1},
+        response_payload={"order_id": "ord-concurrent"},
+    )
+
+    record = db_session.scalar(
+        select(IdempotencyRecord).where(
+            IdempotencyRecord.user_id == "ops-race",
+            IdempotencyRecord.route == route,
+            IdempotencyRecord.idempotency_key == "idem-race",
+        )
+    )
+
+    assert result == {"order_id": "ord-original"}
+    assert record is not None
+    assert record.response_payload == {"order_id": "ord-original"}
 
 
 def test_save_idempotency_result_rejects_payload_mismatch_for_existing_key(db_session):

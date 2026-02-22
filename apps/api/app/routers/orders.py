@@ -144,7 +144,7 @@ async def create_order_endpoint(
     response_payload = OrderDetailResponse.model_validate(order).model_dump(mode="json")
 
     if idempotency_key:
-        save_idempotency_result(
+        response_payload = save_idempotency_result(
             db=db,
             user_id=auth.user_id,
             route=route_scope,
@@ -264,7 +264,7 @@ def assign_endpoint(
         ).model_dump(mode="json")
 
     if idempotency_key:
-        save_idempotency_result(
+        response_payload = save_idempotency_result(
             db=db,
             user_id=auth.user_id,
             route=route_scope,
@@ -314,7 +314,7 @@ def cancel_endpoint(
         ).model_dump(mode="json")
 
     if idempotency_key:
-        save_idempotency_result(
+        response_payload = save_idempotency_result(
             db=db,
             user_id=auth.user_id,
             route=route_scope,
@@ -402,7 +402,7 @@ async def submit_mission_endpoint(
         ) from err
 
     if idempotency_key:
-        save_idempotency_result(
+        response_payload = save_idempotency_result(
             db=db,
             user_id=auth.user_id,
             route=route_scope,

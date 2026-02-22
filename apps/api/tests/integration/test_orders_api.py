@@ -13,11 +13,10 @@ from app.models.delivery_job import DeliveryJob, DeliveryJobStatus
 from app.models.order import Order, OrderStatus
 
 
-
-
 def _auth_headers(role: str, sub: str) -> dict[str, str]:
     token = issue_jwt({"sub": sub, "role": role}, settings.jwt_secret)
     return {"Authorization": f"Bearer {token}"}
+
 
 class FakeFleetApiClient:
     def __init__(self, drones: list[FleetDroneTelemetry]) -> None:

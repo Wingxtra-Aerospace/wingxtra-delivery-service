@@ -1,5 +1,7 @@
 from uuid import UUID
 
+from app.auth.dependencies import reset_rate_limits
+from app.config import settings
 from app.integrations.fleet_api_client import FleetDroneTelemetry, get_fleet_api_client
 from app.integrations.gcs_bridge_client import get_gcs_bridge_client
 from app.main import app
@@ -447,3 +449,37 @@ def test_metrics_exposes_idempotency_counters_after_requests(client):
     assert delta("idempotency_store_total") >= 1
     assert delta("idempotency_replay_total") >= 1
     assert delta("idempotency_invalid_key_total") >= 1
+
+
+def test_metrics_exposes_rate_limit_counters_when_limited(client):
+    before = client.get("/metrics")
+    assert before.status_code == 200
+    before_counters = before.json().get("counters", {})
+
+    original_requests = settings.order_create_rate_limit_requests
+    original_window = settings.order_create_rate_limit_window_s
+    settings.order_create_rate_limit_requests = 1
+    settings.order_create_rate_limit_window_s = 60
+    reset_rate_limits()
+
+    try:
+        first = _create_order(client)
+        assert first.status_code == 201
+
+        second = _create_order(client)
+        assert second.status_code == 429
+        assert second.json()["detail"] == "Order creation rate limit exceeded"
+    finally:
+        settings.order_create_rate_limit_requests = original_requests
+        settings.order_create_rate_limit_window_s = original_window
+        reset_rate_limits()
+
+    after = client.get("/metrics")
+    assert after.status_code == 200
+    after_counters = after.json().get("counters", {})
+
+    def delta(name: str) -> int:
+        return int(after_counters.get(name, 0)) - int(before_counters.get(name, 0))
+
+    assert delta("rate_limit_checked_total") >= 2
+    assert delta("rate_limit_rejected_total") >= 1

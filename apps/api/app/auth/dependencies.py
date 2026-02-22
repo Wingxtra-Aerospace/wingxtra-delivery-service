@@ -6,6 +6,7 @@ from fastapi import Depends, Header, HTTPException, Request, status
 
 from app.auth.jwt import decode_jwt, jwt_http_exception
 from app.config import allowed_roles_list, settings
+from app.observability import metrics_store
 
 AllowedRole = str
 
@@ -87,7 +88,9 @@ def _apply_rate_limit(key: str, max_requests: int, window_s: int, detail: str) -
     history = _RATE_LIMIT_BUCKETS.get(key, [])
     history = [value for value in history if value > now - window_s]
 
+    metrics_store.increment("rate_limit_checked_total")
     if len(history) >= max_requests:
+        metrics_store.increment("rate_limit_rejected_total")
         raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=detail)
 
     history.append(now)

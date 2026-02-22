@@ -38,6 +38,8 @@ Counter metrics currently captured include:
 - `idempotency_replay_total`
 - `idempotency_conflict_total`
 - `idempotency_invalid_key_total`
+- `rate_limit_checked_total`
+- `rate_limit_rejected_total`
 
 Timing metrics currently captured:
 

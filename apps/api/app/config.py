@@ -46,6 +46,8 @@ class Settings(BaseSettings):
     gcs_bridge_max_retries: int = 2
     gcs_bridge_backoff_s: float = 0.2
 
+    redis_url: str = ""
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
     @field_validator("ui_service_mode")

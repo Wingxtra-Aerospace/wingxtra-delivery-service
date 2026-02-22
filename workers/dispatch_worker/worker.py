@@ -79,6 +79,9 @@ def _decode_dispatch_response(raw: str) -> tuple[bool, int, str | None]:
     except json.JSONDecodeError:
         return False, 0, "Invalid JSON in dispatch response"
 
+    if not isinstance(body, dict):
+        return False, 0, "Dispatch response must be a JSON object"
+
     try:
         assigned = int(body.get("assigned_count", 0))
     except (TypeError, ValueError):

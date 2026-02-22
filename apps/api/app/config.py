@@ -47,7 +47,9 @@ class Settings(BaseSettings):
     gcs_bridge_backoff_s: float = 0.2
 
     redis_url: str = Field(default="", validation_alias="REDIS_URL")
-    redis_readiness_timeout_s: float = 1.0
+    redis_readiness_timeout_s: float = Field(
+        default=1.0, validation_alias="REDIS_READINESS_TIMEOUT_S"
+    )
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

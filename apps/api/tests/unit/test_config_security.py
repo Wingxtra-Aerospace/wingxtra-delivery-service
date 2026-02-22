@@ -253,10 +253,16 @@ def test_settings_normalizes_redis_url_whitespace():
 
 def test_settings_rejects_non_positive_redis_readiness_timeout():
     with pytest.raises(ValidationError, match="redis_readiness_timeout_s must be greater than 0"):
-        config_module.Settings(redis_readiness_timeout_s=0)
+        config_module.Settings(REDIS_READINESS_TIMEOUT_S="0")
 
 
 def test_settings_accepts_positive_redis_readiness_timeout():
-    settings = config_module.Settings(redis_readiness_timeout_s=2.0)
+    settings = config_module.Settings(REDIS_READINESS_TIMEOUT_S="2.0")
 
     assert settings.redis_readiness_timeout_s == 2.0
+
+
+def test_settings_reads_redis_readiness_timeout_from_env_alias():
+    settings = config_module.Settings(REDIS_READINESS_TIMEOUT_S="2.25")
+
+    assert settings.redis_readiness_timeout_s == 2.25

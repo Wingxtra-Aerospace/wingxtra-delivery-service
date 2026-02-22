@@ -46,3 +46,11 @@ def test_dispatch_run_request_schema_in_openapi(client):
     assert dispatch_post["requestBody"]["content"]["application/json"]["schema"]["$ref"] == (
         "#/components/schemas/DispatchRunRequest"
     )
+
+
+def test_tracking_response_schema_includes_milestones(client):
+    openapi = client.get("/openapi.json")
+    assert openapi.status_code == 200
+
+    tracking_schema = openapi.json()["components"]["schemas"]["TrackingViewResponse"]
+    assert "milestones" in tracking_schema["properties"]

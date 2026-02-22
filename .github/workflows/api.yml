@@ -42,6 +42,15 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+      - name: Ruff version
+        run: |
+          command -v ruff
+          ruff --version
+          python -m pip show ruff
+      - name: Guard orders router import order
+        run: |
+          ruff check app/routers/orders.py --fix
+          git diff --exit-code -- app/routers/orders.py
       - name: Format check
         run: ruff format --check .
       - name: Lint

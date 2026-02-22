@@ -9,7 +9,7 @@ from app.routers.rate_limit_headers import (
     apply_rate_limit_headers,
 )
 from app.schemas.ui import TrackingViewResponse
-from app.services.ui_service import get_pod, tracking_view
+from app.services.ui_service import build_public_tracking_payload
 
 router = APIRouter(prefix="/api/v1/tracking", tags=["tracking"])
 
@@ -37,21 +37,5 @@ def tracking_endpoint(
         reset_at_s=rate_limit.reset_at_s,
     )
 
-    order = tracking_view(db, public_tracking_id)
-    order_id = order.get("id") or order["order_id"]
-    pod = get_pod(db, order_id)
-
-    payload: dict[str, object] = {
-        "order_id": order_id,
-        "public_tracking_id": order["public_tracking_id"],
-        "status": order["status"],
-    }
-
-    if pod is not None:
-        payload["pod_summary"] = {
-            "method": pod.method.value,
-            "photo_url": pod.photo_url,
-            "created_at": pod.created_at,
-        }
-
+    payload = build_public_tracking_payload(db, public_tracking_id)
     return TrackingViewResponse(**payload)

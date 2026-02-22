@@ -1,6 +1,7 @@
 from datetime import datetime
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 
 class ResponseModel(BaseModel):
@@ -98,6 +99,7 @@ class TrackingViewResponse(ResponseModel):
     order_id: str
     public_tracking_id: str
     status: str
+    milestones: list[str] | None = None
     pod_summary: TrackingPodSummary | None = None
 
 
@@ -117,10 +119,15 @@ class DispatchRunResponse(ResponseModel):
 
 
 class PodCreateRequest(BaseModel):
-    method: str
-    otp_code: str | None = None
-    operator_name: str | None = None
-    photo_url: str | None = None
+    method: Literal["PHOTO", "OTP", "OPERATOR_CONFIRM"]
+    otp_code: str | None = Field(default=None, min_length=4, max_length=32)
+    operator_name: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=255,
+        validation_alias=AliasChoices("operator_name", "confirmed_by"),
+    )
+    photo_url: str | None = Field(default=None, min_length=1, max_length=1024)
 
 
 class PodResponse(ResponseModel):

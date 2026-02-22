@@ -75,6 +75,7 @@ For CI and local test safety, the service defaults to `sqlite+pysqlite:///./test
 
 CI now runs API tests against Postgres (service container in `.github/workflows/api.yml`) to improve environment parity with production.
 SQLite remains supported for local/dev safety when `WINGXTRA_DATABASE_URL` is unset.
+In non-test runtime (`WINGXTRA_TESTING=false`), startup fails fast when `WINGXTRA_DATABASE_URL` uses SQLite; use Postgres in production-like deployments.
 
 Set `WINGXTRA_TESTING=true` in test environments to disable startup demo-data seeding.
 This keeps API list endpoints deterministic for integration tests.

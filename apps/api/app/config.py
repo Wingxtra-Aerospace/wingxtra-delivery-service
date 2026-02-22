@@ -70,3 +70,10 @@ def ensure_secure_runtime_settings() -> None:
         )
     if not settings.testing and settings.ui_service_mode not in ALLOWED_RUNTIME_UI_SERVICE_MODES:
         raise RuntimeError("WINGXTRA_UI_SERVICE_MODE must be 'db' when WINGXTRA_TESTING is false")
+    if not settings.testing and _is_sqlite_url(settings.database_url):
+        raise RuntimeError("WINGXTRA_DATABASE_URL must use postgres when WINGXTRA_TESTING is false")
+
+
+def _is_sqlite_url(database_url: str) -> bool:
+    value = database_url.strip().lower()
+    return value.startswith("sqlite")

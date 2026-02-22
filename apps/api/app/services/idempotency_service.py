@@ -19,6 +19,13 @@ class IdempotencyResult:
     response_payload: dict[str, Any] | None = None
 
 
+def _raise_payload_conflict() -> None:
+    raise HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail="Idempotency key reused with different payload",
+    )
+
+
 def _hash_payload(payload: Any) -> str:
     canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(canonical.encode()).hexdigest()
@@ -55,10 +62,7 @@ def check_idempotency(
         return IdempotencyResult(replay=False)
 
     if record.request_hash != payload_hash:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Idempotency key reused with different payload",
-        )
+        _raise_payload_conflict()
 
     return IdempotencyResult(replay=True, response_payload=record.response_payload)
 
@@ -103,7 +107,8 @@ def save_idempotency_result(
             )
         )
     else:
-        record.request_hash = payload_hash
+        if record.request_hash != payload_hash:
+            _raise_payload_conflict()
         record.response_payload = response_payload
         record.expires_at = expires_at
 
@@ -121,7 +126,9 @@ def save_idempotency_result(
         if existing is None:
             raise
 
-        existing.request_hash = payload_hash
+        if existing.request_hash != payload_hash:
+            _raise_payload_conflict()
+
         existing.response_payload = response_payload
         existing.expires_at = expires_at
         if expired_count:

@@ -128,3 +128,27 @@ def test_save_idempotency_result_updates_existing_scope(db_session):
     ).all()
     assert len(rows) == 1
     assert rows[0].response_payload == {"ok": "updated"}
+
+
+def test_save_idempotency_result_rejects_payload_mismatch_for_existing_key(db_session):
+    route = "POST:/api/v1/orders:user=ops-5"
+    save_idempotency_result(
+        db=db_session,
+        user_id="ops-5",
+        route=route,
+        idempotency_key="idem-5",
+        request_payload={"a": 1},
+        response_payload={"ok": True},
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        save_idempotency_result(
+            db=db_session,
+            user_id="ops-5",
+            route=route,
+            idempotency_key="idem-5",
+            request_payload={"a": 2},
+            response_payload={"ok": "updated"},
+        )
+
+    assert exc_info.value.status_code == 409

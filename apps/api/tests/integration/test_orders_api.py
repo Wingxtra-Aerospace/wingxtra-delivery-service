@@ -1,11 +1,14 @@
 import time
 from uuid import UUID
 
+from sqlalchemy import select
+
 from app.auth.dependencies import reset_rate_limits
 from app.config import settings
 from app.integrations.fleet_api_client import FleetDroneTelemetry, get_fleet_api_client
 from app.integrations.gcs_bridge_client import get_gcs_bridge_client
 from app.main import app
+from app.models.delivery_job import DeliveryJob, DeliveryJobStatus
 from app.models.order import Order, OrderStatus
 
 
@@ -228,6 +231,199 @@ def test_submit_mission_intent_rejected_when_not_assigned(client):
     order = _create_order(client).json()
     response = client.post(f"/api/v1/orders/{order['id']}/submit-mission-intent")
     assert response.status_code == 409
+
+
+def test_get_job_detail_endpoint(client):
+    _set_fleet_override(
+        [FleetDroneTelemetry(drone_id="DRONE-1", lat=6.45, lng=3.39, battery=95, is_available=True)]
+    )
+    order = _create_order(client).json()
+    assign = client.post(f"/api/v1/orders/{order['id']}/assign", json={"drone_id": "DRONE-1"})
+    assert assign.status_code == 200
+
+    jobs = client.get("/api/v1/jobs?active=true&page=1&page_size=10")
+    assert jobs.status_code == 200
+    assert jobs.json()["items"]
+    job_id = jobs.json()["items"][0]["id"]
+
+    detail = client.get(f"/api/v1/jobs/{job_id}")
+    assert detail.status_code == 200
+    body = detail.json()
+    assert body["id"] == job_id
+    assert body["order_id"] == order["id"]
+    assert body["assigned_drone_id"] == "DRONE-1"
+
+
+def test_get_job_detail_404_for_missing_job(client):
+    missing = client.get("/api/v1/jobs/00000000-0000-0000-0000-000000000000")
+    assert missing.status_code == 404
+
+
+def test_jobs_endpoint_can_filter_by_order_id(client):
+    _set_fleet_override(
+        [
+            FleetDroneTelemetry(
+                drone_id="DRONE-1", lat=6.45, lng=3.39, battery=95, is_available=True
+            ),
+            FleetDroneTelemetry(
+                drone_id="DRONE-2", lat=6.46, lng=3.40, battery=94, is_available=True
+            ),
+        ]
+    )
+
+    first = _create_order(client).json()
+    second = _create_order(client).json()
+
+    assert (
+        client.post(
+            f"/api/v1/orders/{first['id']}/assign", json={"drone_id": "DRONE-1"}
+        ).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            f"/api/v1/orders/{second['id']}/assign", json={"drone_id": "DRONE-2"}
+        ).status_code
+        == 200
+    )
+
+    filtered = client.get(f"/api/v1/jobs?active=false&page=1&page_size=10&order_id={first['id']}")
+    assert filtered.status_code == 200
+    body = filtered.json()
+    assert body["pagination"]["total"] == 1
+    assert len(body["items"]) == 1
+    assert body["items"][0]["order_id"] == first["id"]
+
+
+def test_jobs_endpoint_rejects_invalid_order_id_filter(client):
+    response = client.get("/api/v1/jobs?order_id=not-a-uuid")
+    assert response.status_code == 422
+    assert response.json()["detail"] == "Invalid order_id"
+
+
+def test_jobs_endpoint_returns_newest_first(client):
+    _set_fleet_override(
+        [
+            FleetDroneTelemetry(
+                drone_id="DRONE-1", lat=6.45, lng=3.39, battery=95, is_available=True
+            ),
+            FleetDroneTelemetry(
+                drone_id="DRONE-2", lat=6.46, lng=3.40, battery=94, is_available=True
+            ),
+        ]
+    )
+
+    first = _create_order(client).json()
+    second = _create_order(client).json()
+
+    assert (
+        client.post(
+            f"/api/v1/orders/{first['id']}/assign", json={"drone_id": "DRONE-1"}
+        ).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            f"/api/v1/orders/{second['id']}/assign", json={"drone_id": "DRONE-2"}
+        ).status_code
+        == 200
+    )
+
+    jobs = client.get("/api/v1/jobs?active=false&page=1&page_size=10")
+    assert jobs.status_code == 200
+    items = jobs.json()["items"]
+    assert len(items) >= 2
+    assert items[0]["created_at"] >= items[1]["created_at"]
+
+
+def test_jobs_endpoint_active_filter_and_total_count(client, db_session):
+    _set_fleet_override(
+        [
+            FleetDroneTelemetry(
+                drone_id="DRONE-1", lat=6.45, lng=3.39, battery=95, is_available=True
+            ),
+            FleetDroneTelemetry(
+                drone_id="DRONE-2", lat=6.46, lng=3.40, battery=94, is_available=True
+            ),
+        ]
+    )
+
+    order_one = _create_order(client).json()
+    order_two = _create_order(client).json()
+
+    assert (
+        client.post(
+            f"/api/v1/orders/{order_one['id']}/assign", json={"drone_id": "DRONE-1"}
+        ).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            f"/api/v1/orders/{order_two['id']}/assign", json={"drone_id": "DRONE-2"}
+        ).status_code
+        == 200
+    )
+
+    completed_job = db_session.scalar(
+        select(DeliveryJob).where(DeliveryJob.order_id == UUID(order_two["id"]))
+    )
+    assert completed_job is not None
+    completed_job.status = DeliveryJobStatus.COMPLETED
+    db_session.commit()
+
+    active_only = client.get("/api/v1/jobs?active=true&page=1&page_size=10")
+    assert active_only.status_code == 200
+    active_body = active_only.json()
+    assert active_body["pagination"]["total"] == 1
+    assert len(active_body["items"]) == 1
+
+    all_jobs = client.get("/api/v1/jobs?active=false&page=1&page_size=10")
+    assert all_jobs.status_code == 200
+    all_body = all_jobs.json()
+    assert all_body["pagination"]["total"] == 2
+    assert len(all_body["items"]) == 2
+
+
+def test_jobs_endpoint_pagination_page_size_limits_items(client):
+    _set_fleet_override(
+        [
+            FleetDroneTelemetry(
+                drone_id="DRONE-1", lat=6.45, lng=3.39, battery=95, is_available=True
+            ),
+            FleetDroneTelemetry(
+                drone_id="DRONE-2", lat=6.46, lng=3.40, battery=94, is_available=True
+            ),
+        ]
+    )
+
+    first = _create_order(client).json()
+    second = _create_order(client).json()
+
+    assert (
+        client.post(
+            f"/api/v1/orders/{first['id']}/assign", json={"drone_id": "DRONE-1"}
+        ).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            f"/api/v1/orders/{second['id']}/assign", json={"drone_id": "DRONE-2"}
+        ).status_code
+        == 200
+    )
+
+    page_one = client.get("/api/v1/jobs?active=false&page=1&page_size=1")
+    page_two = client.get("/api/v1/jobs?active=false&page=2&page_size=1")
+
+    assert page_one.status_code == 200
+    assert page_two.status_code == 200
+    body_one = page_one.json()
+    body_two = page_two.json()
+    assert body_one["pagination"]["total"] == 2
+    assert body_two["pagination"]["total"] == 2
+    assert len(body_one["items"]) == 1
+    assert len(body_two["items"]) == 1
+    assert body_one["items"][0]["id"] != body_two["items"][0]["id"]
 
 
 def test_create_pod_and_tracking_summary(client, db_session):

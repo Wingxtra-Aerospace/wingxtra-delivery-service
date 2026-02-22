@@ -5,7 +5,7 @@ import re
 import uuid
 from datetime import datetime, timezone
 from hashlib import sha256
-from typing import Any
+from typing import Any, Callable
 
 from fastapi import HTTPException, status
 from sqlalchemy import String, and_, func, or_, select
@@ -374,16 +374,42 @@ def run_auto_dispatch(
     return {"assigned": len(assignments), "assignments": assignments}
 
 
-def list_jobs(auth: AuthContext, db: Session, active_only: bool) -> list[dict[str, Any]]:
+def list_jobs(
+    auth: AuthContext,
+    db: Session,
+    active_only: bool,
+    page: int,
+    page_size: int,
+    order_id: str | None = None,
+) -> tuple[list[dict[str, Any]], int]:
     if auth.role not in {"OPS", "ADMIN"}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
-    stmt = select(DeliveryJob).order_by(DeliveryJob.created_at.asc())
+
+    filters: list[Any] = []
     if active_only:
-        stmt = stmt.where(
+        filters.append(
             DeliveryJob.status.in_({DeliveryJobStatus.PENDING, DeliveryJobStatus.ACTIVE})
         )
-    rows = list(db.scalars(stmt))
-    return [
+    if order_id is not None:
+        try:
+            filters.append(DeliveryJob.order_id == uuid.UUID(order_id))
+        except ValueError as err:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Invalid order_id",
+            ) from err
+
+    stmt = select(DeliveryJob).order_by(DeliveryJob.created_at.desc())
+    if filters:
+        stmt = stmt.where(*filters)
+
+    count_stmt = select(func.count()).select_from(DeliveryJob)
+    if filters:
+        count_stmt = count_stmt.where(*filters)
+
+    total = int(db.scalar(count_stmt) or 0)
+    rows = list(db.scalars(stmt.offset((page - 1) * page_size).limit(page_size)))
+    items = [
         {
             "id": str(job.id),
             "order_id": _public_order_id(job.order_id),
@@ -395,6 +421,31 @@ def list_jobs(auth: AuthContext, db: Session, active_only: bool) -> list[dict[st
         }
         for job in rows
     ]
+    return items, total
+
+
+def get_job(auth: AuthContext, db: Session, job_id: str) -> dict[str, Any]:
+    if auth.role not in {"OPS", "ADMIN"}:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
+
+    try:
+        job_uuid = uuid.UUID(job_id)
+    except ValueError as err:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found") from err
+
+    row = db.get(DeliveryJob, job_uuid)
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
+
+    return {
+        "id": str(row.id),
+        "order_id": _public_order_id(row.order_id),
+        "assigned_drone_id": row.assigned_drone_id,
+        "mission_intent_id": row.mission_intent_id,
+        "eta_seconds": row.eta_seconds,
+        "status": row.status.value,
+        "created_at": row.created_at,
+    }
 
 
 def tracking_view(db: Session, public_tracking_id: str) -> dict[str, Any]:
@@ -445,7 +496,7 @@ def create_pod(
         m = ProofOfDeliveryMethod(method)
     except ValueError as err:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid POD method"
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid POD method"
         ) from err
 
     if m == ProofOfDeliveryMethod.PHOTO and not photo_url:
@@ -566,7 +617,7 @@ def update_order(
             row.priority = OrderPriority(priority)
         except ValueError as err:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Invalid priority",
             ) from err
         changed = True

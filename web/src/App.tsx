@@ -1,7 +1,9 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { Navigation } from "./components/Navigation";
+import { ProtectedRoute } from "./components/ProtectedRoute";
 import { HomePage } from "./pages/HomePage";
 import { JobsPage } from "./pages/JobsPage";
+import { LoginPage } from "./pages/LoginPage";
 import { OpsConsolePage } from "./pages/OpsConsolePage";
 import { OrdersPage } from "./pages/OrdersPage";
 import { TrackingPage } from "./pages/TrackingPage";
@@ -13,10 +15,39 @@ export default function App() {
       <main className="app-content">
         <Routes>
           <Route path="/" element={<HomePage />} />
-          <Route path="/orders" element={<OrdersPage />} />
-          <Route path="/jobs" element={<JobsPage />} />
-          <Route path="/tracking" element={<TrackingPage />} />
-          <Route path="/ops-console" element={<OpsConsolePage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route
+            path="/orders"
+            element={
+              <ProtectedRoute roles={["MERCHANT", "ADMIN"]}>
+                <OrdersPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/jobs"
+            element={
+              <ProtectedRoute roles={["OPS", "ADMIN"]}>
+                <JobsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/tracking"
+            element={
+              <ProtectedRoute roles={["MERCHANT", "ADMIN"]}>
+                <TrackingPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/ops-console"
+            element={
+              <ProtectedRoute roles={["OPS", "ADMIN"]}>
+                <OpsConsolePage />
+              </ProtectedRoute>
+            }
+          />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

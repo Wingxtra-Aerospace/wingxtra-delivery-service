@@ -5,8 +5,8 @@ export function HomePage() {
     <section>
       <h2>Home</h2>
       <p>
-        Minimal React scaffold for Wingxtra delivery UI. Use navigation links above
-        to move between placeholder pages.
+        Milestone 6 UI scaffold with routing, JWT paste-login, role guards, and API
+        auth header wiring.
       </p>
       <p>
         API base URL: <code>{apiBaseUrl}</code>

@@ -108,7 +108,7 @@ async def create_order_endpoint(
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     auth: AuthContext = Depends(require_roles("MERCHANT", "OPS", "ADMIN")),
 ) -> OrderDetailResponse:
-    rate_limit = rate_limit_order_creation(request)
+    rate_limit = rate_limit_order_creation(request, user_id=auth.user_id)
     _set_rate_limit_headers(response, rate_limit)
 
     request_payload = await request.json()

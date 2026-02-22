@@ -14,7 +14,9 @@ def _reset_buckets_after_test():
 def test_apply_rate_limit_success_uses_consistent_reset_fields(monkeypatch):
     monkeypatch.setattr("time.time", lambda: 1_000.25)
 
-    status = _apply_rate_limit("tracking:test", max_requests=2, window_s=60, detail="limit")
+    status = _apply_rate_limit(
+        "tracking:test", max_requests=2, window_s=60, detail="limit", fail_open=False
+    )
 
     assert status.limit == 2
     assert status.remaining == 1
@@ -26,10 +28,12 @@ def test_apply_rate_limit_rejection_uses_deadline_based_reset(monkeypatch):
     times = iter((1_000.25, 1_000.35))
     monkeypatch.setattr("time.time", lambda: next(times))
 
-    _apply_rate_limit("tracking:test", max_requests=1, window_s=60, detail="limit")
+    _apply_rate_limit("tracking:test", max_requests=1, window_s=60, detail="limit", fail_open=False)
 
     with pytest.raises(HTTPException) as exc_info:
-        _apply_rate_limit("tracking:test", max_requests=1, window_s=60, detail="limit")
+        _apply_rate_limit(
+            "tracking:test", max_requests=1, window_s=60, detail="limit", fail_open=False
+        )
 
     err = exc_info.value
     assert err.status_code == 429

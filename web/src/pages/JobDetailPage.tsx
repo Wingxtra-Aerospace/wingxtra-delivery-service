@@ -88,8 +88,6 @@ export function JobDetailPage() {
             <dd>{job.status}</dd>
             <dt>created_at</dt>
             <dd>{new Date(job.created_at).toLocaleString()}</dd>
-            <dt>updated_at</dt>
-            <dd>{job.updated_at ? new Date(job.updated_at).toLocaleString() : "—"}</dd>
             <dt>mission_intent_id</dt>
             <dd>{job.mission_intent_id || "—"}</dd>
           </dl>

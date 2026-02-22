@@ -32,7 +32,7 @@ afterEach(() => {
 
 describe("JobsPage", () => {
   it("renders loading then rows", async () => {
-    vi.spyOn(global, "fetch").mockResolvedValue(
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(
         JSON.stringify({
           items: [
@@ -59,7 +59,7 @@ describe("JobsPage", () => {
   });
 
   it("active-only toggle changes request params", async () => {
-    const fetchMock = vi.spyOn(global, "fetch").mockResolvedValue(
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ items: [], page: 1, page_size: 20, total: 0 }), { status: 200 })
     );
 

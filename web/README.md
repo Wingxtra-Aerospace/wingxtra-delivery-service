@@ -128,7 +128,7 @@ Generate API types from FastAPI OpenAPI:
 VITE_API_BASE_URL=http://localhost:8000 npm run gen:types
 ```
 
-Check generated file is current (used in CI):
+Generate types check (used in CI):
 
 ```bash
 npm run gen:types:check

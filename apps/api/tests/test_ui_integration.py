@@ -339,6 +339,43 @@ def test_placeholder_order_ids_support_assign_and_submit_mission():
     assert mission.status_code == 200
 
 
+def test_production_mode_rejects_placeholder_order_ids():
+    original_app_mode = settings.app_mode
+    original_ui_mode = settings.ui_service_mode
+    settings.app_mode = "production"
+    settings.ui_service_mode = "db"
+    try:
+        headers = _headers("OPS", sub="ops-production")
+        response = client.post(
+            "/api/v1/orders/ord-1/assign",
+            json={"drone_id": "DR-6"},
+            headers=headers,
+        )
+        assert response.status_code == 400
+        assert response.json()["detail"] == "Production mode requires UUID order IDs"
+    finally:
+        settings.app_mode = original_app_mode
+        settings.ui_service_mode = original_ui_mode
+
+
+def test_demo_mode_keeps_placeholder_paths_enabled():
+    original_app_mode = settings.app_mode
+    original_ui_mode = settings.ui_service_mode
+    settings.app_mode = "demo"
+    settings.ui_service_mode = "hybrid"
+    try:
+        headers = _headers("OPS", sub="ops-demo")
+        response = client.post(
+            "/api/v1/orders/ord-1/assign",
+            json={"drone_id": "DR-6"},
+            headers=headers,
+        )
+        assert response.status_code == 200
+    finally:
+        settings.app_mode = original_app_mode
+        settings.ui_service_mode = original_ui_mode
+
+
 def test_manual_assign_includes_validated_and_queued_events():
     create = client.post(
         "/api/v1/orders",

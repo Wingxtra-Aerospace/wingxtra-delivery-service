@@ -35,6 +35,13 @@ If valid, request role is mapped to `OPS`.
 
 `GET /api/v1/tracking/{public_tracking_id}` remains unauthenticated.
 
+Application mode hardening:
+
+- `APP_MODE=production` disables demo placeholder flows and enforces DB-backed paths only.
+- In production mode, order/tracking endpoints reject placeholder or non-UUID order IDs (HTTP `400`).
+- `APP_MODE=demo` retains legacy placeholder/demo behavior for demos and local UI smoke paths.
+
+
 Tracking output is sanitized to:
 - `order_id`
 - `public_tracking_id`

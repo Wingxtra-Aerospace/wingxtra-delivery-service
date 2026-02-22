@@ -6,6 +6,7 @@ DEFAULT_POD_OTP_HMAC_SECRET = "wingxtra-pod-otp-secret"
 ALLOWED_RUNTIME_UI_SERVICE_MODES = {"db"}
 ALLOWED_UI_SERVICE_MODES = {"store", "db", "hybrid", "auto"}
 ALLOWED_RATE_LIMIT_BACKENDS = {"redis", "memory", "off"}
+ALLOWED_APP_MODES = {"demo", "pilot", "production"}
 MIN_SECRET_LENGTH = 32
 
 
@@ -23,6 +24,7 @@ class Settings(BaseSettings):
     gcs_auth_source: str = "gcs"
     enable_test_auth_bypass: bool = False
     testing: bool = Field(default=False, validation_alias="WINGXTRA_TESTING")
+    app_mode: str = Field(default="pilot", validation_alias="APP_MODE")
     ui_service_mode: str = Field(default="auto", validation_alias="WINGXTRA_UI_SERVICE_MODE")
 
     public_tracking_rate_limit_requests: int = 10
@@ -69,6 +71,15 @@ class Settings(BaseSettings):
         if mode not in ALLOWED_UI_SERVICE_MODES:
             allowed = ", ".join(sorted(ALLOWED_UI_SERVICE_MODES))
             raise ValueError(f"WINGXTRA_UI_SERVICE_MODE must be one of: {allowed}")
+        return mode
+
+    @field_validator("app_mode")
+    @classmethod
+    def validate_app_mode(cls, value: str) -> str:
+        mode = value.lower().strip()
+        if mode not in ALLOWED_APP_MODES:
+            allowed = ", ".join(sorted(ALLOWED_APP_MODES))
+            raise ValueError(f"APP_MODE must be one of: {allowed}")
         return mode
 
     @field_validator("redis_url")
@@ -144,6 +155,10 @@ def resolved_rate_limit_backend() -> str:
     return "memory" if settings.testing else "redis"
 
 
+def is_production_mode() -> bool:
+    return settings.app_mode == "production"
+
+
 def ensure_secure_runtime_settings() -> None:
     """Fail fast when production-like runtime uses insecure defaults."""
     if not settings.testing and settings.jwt_secret == DEFAULT_JWT_SECRET:
@@ -168,6 +183,8 @@ def ensure_secure_runtime_settings() -> None:
         raise RuntimeError("WINGXTRA_UI_SERVICE_MODE must be 'db' when WINGXTRA_TESTING is false")
     if not settings.testing and _is_sqlite_url(settings.database_url):
         raise RuntimeError("WINGXTRA_DATABASE_URL must use postgres when WINGXTRA_TESTING is false")
+    if is_production_mode() and resolved_ui_service_mode() != "db":
+        raise RuntimeError("APP_MODE=production requires WINGXTRA_UI_SERVICE_MODE=db")
 
 
 def _is_sqlite_url(database_url: str) -> bool:

@@ -42,6 +42,8 @@ Response shape:
 
 `GET /metrics` returns JSON with two sections:
 
+Test harness behavior: API tests reset in-memory counters/timings between tests to prevent metrics leakage across test cases.
+
 - `counters` (e.g. `http_requests_total`)
 - `timings` (aggregated timing stats with `count`, `avg_s`, `max_s`)
 

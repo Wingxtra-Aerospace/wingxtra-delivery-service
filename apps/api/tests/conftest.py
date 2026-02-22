@@ -9,6 +9,7 @@ from app.db.base import Base
 from app.db.session import engine as app_engine
 from app.db.session import get_db
 from app.main import app
+from app.observability import metrics_store
 from app.services.store import reset_store
 
 
@@ -31,6 +32,12 @@ def reset_db():
 @pytest.fixture(autouse=True)
 def reset_in_memory_store():
     reset_store()
+    yield
+
+
+@pytest.fixture(autouse=True)
+def reset_metrics_store():
+    metrics_store.reset()
     yield
 
 

@@ -1,3 +1,4 @@
+import pytest
 from fastapi import HTTPException
 
 from app.integrations.errors import IntegrationUnavailableError
@@ -88,9 +89,8 @@ def test_auto_dispatch_gracefully_degrades_when_fleet_unavailable(db_session):
 def test_manual_assign_returns_503_when_fleet_unavailable(db_session):
     order = create_order(db_session, _payload())
 
-    try:
+    with pytest.raises(HTTPException) as exc:
         manual_assign_order(db_session, BrokenFleetApiClient(), order.id, "D1")
-        assert False, "expected HTTPException"
-    except HTTPException as exc:
-        assert exc.status_code == 503
-        assert "Fleet telemetry unavailable" in str(exc.detail)
+
+    assert exc.value.status_code == 503
+    assert "Fleet telemetry unavailable" in str(exc.value.detail)

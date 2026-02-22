@@ -50,14 +50,8 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-          <Route
-            path="/tracking"
-            element={
-              <ProtectedRoute roles={["MERCHANT", "ADMIN"]}>
-                <TrackingPage />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/tracking" element={<TrackingPage />} />
+          <Route path="/tracking/:publicTrackingId" element={<TrackingPage />} />
           <Route
             path="/ops-console"
             element={

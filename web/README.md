@@ -102,3 +102,11 @@ Includes Vitest + Testing Library coverage for Orders page loading and URL/filte
 - `/jobs`: paginated jobs table with URL-driven `page`, `page_size`, and `active_only` toggle (`active_only` maps to API `active`).
 - `/jobs/:jobId`: fetches `GET /api/v1/jobs/{jobId}` when available, with fallback message `Job detail endpoint not available.` if not accessible.
 - Job detail links back to related Order at `/orders/:orderId`.
+
+
+## Public tracking page
+
+- Route: `/tracking/:publicTrackingId` (no auth required).
+- Calls only `GET /api/v1/tracking/{public_tracking_id}` from this view (no private order endpoint calls).
+- Handles API `429` with user-friendly cooldown messaging to avoid hammering retries.
+- Displays only fields returned by tracking API response, including optional `pod_summary`.

@@ -196,3 +196,17 @@ code {
 .actions-grid select {
   margin-right: 0.4rem;
 }
+
+.tracking-form {
+  display: flex;
+  gap: 0.5rem;
+  align-items: end;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.tracking-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}

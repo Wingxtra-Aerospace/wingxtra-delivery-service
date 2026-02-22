@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.auth.dependencies import AuthContext, require_backoffice_write
 from app.db.session import get_db
-from app.observability import observe_timing
+from app.observability import metrics_store, observe_timing
 from app.schemas.ui import DispatchRunRequest, DispatchRunResponse
 from app.services.idempotency_service import (
     build_scope,
@@ -46,6 +46,7 @@ def run_dispatch_endpoint(
         response_payload = DispatchRunResponse.model_validate(
             run_auto_dispatch(auth, db, max_assignments=request.max_assignments)
         ).model_dump(mode="json")
+    metrics_store.increment("dispatch_run_total")
 
     if idempotency_key:
         save_idempotency_result(

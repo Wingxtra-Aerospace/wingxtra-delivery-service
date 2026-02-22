@@ -226,6 +226,7 @@ def test_metrics_endpoint_exposes_dispatch_and_mission_timings():
 
     assert "counters" in payload
     assert "http_requests_total" in payload["counters"]
+    assert payload["counters"].get("dispatch_run_total", 0) >= 1
     assert "timings" in payload
     assert "dispatch_run_seconds" in payload["timings"]
     assert "dispatch_assignment_seconds" in payload["timings"]

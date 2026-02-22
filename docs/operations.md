@@ -55,6 +55,7 @@ Counter metrics currently captured include:
 - `idempotency_purged_total`
 - `rate_limit_checked_total`
 - `rate_limit_rejected_total`
+- `dispatch_run_total`
 
 Timing metrics currently captured:
 

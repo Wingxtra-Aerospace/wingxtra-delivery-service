@@ -1,4 +1,5 @@
-import hashlib
+import hmac
+from hashlib import sha256
 import uuid
 
 from fastapi import HTTPException, status
@@ -7,12 +8,17 @@ from sqlalchemy.orm import Session
 
 from app.models.order import OrderStatus
 from app.models.proof_of_delivery import ProofOfDelivery, ProofOfDeliveryMethod
+from app.config import settings
 from app.schemas.pod import ProofOfDeliveryCreate
 from app.services.orders_service import get_order
 
 
 def _otp_placeholder_hash(otp_code: str) -> str:
-    return hashlib.sha256(f"placeholder:{otp_code}".encode()).hexdigest()
+    return hmac.new(
+        settings.pod_otp_hmac_secret.encode(),
+        otp_code.encode(),
+        sha256,
+    ).hexdigest()
 
 
 def create_proof_of_delivery(

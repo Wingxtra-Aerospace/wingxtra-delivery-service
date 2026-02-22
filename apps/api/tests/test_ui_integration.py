@@ -59,6 +59,20 @@ def test_jobs_forbidden_for_merchant_and_allowed_for_admin():
     assert admin_jobs.status_code == 200
 
 
+def test_jobs_list_returns_pagination_metadata():
+    response = client.get(
+        "/api/v1/jobs?page=1&page_size=1",
+        headers=_headers("ADMIN", sub="admin-1"),
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert set(body.keys()) == {"items", "pagination"}
+    assert body["pagination"]["page"] == 1
+    assert body["pagination"]["page_size"] == 1
+    assert isinstance(body["pagination"]["total"], int)
+    assert len(body["items"]) <= 1
+
+
 def test_gcs_authenticated_requests_map_to_ops_role():
     response = client.post(
         "/api/v1/orders/ord-1/assign",

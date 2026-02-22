@@ -387,6 +387,10 @@ Document in `docs/security.md`.
 4) `alembic upgrade head`
 5) `uvicorn app.main:app --reload --port 8000`
 
+### Test commands
+- From repo root: `pytest -q`
+- From API module: `cd apps/api && pytest -q`
+
 ---
 
 ## License & Attribution

@@ -87,6 +87,7 @@ class JobResponse(ResponseModel):
 
 class JobsListResponse(ResponseModel):
     items: list[JobResponse]
+    pagination: PaginationMeta
 
 
 class TrackingPodSummary(ResponseModel):

@@ -62,6 +62,7 @@ def test_create_get_list_cancel_tracking_and_events(client):
     tracking_response = client.get(f"/api/v1/tracking/{created['public_tracking_id']}")
     assert tracking_response.status_code == 200
     assert tracking_response.json()["order_id"] == created["id"]
+    assert tracking_response.json()["milestones"] == ["CREATED"]
 
     events_before_cancel = client.get(f"/api/v1/orders/{created['id']}/events")
     assert events_before_cancel.status_code == 200
@@ -209,6 +210,55 @@ def test_create_pod_and_tracking_summary(client, db_session):
     tracking = client.get(f"/api/v1/tracking/{order['public_tracking_id']}")
     assert tracking.status_code == 200
     assert tracking.json()["pod_summary"]["method"] == "PHOTO"
+
+
+def test_orders_track_has_same_tracking_summary_shape(client, db_session):
+    order = _create_order(client).json()
+
+    db_order = db_session.get(Order, UUID(order["id"]))
+    db_order.status = OrderStatus.DELIVERED
+    db_session.commit()
+
+    pod_response = client.post(
+        f"/api/v1/orders/{order['id']}/pod",
+        json={
+            "method": "PHOTO",
+            "photo_url": "https://cdn.example/pod-2.jpg",
+            "metadata": {"camera": "ops-device-2"},
+        },
+    )
+    assert pod_response.status_code == 200
+
+    tracking = client.get(f"/api/v1/orders/track/{order['public_tracking_id']}")
+    assert tracking.status_code == 200
+    body = tracking.json()
+    assert body["pod_summary"]["method"] == "PHOTO"
+    assert body["milestones"] == ["CREATED"]
+
+
+def test_both_tracking_endpoints_return_same_payload(client, db_session):
+    order = _create_order(client).json()
+
+    db_order = db_session.get(Order, UUID(order["id"]))
+    db_order.status = OrderStatus.DELIVERED
+    db_session.commit()
+
+    pod_response = client.post(
+        f"/api/v1/orders/{order['id']}/pod",
+        json={
+            "method": "PHOTO",
+            "photo_url": "https://cdn.example/pod-parity.jpg",
+            "metadata": {"camera": "ops-device-parity"},
+        },
+    )
+    assert pod_response.status_code == 200
+
+    direct = client.get(f"/api/v1/tracking/{order['public_tracking_id']}")
+    legacy = client.get(f"/api/v1/orders/track/{order['public_tracking_id']}")
+
+    assert direct.status_code == 200
+    assert legacy.status_code == 200
+    assert legacy.json() == direct.json()
 
 
 def test_create_pod_rejected_for_non_delivered_order(client):
@@ -614,3 +664,31 @@ def test_metrics_exposes_idempotency_conflict_counter_after_conflict(client):
         before_counters.get("idempotency_conflict_total", 0)
     )
     assert delta >= 1
+
+
+def test_create_pod_validates_method_specific_fields(client, db_session):
+    order = _create_order(client).json()
+
+    db_order = db_session.get(Order, UUID(order["id"]))
+    db_order.status = OrderStatus.DELIVERED
+    db_session.commit()
+
+    missing_photo = client.post(
+        f"/api/v1/orders/{order['id']}/pod",
+        json={"method": "PHOTO"},
+    )
+    missing_otp = client.post(
+        f"/api/v1/orders/{order['id']}/pod",
+        json={"method": "OTP"},
+    )
+    missing_operator = client.post(
+        f"/api/v1/orders/{order['id']}/pod",
+        json={"method": "OPERATOR_CONFIRM"},
+    )
+
+    assert missing_photo.status_code == 400
+    assert missing_photo.json()["detail"] == "photo_url is required"
+    assert missing_otp.status_code == 400
+    assert missing_otp.json()["detail"] == "otp_code is required"
+    assert missing_operator.status_code == 400
+    assert missing_operator.json()["detail"] == "operator_name is required"

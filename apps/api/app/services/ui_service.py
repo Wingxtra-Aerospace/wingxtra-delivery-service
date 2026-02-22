@@ -236,6 +236,27 @@ def tracking_view(db: Session, public_tracking_id: str) -> dict[str, Any]:
     return ui_db_service.tracking_view(db, public_tracking_id)
 
 
+def build_public_tracking_payload(db: Session, public_tracking_id: str) -> dict[str, Any]:
+    order = tracking_view(db, public_tracking_id)
+    order_id = order.get("id") or order["order_id"]
+    pod = get_pod(db, order_id)
+
+    payload: dict[str, Any] = {
+        "order_id": order_id,
+        "public_tracking_id": order["public_tracking_id"],
+        "status": order["status"],
+        "milestones": order.get("milestones"),
+    }
+    if pod is not None:
+        payload["pod_summary"] = {
+            "method": pod.method.value,
+            "photo_url": pod.photo_url,
+            "created_at": pod.created_at,
+        }
+
+    return payload
+
+
 def create_pod(
     auth: AuthContext,
     db: Session,

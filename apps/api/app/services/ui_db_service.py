@@ -330,7 +330,10 @@ def submit_mission(
 
 
 def run_auto_dispatch(
-    auth: AuthContext, db: Session, available_drones: list[str]
+    auth: AuthContext,
+    db: Session,
+    available_drones: list[str],
+    max_assignments: int | None = None,
 ) -> dict[str, int | list[dict[str, str]]]:
     if auth.role not in {"OPS", "ADMIN"}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
@@ -347,6 +350,8 @@ def run_auto_dispatch(
     remaining = list(available_drones)
     for order in orders:
         if not remaining:
+            break
+        if max_assignments is not None and len(assignments) >= max_assignments:
             break
         assigned = manual_assign(auth, db, str(order.id), remaining.pop(0))
         assignments.append({"order_id": assigned["id"], "status": assigned["status"]})

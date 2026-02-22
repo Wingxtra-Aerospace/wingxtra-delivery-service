@@ -49,7 +49,9 @@ Replay with same payload returns same response; reused key with different payloa
 
 Rate limiting:
 - `GET /api/v1/tracking/{public_tracking_id}` returns `429` when public tracking rate limit is exceeded.
+- `GET /api/v1/orders/track/{public_tracking_id}` returns `429` when public tracking rate limit is exceeded.
 - `POST /api/v1/orders` returns `429` when order creation rate limit is exceeded.
+- Successful and limited responses include `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset` (Unix epoch seconds); limited responses also include `Retry-After` (delta seconds).
 
 Public tracking response is sanitized to: `order_id`, `public_tracking_id`, `status`. When proof-of-delivery exists, it also includes `pod_summary` (including at least `method`). This sanitized contract applies to both `GET /api/v1/tracking/{public_tracking_id}` and `GET /api/v1/orders/track/{public_tracking_id}`.
 

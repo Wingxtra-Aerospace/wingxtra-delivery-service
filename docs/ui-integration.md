@@ -92,3 +92,8 @@ In test mode, placeholder order IDs such as `ord-1` and `ord-2` are accepted by 
 ## Rate limiting
 - Public tracking is limited per client IP via `PUBLIC_TRACKING_RATE_LIMIT_REQUESTS` and `PUBLIC_TRACKING_RATE_LIMIT_WINDOW_S` (returns `429` when exceeded).
 - Order creation is limited per client IP via `ORDER_CREATE_RATE_LIMIT_REQUESTS` and `ORDER_CREATE_RATE_LIMIT_WINDOW_S` (returns `429` when exceeded).
+
+## Frontend observability contract
+- Web client sends `X-Request-ID` on every API request for cross-layer correlation.
+- Web client normalizes API/network errors into user-safe messaging and does not log auth tokens or PII in client observability hooks.
+- Optional frontend Sentry can be enabled with `VITE_SENTRY_DSN` and is disabled by default.

@@ -72,6 +72,14 @@ UI decodes JWT payload claims locally (without signature validation) to display:
 This is display-only and does not replace backend auth checks.
 
 
+## UI observability hooks
+
+- Every frontend API call now adds `X-Request-ID` (UUID) for request correlation.
+- Global runtime render errors are caught by a top-level Error Boundary with a friendly fallback and a `Reload` action.
+- API/network failures emit a normalized global banner so pages can fail gracefully without crashing.
+- Error normalization intentionally avoids logging JWT tokens or request payloads.
+- Optional Sentry bootstrap is available only when `VITE_SENTRY_DSN` is set; integration is disabled by default.
+
 ## Run tests
 
 ```bash

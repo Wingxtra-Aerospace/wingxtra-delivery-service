@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
+import { apiFetch } from "../api";
 import type { TrackingViewResponse } from "../api/schema-types";
 
 type TrackingResponse = TrackingViewResponse & {
@@ -16,8 +17,6 @@ type TrackingResponse = TrackingViewResponse & {
   dropoff_lng?: number;
 };
 
-const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || "http://localhost:8000").replace(/\/$/, "");
-
 export function TrackingPage() {
   const { publicTrackingId } = useParams<{ publicTrackingId: string }>();
   const navigate = useNavigate();
@@ -26,6 +25,7 @@ export function TrackingPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [retryAfterSeconds, setRetryAfterSeconds] = useState<number>(0);
+  const [retryNonce, setRetryNonce] = useState(0);
 
   useEffect(() => {
     setTrackingIdInput(publicTrackingId ?? "");
@@ -50,7 +50,7 @@ export function TrackingPage() {
       setData(null);
 
       try {
-        const response = await fetch(`${apiBaseUrl}/api/v1/tracking/${encodeURIComponent(publicTrackingId)}`);
+        const response = await apiFetch(`/api/v1/tracking/${encodeURIComponent(publicTrackingId)}`);
 
         if (response.status === 429) {
           const retryAfter = Number.parseInt(response.headers.get("Retry-After") || "30", 10);
@@ -74,7 +74,7 @@ export function TrackingPage() {
     }
 
     void load();
-  }, [publicTrackingId]);
+  }, [publicTrackingId, retryNonce]);
 
   const hasCoordinates = useMemo(
     () => data?.dropoff_lat != null && data?.dropoff_lng != null,
@@ -105,10 +105,13 @@ export function TrackingPage() {
       {loading ? <p>Loading tracking...</p> : null}
 
       {error ? (
-        <p className="error" role="alert">
+        <div className="error" role="alert">
           {error}
-          {retryAfterSeconds > 0 ? ` Try again in ~${retryAfterSeconds}s.` : ""}
-        </p>
+          {retryAfterSeconds > 0 ? ` Try again in ~${retryAfterSeconds}s.` : ""}{" "}
+          <button type="button" onClick={() => setRetryNonce((value) => value + 1)}>
+            Retry
+          </button>
+        </div>
       ) : null}
 
       {data ? (

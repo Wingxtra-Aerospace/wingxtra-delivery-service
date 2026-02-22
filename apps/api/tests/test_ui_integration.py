@@ -8,6 +8,7 @@ from app.auth.jwt import issue_jwt
 from app.config import settings
 from app.main import app
 from app.models.order import Order, OrderStatus
+from app.services import ui_store_service
 
 client = TestClient(app)
 
@@ -238,6 +239,30 @@ def test_auto_dispatch_assigns_placeholder_ord2_when_queued():
     assert all("order_id" in item and "status" in item for item in assignments)
 
 
+def test_dispatch_run_hybrid_fills_remaining_capacity_with_placeholder():
+    headers = _headers("OPS", sub="ops-dispatch-capacity")
+    ui_store_service.seed_placeholders_in_store_if_needed()
+    ui_store_service.store.orders["ord-2"].status = "QUEUED"
+
+    create = client.post(
+        "/api/v1/orders",
+        json={"customer_name": "Dispatch capacity"},
+        headers=headers,
+    )
+    assert create.status_code == 201
+
+    run = client.post(
+        "/api/v1/dispatch/run",
+        json={"max_assignments": 2},
+        headers=headers,
+    )
+
+    assert run.status_code == 200
+    payload = run.json()
+    assert payload["assigned"] == 2
+    assert any(item["order_id"] == "ord-2" for item in payload["assignments"])
+
+
 def test_auto_dispatch_and_manual_assign_routes_exist():
     headers = _headers("OPS", sub="ops-dispatch")
 
@@ -398,6 +423,41 @@ def test_idempotency_for_assign_and_pod_replay_and_conflict(db_session):
     assert replay_pod.status_code == 200
     assert replay_pod.json() == first_pod.json()
     assert conflict_pod.status_code == 409
+
+
+def test_idempotency_for_dispatch_run_replay_conflict_and_user_scope():
+    idem_headers = _headers("OPS", sub="ops-dispatch-idem")
+    idem_headers["Idempotency-Key"] = "idem-dispatch-1"
+
+    first_run = client.post(
+        "/api/v1/dispatch/run",
+        json={"max_assignments": 1},
+        headers=idem_headers,
+    )
+    replay_run = client.post(
+        "/api/v1/dispatch/run",
+        json={"max_assignments": 1},
+        headers=idem_headers,
+    )
+    conflict_run = client.post(
+        "/api/v1/dispatch/run",
+        json={"max_assignments": 2},
+        headers=idem_headers,
+    )
+
+    second_user_headers = _headers("OPS", sub="ops-dispatch-idem-2")
+    second_user_headers["Idempotency-Key"] = "idem-dispatch-1"
+    second_user_run = client.post(
+        "/api/v1/dispatch/run",
+        json={"max_assignments": 2},
+        headers=second_user_headers,
+    )
+
+    assert first_run.status_code == 200
+    assert replay_run.status_code == 200
+    assert replay_run.json() == first_run.json()
+    assert conflict_run.status_code == 409
+    assert second_user_run.status_code == 200
 
 
 def test_get_pod_returns_nullable_method_when_record_missing():

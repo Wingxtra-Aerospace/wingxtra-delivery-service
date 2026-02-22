@@ -13,6 +13,7 @@ Core UI integration endpoints:
 - `POST /api/v1/orders/{order_id}/assign`
 - `POST /api/v1/orders/{order_id}/cancel`
 - `POST /api/v1/orders/{order_id}/pod`
+- `POST /api/v1/dispatch/run`
 - `GET /api/v1/orders/{order_id}/pod`
 - `GET /api/v1/orders/track/{public_tracking_id}`
 - `GET /api/v1/jobs`
@@ -42,6 +43,7 @@ Idempotency support:
 - `POST /api/v1/orders/{order_id}/submit-mission-intent`
 - `POST /api/v1/orders/{order_id}/assign`
 - `POST /api/v1/orders/{order_id}/pod`
+- `POST /api/v1/dispatch/run`
 
 Provide `Idempotency-Key` header.
 Replay with same payload returns same response; reused key with different payload returns `409`.
@@ -63,6 +65,8 @@ Observability headers:
 - `X-Request-ID` accepted on requests and echoed on responses.
 
 
+Dispatch run accepts optional JSON body `{"max_assignments": <int>}` (1-100) to cap assignments per run.
+In hybrid mode, when `max_assignments` is provided, the service can combine DB-backed and placeholder assignments up to the requested cap.
 Dispatch run response contains `assigned` and `assignments` list entries with `order_id` and `status`.
 
 

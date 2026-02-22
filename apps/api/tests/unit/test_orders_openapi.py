@@ -137,7 +137,10 @@ def test_tracking_endpoints_document_etag_and_304_in_openapi(client):
         headers_200 = endpoint["responses"]["200"]["headers"]
         assert "ETag" in headers_200
         assert headers_200["ETag"]["schema"]["type"] == "string"
+        assert "Cache-Control" in headers_200
+        assert headers_200["Cache-Control"]["schema"]["type"] == "string"
 
         response_304 = endpoint["responses"]["304"]
         assert response_304["description"] == "Not Modified"
         assert "ETag" in response_304["headers"]
+        assert "Cache-Control" in response_304["headers"]

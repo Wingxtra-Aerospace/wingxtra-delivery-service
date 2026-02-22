@@ -25,6 +25,13 @@ ETAG_RESPONSE_HEADER = {
     }
 }
 
+CACHE_CONTROL_HEADER = {
+    "Cache-Control": {
+        "description": "Caching policy for conditional tracking responses",
+        "schema": {"type": "string"},
+    }
+}
+
 
 @router.get(
     "/{public_tracking_id}",
@@ -32,8 +39,17 @@ ETAG_RESPONSE_HEADER = {
     response_model_exclude_none=True,
     summary="Tracking view",
     responses={
-        200: {"headers": {**RATE_LIMIT_SUCCESS_HEADERS, **ETAG_RESPONSE_HEADER}},
-        304: {"description": "Not Modified", "headers": ETAG_RESPONSE_HEADER},
+        200: {
+            "headers": {
+                **RATE_LIMIT_SUCCESS_HEADERS,
+                **ETAG_RESPONSE_HEADER,
+                **CACHE_CONTROL_HEADER,
+            }
+        },
+        304: {
+            "description": "Not Modified",
+            "headers": {**ETAG_RESPONSE_HEADER, **CACHE_CONTROL_HEADER},
+        },
         429: {"description": "Rate limit exceeded", "headers": RATE_LIMIT_THROTTLED_HEADERS},
     },
 )
@@ -55,6 +71,7 @@ def tracking_endpoint(
     payload = build_public_tracking_payload(db, public_tracking_id)
     etag = build_public_tracking_etag(payload)
     response.headers["ETag"] = etag
+    response.headers["Cache-Control"] = "public, max-age=0, must-revalidate"
 
     if etag_matches(if_none_match, etag):
         response.status_code = 304

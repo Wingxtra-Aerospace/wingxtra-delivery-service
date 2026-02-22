@@ -74,7 +74,7 @@ Rate limiting:
 
 Public tracking response is sanitized to: `order_id`, `public_tracking_id`, `status`, and `milestones` (timeline event types in chronological order). When proof-of-delivery exists, it includes `pod_summary` with only `method` and `created_at`. Merchant/customer contact fields and POD `photo_url` are redacted from public tracking responses. This sanitized contract applies to both `GET /api/v1/tracking/{public_tracking_id}` and `GET /api/v1/orders/track/{public_tracking_id}`.
 
-Both public tracking endpoints now return an `ETag` header and support conditional GET via `If-None-Match`; unchanged tracking payloads return `304 Not Modified` with an empty body. Weak validators (`W/`) and comma-separated tag lists are accepted, and `*` is treated as a wildcard match. OpenAPI documents `ETag` on `200` and `304` responses for both tracking routes.
+Both public tracking endpoints now return an `ETag` header and support conditional GET via `If-None-Match`; unchanged tracking payloads return `304 Not Modified` with an empty body. Weak validators (`W/`) and comma-separated tag lists are accepted, and `*` is treated as a wildcard match. OpenAPI documents `ETag` and `Cache-Control` on `200` and `304` responses for both tracking routes, and runtime responses use `Cache-Control: public, max-age=0, must-revalidate`.
 
 POD read endpoint (`GET /api/v1/orders/{order_id}/pod`) returns `PodResponse`; when no POD record exists yet, `method` is `null`.
 

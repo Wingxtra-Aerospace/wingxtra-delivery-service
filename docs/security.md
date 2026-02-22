@@ -54,6 +54,7 @@ Rate limiting is applied per client IP:
   - `ORDER_CREATE_RATE_LIMIT_WINDOW_S` (default `60`)
 
 When limits are exceeded, the API returns `429 Too Many Requests` with `Retry-After` (delta seconds), `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset` (Unix epoch seconds) headers.
+`X-RateLimit-Reset` is computed from the active window deadline (not by adding rounded deltas), so it stays consistent with `Retry-After` under sub-second timing and transport latency.
 
 
 ## Proof-of-delivery storage

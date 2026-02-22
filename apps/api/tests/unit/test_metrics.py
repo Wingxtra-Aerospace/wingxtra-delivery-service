@@ -61,3 +61,31 @@ def test_metrics_endpoint_accepts_ops_role_jwt(client):
         assert response.status_code == 200
     finally:
         settings.enable_test_auth_bypass = original
+
+
+def test_metrics_capture_readiness_check_counters(client):
+    ready = client.get("/ready")
+    assert ready.status_code == 200
+
+    metrics = client.get("/metrics")
+    assert metrics.status_code == 200
+
+    counters = metrics.json().get("counters", {})
+    assert int(counters.get("readiness_dependency_checked_total", 0)) >= 1
+    assert int(counters.get("readiness_dependency_error_total", 0)) == 0
+
+
+def test_metrics_capture_readiness_error_counter_on_degraded_check(client, monkeypatch):
+    from app.routers import health
+
+    monkeypatch.setattr(health, "database_dependency_status", lambda *_a, **_k: "error")
+
+    ready = client.get("/ready")
+    assert ready.status_code == 503
+
+    metrics = client.get("/metrics")
+    assert metrics.status_code == 200
+
+    counters = metrics.json().get("counters", {})
+    assert int(counters.get("readiness_dependency_checked_total", 0)) >= 1
+    assert int(counters.get("readiness_dependency_error_total", 0)) >= 1

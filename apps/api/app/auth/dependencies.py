@@ -100,8 +100,9 @@ def _apply_rate_limit(key: str, max_requests: int, window_s: int, detail: str) -
     if len(history) >= max_requests:
         metrics_store.increment("rate_limit_rejected_total")
         oldest = min(history)
-        reset_after_s = max(1, math.ceil((oldest + window_s) - now))
-        reset_at_s = math.ceil(now + reset_after_s)
+        reset_deadline_s = oldest + window_s
+        reset_after_s = max(1, math.ceil(reset_deadline_s - now))
+        reset_at_s = max(math.ceil(reset_deadline_s), math.ceil(now))
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail=detail,
@@ -116,8 +117,9 @@ def _apply_rate_limit(key: str, max_requests: int, window_s: int, detail: str) -
     history.append(now)
     _RATE_LIMIT_BUCKETS[key] = history
     remaining = max_requests - len(history)
-    reset_after_s = max(1, math.ceil((history[0] + window_s) - now))
-    reset_at_s = math.ceil(now + reset_after_s)
+    reset_deadline_s = history[0] + window_s
+    reset_after_s = max(1, math.ceil(reset_deadline_s - now))
+    reset_at_s = max(math.ceil(reset_deadline_s), math.ceil(now))
     return RateLimitStatus(
         limit=max_requests,
         remaining=remaining,

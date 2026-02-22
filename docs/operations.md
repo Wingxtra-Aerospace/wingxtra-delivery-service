@@ -82,8 +82,10 @@ This keeps API list endpoints deterministic for integration tests.
 Set `WINGXTRA_UI_SERVICE_MODE` to explicitly select the UI service strategy:
 
 - `db`: only database-backed order and tracking flows.
-- `store`: only in-memory placeholder/test flows.
-- `hybrid` (default): DB-backed API flows with placeholder/store adapters enabled for UI test IDs like `ord-1` and `ord-2`.
+- `store`: only in-memory placeholder/test flows (test/dev only).
+- `hybrid` (default): DB-backed API flows with placeholder/store adapters enabled for UI test IDs like `ord-1` and `ord-2` (test/dev only).
+
+In non-test runtime (`WINGXTRA_TESTING=false`), startup fails fast unless `WINGXTRA_UI_SERVICE_MODE=db`.
 
 
 ## Local infrastructure (Docker Compose)

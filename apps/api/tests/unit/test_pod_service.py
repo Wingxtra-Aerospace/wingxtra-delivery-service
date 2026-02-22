@@ -1,3 +1,6 @@
+import hmac
+from hashlib import sha256
+
 import pytest
 from fastapi import HTTPException
 
@@ -6,6 +9,7 @@ from app.schemas.order import OrderCreate
 from app.schemas.pod import ProofOfDeliveryCreate
 from app.services.orders_service import create_order
 from app.services.pod_service import create_proof_of_delivery
+from app.config import settings
 
 
 def _order_payload() -> OrderCreate:
@@ -61,6 +65,11 @@ def test_create_pod_otp_is_hmac_hashed(db_session):
     assert pod.otp_hash is not None
     assert pod.otp_hash != "123456"
     assert len(pod.otp_hash) == 64
+    assert pod.otp_hash == hmac.new(
+        settings.pod_otp_hmac_secret.encode(),
+        b"123456",
+        sha256,
+    ).hexdigest()
 
 
 def test_create_pod_same_otp_produces_stable_hash(db_session):

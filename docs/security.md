@@ -52,6 +52,13 @@ Rate limiting is applied per client IP:
 
 When limits are exceeded, the API returns `429 Too Many Requests`.
 
+
+## Proof-of-delivery storage
+
+For OTP-based POD submissions (`method=OTP`):
+- OTP values are never stored in plaintext.
+- The API stores only an HMAC-SHA256 digest using `POD_OTP_HMAC_SECRET`.
+
 ## Idempotency
 
 Supported endpoints:
@@ -66,7 +73,6 @@ Behavior:
 - `Idempotency-Key` values must be non-empty and at most 255 characters.
 - Scope is deterministic per endpoint/user (and per-order where required).
 - Replays with the same payload return the original response payload.
-- OTP POD submissions are stored as HMAC-SHA256 hashes using `POD_OTP_HMAC_SECRET` (never persisted in plaintext).
 - Reusing the same key with a different payload returns `409` (`Idempotency key reused with different payload`).
 - Idempotency records are persisted in the `idempotency_records` database table with TTL (`IDEMPOTENCY_TTL_S`, default `86400` seconds). Expired keys are purged opportunistically during idempotency checks/writes. Concurrent retries with the same scope/key are resolved safely to a single persisted record.
 

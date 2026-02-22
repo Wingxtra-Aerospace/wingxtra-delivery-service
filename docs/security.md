@@ -52,6 +52,13 @@ Rate limiting is applied per client IP:
 
 When limits are exceeded, the API returns `429 Too Many Requests`.
 
+
+## Proof-of-delivery storage
+
+For OTP-based POD submissions (`method=OTP`):
+- OTP values are never stored in plaintext.
+- The API stores only an HMAC-SHA256 digest using `POD_OTP_HMAC_SECRET`.
+
 ## Idempotency
 
 Supported endpoints:

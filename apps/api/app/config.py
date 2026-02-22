@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     order_create_rate_limit_window_s: int = 60
 
     idempotency_ttl_s: int = 24 * 60 * 60
+    pod_otp_hmac_secret: str = Field(
+        default="wingxtra-pod-otp-secret",
+        validation_alias="POD_OTP_HMAC_SECRET",
+    )
 
     fleet_api_base_url: str = ""
     fleet_api_timeout_s: float = 2.0

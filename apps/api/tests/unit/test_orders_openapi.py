@@ -77,7 +77,9 @@ def test_list_endpoints_use_consistent_paging_schema(client):
 
     for name in ["OrdersListResponse", "JobsListResponse", "EventsTimelineResponse"]:
         schema = payload["components"]["schemas"][name]
-        assert {"items", "page", "page_size", "total", "pagination"}.issubset(schema["properties"].keys())
+        assert {"items", "page", "page_size", "total", "pagination"}.issubset(
+            schema["properties"].keys()
+        )
 
 
 def test_jobs_list_query_params_documented(client):

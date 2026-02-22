@@ -109,7 +109,7 @@ def save_idempotency_result(
     idempotency_key: str,
     request_payload: Any,
     response_payload: dict[str, Any],
-) -> None:
+) -> dict[str, Any]:
     now = datetime.now(timezone.utc)
     expired_count = _purge_expired_records(db, now)
 
@@ -137,14 +137,20 @@ def save_idempotency_result(
     else:
         if record.request_hash != payload_hash:
             _raise_payload_conflict()
-        record.response_payload = response_payload
+        stored_payload = dict(record.response_payload)
         record.expires_at = expires_at
+        db.commit()
+        if expired_count:
+            metrics_store.increment("idempotency_purged_total", expired_count)
+        metrics_store.increment("idempotency_store_total")
+        return stored_payload
 
     try:
         db.commit()
         if expired_count:
             metrics_store.increment("idempotency_purged_total", expired_count)
         metrics_store.increment("idempotency_store_total")
+        return response_payload
     except IntegrityError:
         db.rollback()
         existing = db.scalar(
@@ -159,8 +165,7 @@ def save_idempotency_result(
 
         if existing.request_hash != payload_hash:
             _raise_payload_conflict()
-
-        existing.response_payload = response_payload
+        stored_payload = dict(existing.response_payload)
         existing.expires_at = expires_at
         if expired_count:
             _purge_expired_records(db, now)
@@ -168,3 +173,4 @@ def save_idempotency_result(
         if expired_count:
             metrics_store.increment("idempotency_purged_total", expired_count)
         metrics_store.increment("idempotency_store_total")
+        return stored_payload

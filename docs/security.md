@@ -80,7 +80,7 @@ Behavior:
 - Replays with the same payload return the original response payload.
 - Failed requests (for example upstream publish failures returning 5xx) are not recorded as idempotent successes; retrying with the same key can still execute and succeed later.
 - Reusing the same key with a different payload returns `409` (`Idempotency key reused with different payload`).
-- Idempotency records are persisted in the `idempotency_records` database table with TTL (`IDEMPOTENCY_TTL_S`, default `86400` seconds). Expired keys are purged opportunistically during idempotency checks/writes. Concurrent retries with the same scope/key are resolved safely to a single persisted record.
+- Idempotency records are persisted in the `idempotency_records` database table with TTL (`IDEMPOTENCY_TTL_S`, default `86400` seconds) and a DB-level unique constraint on `(route scope, idempotency key)`. Expired keys are purged opportunistically during idempotency checks/writes. Concurrent retries with the same scope/key are resolved safely to a single persisted record, and the first persisted response body is reused for deterministic replays.
 
 
 ## Test auth bypass

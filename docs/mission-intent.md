@@ -27,5 +27,6 @@ Rules:
 - Service generates mission intent payload and a new `intent_id`.
 - Mission intent payload is validated against the delivery service contract schema before publish.
 - Mission intent is sent through a publish stub (`gcs_bridge_client`) with no DroneEngage coupling.
+- If publish fails, the submission is rolled back (order remains `ASSIGNED`, no `MISSION_SUBMITTED` event persisted).
 - `delivery_jobs.mission_intent_id` is set from `intent_id`.
 - Order transitions `ASSIGNED -> MISSION_SUBMITTED` and appends immutable timeline event.

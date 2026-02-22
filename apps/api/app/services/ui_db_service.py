@@ -287,7 +287,10 @@ def manual_assign(auth: AuthContext, db: Session, order_id: str, drone_id: str) 
 
 
 def submit_mission(
-    auth: AuthContext, db: Session, order_id: str
+    auth: AuthContext,
+    db: Session,
+    order_id: str,
+    publish: Callable[[dict[str, str]], None] | None = None,
 ) -> tuple[dict[str, Any], dict[str, str]]:
     if auth.role not in {"OPS", "ADMIN"}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
@@ -321,14 +324,25 @@ def submit_mission(
             message="Mission submitted",
             payload={"mission_intent_id": job.mission_intent_id, "drone_id": job.assigned_drone_id},
         )
-        db.commit()
+
+        mission_payload = {
+            "order_id": _public_order_id(row.id),
+            "mission_intent_id": job.mission_intent_id or "",
+            "drone_id": job.assigned_drone_id or "",
+        }
+
+        try:
+            if publish is not None:
+                publish(mission_payload)
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
+
         db.refresh(row)
         db.refresh(job)
-    return _order_to_dict(row), {
-        "order_id": _public_order_id(row.id),
-        "mission_intent_id": job.mission_intent_id or "",
-        "drone_id": job.assigned_drone_id or "",
-    }
+
+    return _order_to_dict(row), mission_payload
 
 
 def run_auto_dispatch(

@@ -4,6 +4,12 @@
 Implement the Wingxtra delivery services layer described in README.md.
 Work in small PRs that are easy to review and test.
 
+## What we need to do now
+- Run pytest (or make test) before PR
+- Prefer DB-backed paths; do not add more demo-only branches
+- Any new endpoint must have request/response schema + tests
+- Severity rules (treat runtime errors as P0; security issues as P0/P1)
+
 ## Hard rules
 - Do NOT replace Wingxtra Cloud GCS or DroneEngage control logic.
 - Do NOT add GPL-licensed code.
@@ -24,3 +30,4 @@ Work in small PRs that are easy to review and test.
 5) Proof-of-delivery module + endpoints.
 6) UI pages (optional): Orders/Jobs/Tracking view + Ops console integration.
 7) Hardening: auth/RBAC, idempotency, rate limiting, observability.
+

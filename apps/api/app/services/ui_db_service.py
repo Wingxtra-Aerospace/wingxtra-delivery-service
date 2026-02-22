@@ -387,12 +387,23 @@ def tracking_view(db: Session, public_tracking_id: str) -> dict[str, Any]:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Tracking record not found"
         )
+
+    timeline_rows = list(
+        db.scalars(
+            select(DeliveryEvent)
+            .where(DeliveryEvent.order_id == row.id)
+            .order_by(DeliveryEvent.created_at.asc())
+        )
+    )
+    milestones = [event.type.value for event in timeline_rows]
+
     order_public_id = _public_order_id(row.id)
     return {
         "id": order_public_id,
         "order_id": order_public_id,
         "public_tracking_id": row.public_tracking_id,
         "status": row.status.value,
+        "milestones": milestones or None,
     }
 
 

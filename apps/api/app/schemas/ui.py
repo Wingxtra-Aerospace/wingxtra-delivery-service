@@ -98,6 +98,7 @@ class TrackingViewResponse(ResponseModel):
     order_id: str
     public_tracking_id: str
     status: str
+    milestones: list[str] | None = None
     pod_summary: TrackingPodSummary | None = None
 
 

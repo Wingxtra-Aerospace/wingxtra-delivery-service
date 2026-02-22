@@ -1,9 +1,9 @@
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, Body, Depends, Header
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import AuthContext, require_backoffice_write
 from app.db.session import get_db
-from app.schemas.ui import DispatchRunResponse
+from app.schemas.ui import DispatchRunRequest, DispatchRunResponse
 from app.services.idempotency_service import (
     build_scope,
     check_idempotency,
@@ -21,11 +21,12 @@ router = APIRouter(prefix="/api/v1/dispatch", tags=["dispatch"])
     summary="Run auto dispatch",
 )
 def run_dispatch_endpoint(
+    request: DispatchRunRequest = Body(default_factory=DispatchRunRequest),
     db: Session = Depends(get_db),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     auth: AuthContext = Depends(require_backoffice_write),
 ) -> DispatchRunResponse:
-    request_payload: dict[str, str] = {}
+    request_payload = request.model_dump(mode="json", exclude_none=True)
     route_scope = build_scope("POST:/api/v1/dispatch/run", user_id=auth.user_id)
     idempotency_key = validate_idempotency_key(idempotency_key)
 
@@ -40,9 +41,9 @@ def run_dispatch_endpoint(
         if idem.replay and idem.response_payload:
             return DispatchRunResponse.model_validate(idem.response_payload)
 
-    response_payload = DispatchRunResponse.model_validate(run_auto_dispatch(auth, db)).model_dump(
-        mode="json"
-    )
+    response_payload = DispatchRunResponse.model_validate(
+        run_auto_dispatch(auth, db, max_assignments=request.max_assignments)
+    ).model_dump(mode="json")
 
     if idempotency_key:
         save_idempotency_result(

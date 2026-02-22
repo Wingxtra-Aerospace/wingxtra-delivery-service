@@ -65,6 +65,7 @@ Observability headers:
 - `X-Request-ID` accepted on requests and echoed on responses.
 
 
+Dispatch run accepts optional JSON body `{"max_assignments": <int>}` (1-100) to cap assignments per run.
 Dispatch run response contains `assigned` and `assignments` list entries with `order_id` and `status`.
 
 

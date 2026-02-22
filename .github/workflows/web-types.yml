@@ -28,21 +28,19 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Start API for OpenAPI schema
+      - name: Generate OpenAPI schema
         env:
           WINGXTRA_TESTING: "true"
         run: |
           cd apps/api
-          uvicorn app.main:app --host 0.0.0.0 --port 8000 &
-          echo $! > /tmp/wingxtra-api.pid
-          for i in {1..30}; do
-            if curl -fsS http://127.0.0.1:8000/openapi.json >/dev/null; then
-              exit 0
-            fi
-            sleep 1
-          done
-          echo "API failed to start" >&2
-          exit 1
+          python - <<'PY'
+          import json
+
+          from app.main import app
+
+          with open("/tmp/wingxtra-openapi.json", "w", encoding="utf-8") as f:
+            json.dump(app.openapi(), f)
+          PY
 
       - uses: actions/setup-node@v4
         with:
@@ -56,17 +54,11 @@ jobs:
 
       - name: Ensure generated API types are up to date
         working-directory: web
-        env:
-          VITE_API_BASE_URL: http://127.0.0.1:8000
-        run: npm run gen:types:check
+        run: |
+          npx openapi-typescript /tmp/wingxtra-openapi.json --output src/api/types.ts
+          node scripts/normalize-openapi-types.mjs
+          git diff --exit-code -- src/api/types.ts
 
       - name: Build web
         working-directory: web
         run: npm run build
-
-      - name: Stop API
-        if: always()
-        run: |
-          if [ -f /tmp/wingxtra-api.pid ]; then
-            kill "$(cat /tmp/wingxtra-api.pid)" || true
-          fi

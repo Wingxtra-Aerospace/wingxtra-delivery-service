@@ -16,8 +16,7 @@ Core UI integration endpoints:
 - `POST /api/v1/dispatch/run`
 - `GET /api/v1/orders/{order_id}/pod`
 - `GET /api/v1/orders/track/{public_tracking_id}`
-- `GET /api/v1/jobs`
-- `POST /api/v1/dispatch/run`
+- `GET /api/v1/jobs` (pagination: `page`>=1, `page_size` 1-100; filter: `active`)
 - `GET /api/v1/tracking/{public_tracking_id}`
 - `GET /health`
 - `GET /ready`
@@ -71,6 +70,7 @@ Observability headers:
 Dispatch run accepts optional JSON body `{"max_assignments": <int>}` (1-100) to cap assignments per run.
 In hybrid mode, when `max_assignments` is provided, the service can combine DB-backed and placeholder assignments up to the requested cap.
 Dispatch run response contains `assigned` and `assignments` list entries with `order_id` and `status`.
+Jobs list item schema includes `eta_seconds` (nullable integer) for ETA visibility.
 
 
 Manual assignment validates drone availability and battery threshold. Low-battery or unavailable drones return `400`.

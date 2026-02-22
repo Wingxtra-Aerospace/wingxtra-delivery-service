@@ -1,3 +1,5 @@
+import threading
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import sessionmaker
@@ -53,8 +55,22 @@ def db_session():
 
 @pytest.fixture
 def client(db_session):
+    testing_session_local = sessionmaker(autocommit=False, autoflush=False, bind=app_engine)
+    db_session_lock = threading.Lock()
+
     def override_get_db():
-        yield db_session
+        if db_session_lock.acquire(blocking=False):
+            try:
+                yield db_session
+            finally:
+                db_session_lock.release()
+            return
+
+        db = testing_session_local()
+        try:
+            yield db
+        finally:
+            db.close()
 
     app.dependency_overrides[get_db] = override_get_db
     with TestClient(app) as test_client:

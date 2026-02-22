@@ -483,3 +483,37 @@ def test_metrics_exposes_rate_limit_counters_when_limited(client):
 
     assert delta("rate_limit_checked_total") >= 2
     assert delta("rate_limit_rejected_total") >= 1
+
+
+def test_public_tracking_rate_limit_increments_rate_limit_metrics(client):
+    before = client.get("/metrics")
+    assert before.status_code == 200
+    before_counters = before.json().get("counters", {})
+
+    original_requests = settings.public_tracking_rate_limit_requests
+    original_window = settings.public_tracking_rate_limit_window_s
+    settings.public_tracking_rate_limit_requests = 1
+    settings.public_tracking_rate_limit_window_s = 60
+    reset_rate_limits()
+
+    try:
+        first = client.get("/api/v1/tracking/11111111-1111-4111-8111-111111111111")
+        assert first.status_code == 200
+
+        second = client.get("/api/v1/tracking/11111111-1111-4111-8111-111111111111")
+        assert second.status_code == 429
+        assert second.json()["detail"] == "Public tracking rate limit exceeded"
+    finally:
+        settings.public_tracking_rate_limit_requests = original_requests
+        settings.public_tracking_rate_limit_window_s = original_window
+        reset_rate_limits()
+
+    after = client.get("/metrics")
+    assert after.status_code == 200
+    after_counters = after.json().get("counters", {})
+
+    def delta(name: str) -> int:
+        return int(after_counters.get(name, 0)) - int(before_counters.get(name, 0))
+
+    assert delta("rate_limit_checked_total") >= 2
+    assert delta("rate_limit_rejected_total") >= 1

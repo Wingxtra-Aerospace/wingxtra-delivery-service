@@ -62,6 +62,7 @@ def test_create_get_list_cancel_tracking_and_events(client):
     tracking_response = client.get(f"/api/v1/tracking/{created['public_tracking_id']}")
     assert tracking_response.status_code == 200
     assert tracking_response.json()["order_id"] == created["id"]
+    assert tracking_response.json()["milestones"] == ["CREATED"]
 
     events_before_cancel = client.get(f"/api/v1/orders/{created['id']}/events")
     assert events_before_cancel.status_code == 200

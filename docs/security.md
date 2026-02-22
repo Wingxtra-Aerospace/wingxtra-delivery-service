@@ -41,6 +41,7 @@ Tracking output is sanitized to:
 - `order_id`
 - `public_tracking_id`
 - `status`
+- `milestones` (event type milestones only; no internal actor/operator data)
 
 When proof-of-delivery exists, tracking also includes:
 - `pod_summary` (with at least `method`)

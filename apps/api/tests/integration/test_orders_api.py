@@ -212,6 +212,30 @@ def test_create_pod_and_tracking_summary(client, db_session):
     assert tracking.json()["pod_summary"]["method"] == "PHOTO"
 
 
+def test_orders_track_has_same_tracking_summary_shape(client, db_session):
+    order = _create_order(client).json()
+
+    db_order = db_session.get(Order, UUID(order["id"]))
+    db_order.status = OrderStatus.DELIVERED
+    db_session.commit()
+
+    pod_response = client.post(
+        f"/api/v1/orders/{order['id']}/pod",
+        json={
+            "method": "PHOTO",
+            "photo_url": "https://cdn.example/pod-2.jpg",
+            "metadata": {"camera": "ops-device-2"},
+        },
+    )
+    assert pod_response.status_code == 200
+
+    tracking = client.get(f"/api/v1/orders/track/{order['public_tracking_id']}")
+    assert tracking.status_code == 200
+    body = tracking.json()
+    assert body["pod_summary"]["method"] == "PHOTO"
+    assert body["milestones"] == ["CREATED"]
+
+
 def test_create_pod_rejected_for_non_delivered_order(client):
     order = _create_order(client).json()
     response = client.post(

@@ -163,3 +163,63 @@ def test_run_dispatch_with_retries_does_not_retry_4xx():
     assert result.ok is False
     assert result.status_code == 401
     assert result.attempts == 1
+
+
+def test_run_dispatch_with_retries_retries_429_then_succeeds():
+    settings = worker_module.DispatchWorkerSettings(
+        api_base_url="http://api",
+        interval_s=10,
+        timeout_s=2.0,
+        max_assignments=None,
+        auth_token=None,
+        max_retries=1,
+        retry_backoff_s=0.1,
+    )
+    calls = {"count": 0}
+
+    def opener(request, timeout):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            raise urllib.error.HTTPError(
+                url=request.full_url,
+                code=429,
+                msg="Too Many Requests",
+                hdrs=None,
+                fp=None,
+            )
+        return _FakeResponse({"assigned_count": 4}, status=200)
+
+    result = worker_module.run_dispatch_with_retries(
+        settings,
+        opener=opener,
+        sleep=lambda _seconds: None,
+    )
+
+    assert result.ok is True
+    assert result.assigned_count == 4
+    assert result.attempts == 2
+
+
+def test_run_dispatch_with_retries_stops_after_max_retries():
+    settings = worker_module.DispatchWorkerSettings(
+        api_base_url="http://api",
+        interval_s=10,
+        timeout_s=2.0,
+        max_assignments=None,
+        auth_token=None,
+        max_retries=1,
+        retry_backoff_s=0.1,
+    )
+
+    def opener(request, timeout):
+        raise urllib.error.URLError("still-down")
+
+    result = worker_module.run_dispatch_with_retries(
+        settings,
+        opener=opener,
+        sleep=lambda _seconds: None,
+    )
+
+    assert result.ok is False
+    assert result.error == "URLError: still-down"
+    assert result.attempts == 2

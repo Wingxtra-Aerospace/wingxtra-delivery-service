@@ -120,6 +120,8 @@ def _is_retryable(result: DispatchRunResult) -> bool:
         return False
     if result.status_code is None:
         return True
+    if result.status_code in {408, 429}:
+        return True
     return result.status_code >= 500
 
 
@@ -128,11 +130,7 @@ def run_dispatch_with_retries(
     opener: Callable[..., object] = urllib.request.urlopen,
     sleep: Callable[[float], None] = time.sleep,
 ) -> DispatchRunResult:
-    attempts = 0
-    final_result = DispatchRunResult(ok=False, assigned_count=0, error="dispatch_not_attempted")
-
-    while attempts <= settings.max_retries:
-        attempts += 1
+    for attempts in range(1, settings.max_retries + 2):
         result = run_dispatch_once(settings, opener=opener)
         if result.ok or not _is_retryable(result) or attempts > settings.max_retries:
             return DispatchRunResult(
@@ -143,16 +141,10 @@ def run_dispatch_with_retries(
                 attempts=attempts,
             )
 
-        final_result = result
         sleep(settings.retry_backoff_s * (2 ** (attempts - 1)))
 
-    return DispatchRunResult(
-        ok=final_result.ok,
-        assigned_count=final_result.assigned_count,
-        status_code=final_result.status_code,
-        error=final_result.error,
-        attempts=attempts,
-    )
+    # Unreachable due to loop bounds; kept for type-checker completeness.
+    return DispatchRunResult(ok=False, assigned_count=0, error="dispatch_unreachable")
 
 
 def run_forever(settings: DispatchWorkerSettings) -> None:

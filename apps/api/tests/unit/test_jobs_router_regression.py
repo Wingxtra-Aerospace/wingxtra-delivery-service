@@ -20,6 +20,9 @@ def test_jobs_endpoint_passes_db_and_pagination_args(client, db_session, monkeyp
     assert response.status_code == 200
     assert response.json() == {
         "items": [],
+        "page": 2,
+        "page_size": 5,
+        "total": 0,
         "pagination": {"page": 2, "page_size": 5, "total": 0},
     }
     assert captured["db"] is db_session

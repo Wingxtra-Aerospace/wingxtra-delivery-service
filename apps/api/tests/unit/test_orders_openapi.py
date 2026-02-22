@@ -56,17 +56,30 @@ def test_tracking_response_schema_includes_milestones(client):
     assert "milestones" in tracking_schema["properties"]
 
 
-def test_jobs_list_response_schema_includes_pagination(client):
+def test_list_endpoints_use_consistent_paging_schema(client):
     openapi = client.get("/openapi.json")
     assert openapi.status_code == 200
 
-    jobs_get = openapi.json()["paths"]["/api/v1/jobs"]["get"]
+    payload = openapi.json()
+    orders_get = payload["paths"]["/api/v1/orders"]["get"]
+    jobs_get = payload["paths"]["/api/v1/jobs"]["get"]
+    events_get = payload["paths"]["/api/v1/orders/{order_id}/events"]["get"]
+
+    assert orders_get["responses"]["200"]["content"]["application/json"]["schema"]["$ref"] == (
+        "#/components/schemas/OrdersListResponse"
+    )
     assert jobs_get["responses"]["200"]["content"]["application/json"]["schema"]["$ref"] == (
         "#/components/schemas/JobsListResponse"
     )
+    assert events_get["responses"]["200"]["content"]["application/json"]["schema"]["$ref"] == (
+        "#/components/schemas/EventsTimelineResponse"
+    )
 
-    jobs_schema = openapi.json()["components"]["schemas"]["JobsListResponse"]
-    assert "pagination" in jobs_schema["properties"]
+    for name in ["OrdersListResponse", "JobsListResponse", "EventsTimelineResponse"]:
+        schema = payload["components"]["schemas"][name]
+        assert {"items", "page", "page_size", "total", "pagination"}.issubset(
+            schema["properties"].keys()
+        )
 
 
 def test_jobs_list_query_params_documented(client):

@@ -35,7 +35,6 @@ from app.schemas.ui import (
     OrderDetailResponse,
     OrdersListResponse,
     OrderUpdateRequest,
-    PaginationMeta,
     PodCreateRequest,
     PodResponse,
     TrackingViewResponse,
@@ -179,7 +178,9 @@ def list_orders_endpoint(
     )
     return OrdersListResponse(
         items=[OrderDetailResponse.model_validate(order) for order in items],
-        pagination=PaginationMeta(page=page, page_size=page_size, total=total),
+        page=page,
+        page_size=page_size,
+        total=total,
     )
 
 
@@ -219,10 +220,20 @@ def get_order_endpoint(
 def get_events_endpoint(
     order_id: str,
     db: Session = Depends(get_db),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
     auth: AuthContext = Depends(require_roles("MERCHANT", "OPS", "ADMIN")),
 ) -> EventsTimelineResponse:
     events = [EventResponse.model_validate(event) for event in list_events(auth, db, order_id)]
-    return EventsTimelineResponse(items=events)
+    total = len(events)
+    start = (page - 1) * page_size
+    end = start + page_size
+    return EventsTimelineResponse(
+        items=events[start:end],
+        page=page,
+        page_size=page_size,
+        total=total,
+    )
 
 
 @router.post("/{order_id}/assign", response_model=OrderActionResponse, summary="Manual assignment")

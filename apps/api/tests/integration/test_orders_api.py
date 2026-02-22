@@ -88,6 +88,21 @@ def test_create_get_list_cancel_tracking_and_events(client):
     ]
 
 
+def test_events_timeline_uses_page_envelope_and_query_pagination(client):
+    order = _create_order(client).json()
+    client.post(f"/api/v1/orders/{order['id']}/cancel")
+
+    response = client.get(f"/api/v1/orders/{order['id']}/events?page=2&page_size=1")
+    assert response.status_code == 200
+    body = response.json()
+
+    assert body["page"] == 2
+    assert body["page_size"] == 1
+    assert body["total"] == 2
+    assert body["pagination"] == {"page": 2, "page_size": 1, "total": 2}
+    assert [event["type"] for event in body["items"]] == ["CANCELED"]
+
+
 def test_auto_dispatch_and_manual_assign(client):
     _set_fleet_override(
         [
@@ -290,6 +305,9 @@ def test_jobs_endpoint_can_filter_by_order_id(client):
     filtered = client.get(f"/api/v1/jobs?active=false&page=1&page_size=10&order_id={first['id']}")
     assert filtered.status_code == 200
     body = filtered.json()
+    assert body["total"] == 1
+    assert body["page"] == 1
+    assert body["page_size"] == 10
     assert body["pagination"]["total"] == 1
     assert len(body["items"]) == 1
     assert body["items"][0]["order_id"] == first["id"]

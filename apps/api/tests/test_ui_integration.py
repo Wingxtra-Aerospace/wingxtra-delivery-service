@@ -88,7 +88,7 @@ def test_jobs_list_returns_pagination_metadata():
     )
     assert response.status_code == 200
     body = response.json()
-    assert set(body.keys()) == {"items", "pagination"}
+    assert {"items", "page", "page_size", "total", "pagination"}.issubset(body.keys())
     assert body["pagination"]["page"] == 1
     assert body["pagination"]["page_size"] == 1
     assert isinstance(body["pagination"]["total"], int)

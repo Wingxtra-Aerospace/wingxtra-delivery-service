@@ -286,7 +286,8 @@ def manual_assign(auth: AuthContext, db: Session, order_id: str, drone_id: str) 
         db.refresh(row)
     log_event("order_assigned", order_id=str(row.id), drone_id=drone_id)
     log_event(
-        f"audit_ops_action:manual_assign actor={auth.user_id} role={auth.role} status={row.status.value}",
+        "audit_ops_action:manual_assign "
+        f"actor={auth.user_id} role={auth.role} status={row.status.value}",
         order_id=str(row.id),
         drone_id=drone_id,
     )
@@ -350,7 +351,8 @@ def submit_mission(
         db.refresh(job)
 
     log_event(
-        f"audit_ops_action:status_change actor={auth.user_id} role={auth.role} status={row.status.value}",
+        "audit_ops_action:status_change "
+        f"actor={auth.user_id} role={auth.role} status={row.status.value}",
         order_id=str(row.id),
         drone_id=job.assigned_drone_id,
     )
@@ -579,7 +581,8 @@ def cancel_order(auth: AuthContext, db: Session, order_id: str) -> dict[str, Any
     db.commit()
     db.refresh(row)
     log_event(
-        f"audit_ops_action:cancel_order actor={auth.user_id} role={auth.role} status={row.status.value}",
+        "audit_ops_action:cancel_order "
+        f"actor={auth.user_id} role={auth.role} status={row.status.value}",
         order_id=str(row.id),
     )
     return _order_to_dict(row)

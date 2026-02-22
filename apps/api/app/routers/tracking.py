@@ -45,6 +45,7 @@ def tracking_endpoint(
         "order_id": order_id,
         "public_tracking_id": order["public_tracking_id"],
         "status": order["status"],
+        "milestones": order.get("milestones"),
     }
 
     if pod is not None:

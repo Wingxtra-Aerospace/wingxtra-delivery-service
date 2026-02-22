@@ -127,6 +127,7 @@ docker compose up -d
 ## Dispatch worker
 
 `workers/dispatch_worker/worker.py` can run periodic auto-dispatch ticks against the API (`POST /api/v1/dispatch/run`).
+Invalid JSON in dispatch worker responses is treated as a failed tick (to avoid false-positive success accounting).
 
 Environment variables:
 

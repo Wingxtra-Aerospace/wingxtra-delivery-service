@@ -1,4 +1,4 @@
-import importlib.util
+import importlib
 import json
 import pathlib
 import sys
@@ -7,14 +7,10 @@ import urllib.error
 import pytest
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[4]
-WORKER_PATH = REPO_ROOT / "workers" / "dispatch_worker" / "worker.py"
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
-
-spec = importlib.util.spec_from_file_location("dispatch_worker_module", WORKER_PATH)
-worker_module = importlib.util.module_from_spec(spec)
-assert spec and spec.loader
-sys.modules[spec.name] = worker_module
-spec.loader.exec_module(worker_module)
+worker_module = importlib.import_module("workers.dispatch_worker.worker")
 
 
 class _FakeResponse:
@@ -223,3 +219,66 @@ def test_run_dispatch_with_retries_stops_after_max_retries():
     assert result.ok is False
     assert result.error == "URLError: still-down"
     assert result.attempts == 2
+
+
+def test_run_dispatch_once_invalid_json_response_returns_failure():
+    settings = worker_module.DispatchWorkerSettings(
+        api_base_url="http://api",
+        interval_s=10,
+        timeout_s=2.0,
+        max_assignments=None,
+        auth_token=None,
+        max_retries=1,
+        retry_backoff_s=0.1,
+    )
+
+    class BadJsonResponse:
+        status = 200
+
+        def read(self):
+            return b"not-json"
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    result = worker_module.run_dispatch_once(
+        settings,
+        opener=lambda _request, timeout: BadJsonResponse(),
+    )
+
+    assert result.ok is False
+    assert result.error == "Invalid JSON in dispatch response"
+
+
+def test_run_dispatch_once_non_numeric_assigned_count_fails():
+    settings = worker_module.DispatchWorkerSettings(
+        api_base_url="http://api",
+        interval_s=10,
+        timeout_s=2.0,
+        max_assignments=None,
+        auth_token=None,
+        max_retries=1,
+        retry_backoff_s=0.1,
+    )
+
+    class BadResponse:
+        status = 200
+
+        def read(self):
+            return b'{"assigned_count":"not-a-number"}'
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    result = worker_module.run_dispatch_once(
+        settings, opener=lambda _request, timeout: BadResponse()
+    )
+
+    assert result.ok is False
+    assert result.error == "Invalid assigned_count value in dispatch response"

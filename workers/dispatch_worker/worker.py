@@ -67,6 +67,24 @@ def load_settings(env: dict[str, str] | None = None) -> DispatchWorkerSettings:
     )
 
 
+def _decode_dispatch_response(raw: str) -> tuple[bool, int, str | None]:
+    if not raw:
+        return True, 0, None
+    try:
+        body = json.loads(raw)
+    except json.JSONDecodeError:
+        return False, 0, "Invalid JSON in dispatch response"
+
+    try:
+        assigned = int(body.get("assigned_count", 0))
+    except (TypeError, ValueError):
+        return False, 0, "Invalid assigned_count value in dispatch response"
+
+    if assigned < 0:
+        return False, 0, "assigned_count must be >= 0 in dispatch response"
+    return True, assigned, None
+
+
 def run_dispatch_once(
     settings: DispatchWorkerSettings,
     opener: Callable[..., object] = urllib.request.urlopen,
@@ -93,12 +111,12 @@ def run_dispatch_once(
     try:
         with opener(request, timeout=settings.timeout_s) as response:
             raw = response.read().decode("utf-8")
-            body = json.loads(raw) if raw else {}
-            assigned = int(body.get("assigned_count", 0))
+            valid, assigned, error = _decode_dispatch_response(raw)
             return DispatchRunResult(
-                ok=True,
+                ok=valid,
                 assigned_count=assigned,
                 status_code=getattr(response, "status", 200),
+                error=error,
             )
     except urllib.error.HTTPError as exc:
         return DispatchRunResult(
@@ -143,8 +161,7 @@ def run_dispatch_with_retries(
 
         sleep(settings.retry_backoff_s * (2 ** (attempts - 1)))
 
-    # Unreachable due to loop bounds; kept for type-checker completeness.
-    return DispatchRunResult(ok=False, assigned_count=0, error="dispatch_unreachable")
+    raise RuntimeError("dispatch retry loop exhausted unexpectedly")
 
 
 def run_forever(settings: DispatchWorkerSettings) -> None:

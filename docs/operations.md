@@ -35,6 +35,9 @@ Current checks:
 - `database` (runs `SELECT 1`)
 - `redis` (optional; checked only when `REDIS_URL` is configured)
 
+Readiness config env vars:
+- `REDIS_URL` (optional; enables Redis dependency check in `/ready` when set)
+
 Redis readiness check behavior:
 
 - Supports `redis://` URLs.

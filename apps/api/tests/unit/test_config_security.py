@@ -232,3 +232,9 @@ def test_settings_normalizes_ui_service_mode_value():
     settings = config_module.Settings(WINGXTRA_UI_SERVICE_MODE="  HYBRID  ")
 
     assert settings.ui_service_mode == "hybrid"
+
+
+def test_settings_reads_redis_url_from_env_alias():
+    settings = config_module.Settings(REDIS_URL="redis://localhost:6379/0")
+
+    assert settings.redis_url == "redis://localhost:6379/0"

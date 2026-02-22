@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Header, Response
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import RateLimitStatus, rate_limit_public_tracking
@@ -10,9 +10,27 @@ from app.routers.rate_limit_headers import (
 )
 from app.schemas.ui import TrackingViewResponse
 from app.services.safety import assert_production_safe
-from app.services.ui_service import build_public_tracking_payload
+from app.services.ui_service import (
+    build_public_tracking_etag,
+    build_public_tracking_payload,
+    etag_matches,
+)
 
 router = APIRouter(prefix="/api/v1/tracking", tags=["tracking"])
+
+ETAG_RESPONSE_HEADER = {
+    "ETag": {
+        "description": "Entity tag representing the current tracking payload",
+        "schema": {"type": "string"},
+    }
+}
+
+CACHE_CONTROL_HEADER = {
+    "Cache-Control": {
+        "description": "Caching policy for conditional tracking responses",
+        "schema": {"type": "string"},
+    }
+}
 
 
 @router.get(
@@ -21,7 +39,17 @@ router = APIRouter(prefix="/api/v1/tracking", tags=["tracking"])
     response_model_exclude_none=True,
     summary="Tracking view",
     responses={
-        200: {"headers": RATE_LIMIT_SUCCESS_HEADERS},
+        200: {
+            "headers": {
+                **RATE_LIMIT_SUCCESS_HEADERS,
+                **ETAG_RESPONSE_HEADER,
+                **CACHE_CONTROL_HEADER,
+            }
+        },
+        304: {
+            "description": "Not Modified",
+            "headers": {**ETAG_RESPONSE_HEADER, **CACHE_CONTROL_HEADER},
+        },
         429: {"description": "Rate limit exceeded", "headers": RATE_LIMIT_THROTTLED_HEADERS},
     },
 )
@@ -30,7 +58,8 @@ def tracking_endpoint(
     response: Response,
     db: Session = Depends(get_db),
     rate_limit: RateLimitStatus = Depends(rate_limit_public_tracking),
-) -> TrackingViewResponse:
+    if_none_match: str | None = Header(default=None, alias="If-None-Match"),
+) -> TrackingViewResponse | Response:
     assert_production_safe(order_id=public_tracking_id)
     apply_rate_limit_headers(
         response,
@@ -40,4 +69,12 @@ def tracking_endpoint(
     )
 
     payload = build_public_tracking_payload(db, public_tracking_id)
+    etag = build_public_tracking_etag(payload)
+    response.headers["ETag"] = etag
+    response.headers["Cache-Control"] = "public, max-age=0, must-revalidate"
+
+    if etag_matches(if_none_match, etag):
+        response.status_code = 304
+        return response
+
     return TrackingViewResponse(**payload)

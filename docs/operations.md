@@ -34,10 +34,12 @@ Current checks:
 
 - `database` (runs `SELECT 1`)
 - `redis` (optional; checked only when `REDIS_URL` is configured)
+- `fleet_api` (optional; checked only when `FLEET_API_BASE_URL` is configured)
 
 Readiness config env vars:
 - `REDIS_URL` (optional; enables Redis dependency check in `/ready` when set, must use `redis://`)
 - `REDIS_READINESS_TIMEOUT_S` (optional; timeout in seconds for Redis readiness connection/ping, default `1.0`)
+- `FLEET_API_BASE_URL` (optional; enables Fleet API dependency check in `/ready` when set)
 
 Redis readiness check behavior:
 
@@ -86,9 +88,10 @@ External integration clients now enforce explicit retry/backoff limits and retur
 
 - `fleet_api_client`
   - base URL via `FLEET_API_BASE_URL` (required for dispatch/assignment that query telemetry)
-  - timeout via `FLEET_API_TIMEOUT_S`
+  - timeout via `FLEET_API_TIMEOUT_S` (applies explicitly to connect/read/write/pool timeout)
   - retries via `FLEET_API_MAX_RETRIES`
   - exponential backoff base via `FLEET_API_BACKOFF_S`
+  - telemetry cache TTL via `FLEET_API_CACHE_TTL_S` (default `2.0s`, short-lived anti-stampede cache)
 - `gcs_bridge_client`
   - optional HTTP bridge URL via `GCS_BRIDGE_BASE_URL` (empty means no-op publisher)
   - timeout via `GCS_BRIDGE_TIMEOUT_S`
@@ -100,6 +103,7 @@ Error translation for API callers:
 - non-retryable upstream response failures translate to `502 Bad Gateway`
 - response body includes `{service, code, message}` for debugging and runbook routing.
 - unexpected mission-publish exceptions are normalized to retryable `503` (`service=gcs_bridge`, `code=UNAVAILABLE`) with a stable message (`Mission publish failed`) to avoid raw 500s and internal error leakage.
+- Fleet telemetry failures in dispatch now log `fleet_telemetry_unavailable`; auto-dispatch degrades gracefully to zero assignments while manual assignment returns `503` with a retryable message.
 
 ## Database configuration
 

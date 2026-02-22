@@ -5,9 +5,11 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.integrations.errors import IntegrationError
 from app.integrations.fleet_api_client import FleetApiClientProtocol, FleetDroneTelemetry
 from app.models.delivery_job import DeliveryJob, DeliveryJobStatus
 from app.models.order import Order, OrderStatus
+from app.observability import log_event
 from app.services.orders_service import get_order, transition_order_status
 
 _MIN_BATTERY_FOR_ASSIGNMENT = 30.0
@@ -66,10 +68,14 @@ def run_auto_dispatch(
         )
     )
 
+    try:
+        telemetry = fleet_client.get_latest_telemetry()
+    except IntegrationError as err:
+        log_event("fleet_telemetry_unavailable", order_id=f"{err.service}:{err.code}")
+        telemetry = []
+
     drones = [
-        drone
-        for drone in fleet_client.get_latest_telemetry()
-        if drone.is_available and drone.battery >= _MIN_BATTERY_FOR_ASSIGNMENT
+        drone for drone in telemetry if drone.is_available and drone.battery >= _MIN_BATTERY_FOR_ASSIGNMENT
     ]
 
     assignments: list[tuple[Order, DeliveryJob]] = []
@@ -114,10 +120,16 @@ def manual_assign_order(
             detail=f"Order cannot be assigned from status {order.status.value}",
         )
 
-    drone = next(
-        (d for d in fleet_client.get_latest_telemetry() if d.drone_id == drone_id),
-        None,
-    )
+    try:
+        telemetry = fleet_client.get_latest_telemetry()
+    except IntegrationError as err:
+        log_event("fleet_telemetry_unavailable", order_id=f"{err.service}:{err.code}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Fleet telemetry unavailable; retry shortly",
+        ) from err
+
+    drone = next((d for d in telemetry if d.drone_id == drone_id), None)
     if not drone or not drone.is_available or drone.battery < _MIN_BATTERY_FOR_ASSIGNMENT:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Drone not assignable")
 

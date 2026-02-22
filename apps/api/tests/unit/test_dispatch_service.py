@@ -1,3 +1,6 @@
+from fastapi import HTTPException
+
+from app.integrations.errors import IntegrationUnavailableError
 from app.integrations.fleet_api_client import FleetDroneTelemetry
 from app.schemas.order import OrderCreate
 from app.services.dispatch_service import manual_assign_order, run_auto_dispatch
@@ -10,6 +13,11 @@ class FakeFleetApiClient:
 
     def get_latest_telemetry(self) -> list[FleetDroneTelemetry]:
         return self._drones
+
+
+class BrokenFleetApiClient:
+    def get_latest_telemetry(self) -> list[FleetDroneTelemetry]:
+        raise IntegrationUnavailableError("fleet_api", "down")
 
 
 def _payload() -> OrderCreate:
@@ -67,3 +75,22 @@ def test_auto_dispatch_can_assign_multiple_orders_when_max_assignments_increased
 
     assert len(assignments) == 2
     assert {assignment[0].id for assignment in assignments} == {first_order.id, second_order.id}
+
+
+def test_auto_dispatch_gracefully_degrades_when_fleet_unavailable(db_session):
+    create_order(db_session, _payload())
+
+    assignments = run_auto_dispatch(db_session, BrokenFleetApiClient())
+
+    assert assignments == []
+
+
+def test_manual_assign_returns_503_when_fleet_unavailable(db_session):
+    order = create_order(db_session, _payload())
+
+    try:
+        manual_assign_order(db_session, BrokenFleetApiClient(), order.id, "D1")
+        assert False, "expected HTTPException"
+    except HTTPException as exc:
+        assert exc.status_code == 503
+        assert "Fleet telemetry unavailable" in str(exc.detail)

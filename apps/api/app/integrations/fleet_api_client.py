@@ -1,4 +1,5 @@
 import time
+from threading import Lock
 from typing import Protocol
 
 import httpx
@@ -31,20 +32,47 @@ class FleetApiClient:
         timeout_s: float,
         max_retries: int,
         backoff_s: float,
+        cache_ttl_s: float,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.timeout_s = timeout_s
         self.max_retries = max_retries
         self.backoff_s = backoff_s
+        self.cache_ttl_s = cache_ttl_s
+        self._cache_lock = Lock()
+        self._cache_expires_at = 0.0
+        self._cache_payload: list[FleetDroneTelemetry] | None = None
+
+    def _cached_telemetry(self) -> list[FleetDroneTelemetry] | None:
+        now = time.monotonic()
+        with self._cache_lock:
+            if self._cache_payload is None or now >= self._cache_expires_at:
+                return None
+            return list(self._cache_payload)
+
+    def _store_cached_telemetry(self, payload: list[FleetDroneTelemetry]) -> None:
+        with self._cache_lock:
+            self._cache_payload = list(payload)
+            self._cache_expires_at = time.monotonic() + self.cache_ttl_s
 
     def get_latest_telemetry(self) -> list[FleetDroneTelemetry]:
+        cached = self._cached_telemetry()
+        if cached is not None:
+            return cached
+
         if not self.base_url:
             raise IntegrationUnavailableError("fleet_api", "Fleet API base URL is not configured")
 
         attempts = self.max_retries + 1
         for attempt in range(attempts):
             try:
-                with httpx.Client(timeout=self.timeout_s) as client:
+                timeout = httpx.Timeout(
+                    connect=self.timeout_s,
+                    read=self.timeout_s,
+                    write=self.timeout_s,
+                    pool=self.timeout_s,
+                )
+                with httpx.Client(timeout=timeout) as client:
                     response = client.get(f"{self.base_url}/api/v1/telemetry/latest")
 
                 if response.status_code >= 500:
@@ -61,7 +89,9 @@ class FleetApiClient:
                         "fleet_api",
                         "Fleet API returned malformed payload",
                     )
-                return [FleetDroneTelemetry.model_validate(item) for item in payload]
+                telemetry = [FleetDroneTelemetry.model_validate(item) for item in payload]
+                self._store_cached_telemetry(telemetry)
+                return telemetry
             except httpx.TimeoutException:
                 integration_error = IntegrationTimeoutError("fleet_api")
             except httpx.TransportError as err:
@@ -83,4 +113,5 @@ def get_fleet_api_client() -> FleetApiClientProtocol:
         timeout_s=settings.fleet_api_timeout_s,
         max_retries=settings.fleet_api_max_retries,
         backoff_s=settings.fleet_api_backoff_s,
+        cache_ttl_s=settings.fleet_api_cache_ttl_s,
     )

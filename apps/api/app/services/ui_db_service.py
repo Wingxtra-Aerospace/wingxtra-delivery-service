@@ -3,7 +3,7 @@ from __future__ import annotations
 import hmac
 import re
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 from typing import Any, Callable
 
@@ -18,6 +18,7 @@ from app.models.delivery_job import DeliveryJob, DeliveryJobStatus
 from app.models.order import Order, OrderPriority, OrderStatus
 from app.models.proof_of_delivery import ProofOfDelivery, ProofOfDeliveryMethod
 from app.observability import log_event, observe_timing
+from app.services.state_machine import ensure_valid_transition
 
 TERMINAL: set[OrderStatus] = {
     OrderStatus.CANCELED,
@@ -66,6 +67,7 @@ def _append_event(
     message: str,
     job_id: uuid.UUID | None = None,
     payload: dict[str, Any] | None = None,
+    created_at: datetime | None = None,
 ) -> None:
     db.add(
         DeliveryEvent(
@@ -74,8 +76,66 @@ def _append_event(
             type=event_type,
             message=message,
             payload=payload or {},
+            created_at=created_at,
         )
     )
+
+
+def _event_transitions(event_type: str) -> list[OrderStatus]:
+    transitions = {
+        "MISSION_LAUNCHED": [OrderStatus.LAUNCHED],
+        "ENROUTE": [OrderStatus.ENROUTE],
+        "ARRIVED": [OrderStatus.ARRIVED],
+        "DELIVERED": [OrderStatus.DELIVERING, OrderStatus.DELIVERED],
+        "FAILED": [OrderStatus.FAILED],
+    }
+    return transitions[event_type]
+
+
+def ingest_order_event(
+    auth: AuthContext,
+    db: Session,
+    order_id: str,
+    event_type: str,
+    occurred_at: datetime | None,
+) -> dict[str, Any]:
+    if auth.role not in {"OPS", "ADMIN"}:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
+
+    row = db.get(Order, _resolve_db_uuid(order_id))
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
+
+    transitions = _event_transitions(event_type)
+    base_time = occurred_at or _now_utc()
+    if base_time.tzinfo is None:
+        base_time = base_time.replace(tzinfo=timezone.utc)
+
+    applied_events: list[str] = []
+    for idx, next_status in enumerate(transitions):
+        ensure_valid_transition(row.status, next_status)
+        if row.status == next_status:
+            continue
+        row.status = next_status
+        applied_events.append(next_status.value)
+        _append_event(
+            db,
+            order_id=row.id,
+            event_type=DeliveryEventType[next_status.value],
+            message=f"Mission event ingested: {next_status.value}",
+            payload={"source": "ops_event_ingest", "event_type": event_type},
+            created_at=base_time + timedelta(microseconds=idx),
+        )
+
+    row.updated_at = _now_utc()
+    db.commit()
+    db.refresh(row)
+
+    return {
+        "order_id": _public_order_id(row.id),
+        "status": row.status.value,
+        "applied_events": applied_events,
+    }
 
 
 def _order_to_dict(row: Order) -> dict[str, Any]:

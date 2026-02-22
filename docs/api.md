@@ -10,6 +10,7 @@ Core UI integration endpoints:
 - `GET /api/v1/orders/{order_id}`
 - `PATCH /api/v1/orders/{order_id}` (limited: `customer_phone`, `dropoff_lat/dropoff_lng`, `priority`)
 - `GET /api/v1/orders/{order_id}/events`
+- `POST /api/v1/orders/{order_id}/events` (OPS/ADMIN internal mission execution ingest)
 - `POST /api/v1/orders/{order_id}/assign`
 - `POST /api/v1/orders/{order_id}/cancel`
 - `POST /api/v1/orders/{order_id}/pod`
@@ -77,6 +78,10 @@ Jobs list item schema includes `eta_seconds` (nullable integer) for ETA visibili
 Manual assignment validates drone availability and battery threshold. Low-battery or unavailable drones return `400`.
 Order create validation enforces optional bounds: `lat` in [-90, 90], `weight` > 0, non-empty `payload_type` (invalid values return `422`).
 Dispatch run assigns at most one order per available drone and returns both `assigned` and `assignments`.
+
+Mission execution ingest endpoint accepts `MISSION_LAUNCHED`, `ENROUTE`, `ARRIVED`, `DELIVERED`, and `FAILED` with optional `occurred_at` timestamp (aliases: `event`/`type`, `timestamp`).
+State-machine validation is enforced (`409` on invalid/backward transition).
+`DELIVERED` automatically applies `DELIVERING -> DELIVERED` so timeline progression remains auditable.
 
 Order creation emits timeline events in order: `CREATED`, `VALIDATED`, `QUEUED`.
 Manual assignment appends `ASSIGNED` after those lifecycle events.

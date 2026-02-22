@@ -67,6 +67,22 @@ class EventsTimelineResponse(ResponseModel):
     items: list[EventResponse]
 
 
+class OrderEventIngestRequest(BaseModel):
+    event_type: Literal["MISSION_LAUNCHED", "ENROUTE", "ARRIVED", "DELIVERED", "FAILED"] = (
+        Field(validation_alias=AliasChoices("event_type", "event", "type"))
+    )
+    occurred_at: datetime | None = Field(
+        default=None,
+        validation_alias=AliasChoices("occurred_at", "timestamp"),
+    )
+
+
+class OrderEventIngestResponse(ResponseModel):
+    order_id: str
+    status: str
+    applied_events: list[str]
+
+
 class ManualAssignRequest(BaseModel):
     drone_id: str = Field(min_length=1)
 

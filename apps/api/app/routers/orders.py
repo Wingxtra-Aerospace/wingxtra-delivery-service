@@ -29,6 +29,8 @@ from app.schemas.ui import (
     EventResponse,
     EventsTimelineResponse,
     ManualAssignRequest,
+    OrderEventIngestRequest,
+    OrderEventIngestResponse,
     MissionSubmitResponse,
     OrderActionResponse,
     OrderCreateRequest,
@@ -52,6 +54,7 @@ from app.services.ui_service import (
     create_order,
     create_pod,
     get_order,
+    ingest_order_event,
     get_pod,
     list_events,
     list_orders,
@@ -223,6 +226,27 @@ def get_events_endpoint(
 ) -> EventsTimelineResponse:
     events = [EventResponse.model_validate(event) for event in list_events(auth, db, order_id)]
     return EventsTimelineResponse(items=events)
+
+
+@router.post(
+    "/{order_id}/events",
+    response_model=OrderEventIngestResponse,
+    summary="Ingest mission execution event",
+)
+def ingest_order_event_endpoint(
+    order_id: str,
+    payload: OrderEventIngestRequest,
+    db: Session = Depends(get_db),
+    auth: AuthContext = Depends(require_backoffice_write),
+) -> OrderEventIngestResponse:
+    result = ingest_order_event(
+        auth=auth,
+        db=db,
+        order_id=order_id,
+        event_type=payload.event_type,
+        occurred_at=payload.occurred_at,
+    )
+    return OrderEventIngestResponse.model_validate(result)
 
 
 @router.post("/{order_id}/assign", response_model=OrderActionResponse, summary="Manual assignment")

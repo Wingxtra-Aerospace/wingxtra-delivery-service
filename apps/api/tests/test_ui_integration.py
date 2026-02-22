@@ -59,6 +59,14 @@ def test_jobs_forbidden_for_merchant_and_allowed_for_admin():
     assert admin_jobs.status_code == 200
 
 
+def test_jobs_list_items_include_eta_seconds_field():
+    response = client.get("/api/v1/jobs", headers=_headers("ADMIN", sub="admin-1"))
+    assert response.status_code == 200
+    body = response.json()
+    if body["items"]:
+        assert "eta_seconds" in body["items"][0]
+
+
 def test_jobs_list_returns_pagination_metadata():
     response = client.get(
         "/api/v1/jobs?page=1&page_size=1",

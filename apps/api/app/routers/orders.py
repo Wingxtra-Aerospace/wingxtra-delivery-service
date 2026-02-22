@@ -1,10 +1,11 @@
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response, status
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import (
     AuthContext,
+    RateLimitStatus,
     rate_limit_order_creation,
     rate_limit_public_tracking,
     require_backoffice_write,
@@ -69,15 +70,23 @@ def _translate_integration_error(err: IntegrationError) -> HTTPException:
     )
 
 
+def _set_rate_limit_headers(response, rate_limit: RateLimitStatus) -> None:
+    response.headers["X-RateLimit-Limit"] = str(rate_limit.limit)
+    response.headers["X-RateLimit-Remaining"] = str(rate_limit.remaining)
+    response.headers["X-RateLimit-Reset"] = str(rate_limit.reset_after_s)
+
+
 @router.post("", response_model=OrderDetailResponse, summary="Create order", status_code=201)
 async def create_order_endpoint(
     request: Request,
+    response: Response,
     payload: OrderCreateRequest,
     db: Session = Depends(get_db),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     auth: AuthContext = Depends(require_roles("MERCHANT", "OPS", "ADMIN")),
 ) -> OrderDetailResponse:
-    rate_limit_order_creation(request)
+    rate_limit = rate_limit_order_creation(request)
+    _set_rate_limit_headers(response, rate_limit)
 
     request_payload = await request.json()
     route_scope = build_scope("POST:/api/v1/orders", user_id=auth.user_id)
@@ -434,9 +443,11 @@ def create_pod_endpoint(
 )
 def public_tracking_endpoint(
     public_tracking_id: str,
+    response: Response,
     db: Session = Depends(get_db),
-    _rate_limit: None = Depends(rate_limit_public_tracking),
+    rate_limit: RateLimitStatus = Depends(rate_limit_public_tracking),
 ) -> TrackingViewResponse:
+    _set_rate_limit_headers(response, rate_limit)
     return TrackingViewResponse.model_validate(tracking_view(db, public_tracking_id))
 
 

@@ -1,4 +1,5 @@
 import pytest
+from pydantic import ValidationError
 
 from app import config as config_module
 
@@ -220,3 +221,8 @@ def test_runtime_security_allows_auto_mode_when_not_testing():
         config_module.settings.pod_otp_hmac_secret = original_pod
         config_module.settings.ui_service_mode = original_mode
         config_module.settings.database_url = original_db
+
+
+def test_settings_rejects_invalid_ui_service_mode():
+    with pytest.raises(ValidationError, match="WINGXTRA_UI_SERVICE_MODE must be one of"):
+        config_module.Settings(WINGXTRA_UI_SERVICE_MODE="invalid-mode")

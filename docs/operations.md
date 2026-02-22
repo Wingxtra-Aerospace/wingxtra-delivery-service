@@ -106,6 +106,7 @@ Set `WINGXTRA_UI_SERVICE_MODE` to select the UI service strategy:
 - `hybrid`: DB-backed API flows with placeholder/store adapters enabled for UI test IDs like `ord-1` and `ord-2` (test/dev only).
 
 In non-test runtime (`WINGXTRA_TESTING=false`), startup fails fast unless the resolved mode is `db` (for example: `db` or `auto`).
+Invalid `WINGXTRA_UI_SERVICE_MODE` values are rejected during settings validation at startup.
 
 
 ## Local infrastructure (Docker Compose)

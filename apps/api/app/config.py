@@ -1,4 +1,4 @@
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DEFAULT_JWT_SECRET = "wingxtra-jwt-secret"
@@ -48,17 +48,23 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
+    @field_validator("ui_service_mode")
+    @classmethod
+    def validate_ui_service_mode(cls, value: str) -> str:
+        mode = value.lower().strip()
+        if mode not in ALLOWED_UI_SERVICE_MODES:
+            allowed = ", ".join(sorted(ALLOWED_UI_SERVICE_MODES))
+            raise ValueError(f"WINGXTRA_UI_SERVICE_MODE must be one of: {allowed}")
+        return mode
+
 
 settings = Settings()
 
 
 def resolved_ui_service_mode() -> str:
-    mode = settings.ui_service_mode.lower().strip()
-    if mode not in ALLOWED_UI_SERVICE_MODES:
+    if settings.ui_service_mode == "auto":
         return "hybrid" if settings.testing else "db"
-    if mode == "auto":
-        return "hybrid" if settings.testing else "db"
-    return mode
+    return settings.ui_service_mode
 
 
 def allowed_origins() -> list[str]:

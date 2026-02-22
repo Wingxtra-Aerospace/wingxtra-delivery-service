@@ -136,7 +136,9 @@ def test_save_idempotency_result_updates_existing_scope(db_session):
     assert saved_payload == {"ok": True}
 
 
-def test_save_idempotency_result_handles_duplicate_insert_with_stable_response(db_session, monkeypatch):
+def test_save_idempotency_result_handles_duplicate_insert_with_stable_response(
+    db_session, monkeypatch
+):
     route = "POST:/api/v1/orders:user=ops-race"
     save_idempotency_result(
         db=db_session,

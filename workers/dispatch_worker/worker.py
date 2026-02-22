@@ -33,13 +33,17 @@ class DispatchRunResult:
 
 def load_settings(env: dict[str, str] | None = None) -> DispatchWorkerSettings:
     source = env if env is not None else os.environ
-    api_base_url = source.get("WINGXTRA_DISPATCH_WORKER_API_BASE_URL", "http://localhost:8000").strip()
+    api_base_url = source.get(
+        "WINGXTRA_DISPATCH_WORKER_API_BASE_URL", "http://localhost:8000"
+    ).strip()
     interval_s = int(source.get("WINGXTRA_DISPATCH_WORKER_INTERVAL_S", "10"))
     timeout_s = float(source.get("WINGXTRA_DISPATCH_WORKER_TIMEOUT_S", "5"))
     max_assignments_value = source.get("WINGXTRA_DISPATCH_WORKER_MAX_ASSIGNMENTS")
     auth_token = source.get("WINGXTRA_DISPATCH_WORKER_AUTH_TOKEN")
     max_retries = int(source.get("WINGXTRA_DISPATCH_WORKER_MAX_RETRIES", "2"))
-    retry_backoff_s = float(source.get("WINGXTRA_DISPATCH_WORKER_RETRY_BACKOFF_S", "0.5"))
+    retry_backoff_s = float(
+        source.get("WINGXTRA_DISPATCH_WORKER_RETRY_BACKOFF_S", "0.5")
+    )
 
     if interval_s < 1:
         raise ValueError("WINGXTRA_DISPATCH_WORKER_INTERVAL_S must be >= 1")

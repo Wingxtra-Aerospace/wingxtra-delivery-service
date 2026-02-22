@@ -1,4 +1,5 @@
 import { clearToken, getToken } from "./auth";
+import { createRequestId, emitApiError } from "./observability";
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 const baseUrl = apiBaseUrl.replace(/\/$/, "");
@@ -17,15 +18,28 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
     headers.set("Authorization", `Bearer ${token}`);
   }
 
-  const response = await fetch(`${baseUrl}${path}`, {
-    ...init,
-    headers
-  });
+  const requestId = headers.get("X-Request-ID") ?? createRequestId();
+  headers.set("X-Request-ID", requestId);
+
+  let response: Response;
+  try {
+    response = await fetch(`${baseUrl}${path}`, {
+      ...init,
+      headers
+    });
+  } catch {
+    emitApiError({ requestId });
+    throw new Error("Network request failed");
+  }
 
   if (response.status === 401 || response.status === 403) {
     clearToken();
     window.dispatchEvent(new CustomEvent("wingxtra-auth-required"));
     throw new ApiAuthError();
+  }
+
+  if (!response.ok) {
+    emitApiError({ requestId, status: response.status });
   }
 
   return response;

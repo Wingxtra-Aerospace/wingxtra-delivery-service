@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from "react-router-dom";
+import { ApiErrorBanner } from "./components/ApiErrorBanner";
 import { Navigation } from "./components/Navigation";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { HomePage } from "./pages/HomePage";
@@ -14,6 +15,7 @@ export default function App() {
   return (
     <div className="app-shell">
       <Navigation />
+      <ApiErrorBanner />
       <main className="app-content">
         <Routes>
           <Route path="/" element={<HomePage />} />

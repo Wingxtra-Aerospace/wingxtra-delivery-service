@@ -282,3 +282,34 @@ def test_run_dispatch_once_non_numeric_assigned_count_fails():
 
     assert result.ok is False
     assert result.error == "Invalid assigned_count value in dispatch response"
+
+
+def test_run_dispatch_once_non_object_json_response_fails():
+    settings = worker_module.DispatchWorkerSettings(
+        api_base_url="http://api",
+        interval_s=10,
+        timeout_s=2.0,
+        max_assignments=None,
+        auth_token=None,
+        max_retries=1,
+        retry_backoff_s=0.1,
+    )
+
+    class ListResponse:
+        status = 200
+
+        def read(self):
+            return b"[]"
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    result = worker_module.run_dispatch_once(
+        settings, opener=lambda _request, timeout: ListResponse()
+    )
+
+    assert result.ok is False
+    assert result.error == "Dispatch response must be a JSON object"

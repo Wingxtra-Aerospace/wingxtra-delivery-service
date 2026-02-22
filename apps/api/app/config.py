@@ -2,6 +2,7 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DEFAULT_POD_OTP_HMAC_SECRET = "wingxtra-pod-otp-secret"
+ALLOWED_RUNTIME_UI_SERVICE_MODES = {"db"}
 
 
 class Settings(BaseSettings):
@@ -62,3 +63,5 @@ def ensure_secure_runtime_settings() -> None:
         raise RuntimeError(
             "POD_OTP_HMAC_SECRET must be set to a non-default value when WINGXTRA_TESTING is false"
         )
+    if not settings.testing and settings.ui_service_mode not in ALLOWED_RUNTIME_UI_SERVICE_MODES:
+        raise RuntimeError("WINGXTRA_UI_SERVICE_MODE must be 'db' when WINGXTRA_TESTING is false")

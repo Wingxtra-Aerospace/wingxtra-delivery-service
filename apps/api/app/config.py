@@ -1,9 +1,10 @@
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DEFAULT_JWT_SECRET = "wingxtra-jwt-secret"
 DEFAULT_POD_OTP_HMAC_SECRET = "wingxtra-pod-otp-secret"
 ALLOWED_RUNTIME_UI_SERVICE_MODES = {"db"}
+ALLOWED_UI_SERVICE_MODES = {"store", "db", "hybrid", "auto"}
 MIN_SECRET_LENGTH = 32
 
 
@@ -21,7 +22,7 @@ class Settings(BaseSettings):
     gcs_auth_source: str = "gcs"
     enable_test_auth_bypass: bool = False
     testing: bool = Field(default=False, validation_alias="WINGXTRA_TESTING")
-    ui_service_mode: str = Field(default="hybrid", validation_alias="WINGXTRA_UI_SERVICE_MODE")
+    ui_service_mode: str = Field(default="auto", validation_alias="WINGXTRA_UI_SERVICE_MODE")
 
     public_tracking_rate_limit_requests: int = 10
     public_tracking_rate_limit_window_s: int = 60
@@ -47,8 +48,23 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
+    @field_validator("ui_service_mode")
+    @classmethod
+    def validate_ui_service_mode(cls, value: str) -> str:
+        mode = value.lower().strip()
+        if mode not in ALLOWED_UI_SERVICE_MODES:
+            allowed = ", ".join(sorted(ALLOWED_UI_SERVICE_MODES))
+            raise ValueError(f"WINGXTRA_UI_SERVICE_MODE must be one of: {allowed}")
+        return mode
+
 
 settings = Settings()
+
+
+def resolved_ui_service_mode() -> str:
+    if settings.ui_service_mode == "auto":
+        return "hybrid" if settings.testing else "db"
+    return settings.ui_service_mode
 
 
 def allowed_origins() -> list[str]:
@@ -79,7 +95,7 @@ def ensure_secure_runtime_settings() -> None:
             "POD_OTP_HMAC_SECRET must be at least "
             f"{MIN_SECRET_LENGTH} characters when WINGXTRA_TESTING is false"
         )
-    if not settings.testing and settings.ui_service_mode not in ALLOWED_RUNTIME_UI_SERVICE_MODES:
+    if not settings.testing and resolved_ui_service_mode() not in ALLOWED_RUNTIME_UI_SERVICE_MODES:
         raise RuntimeError("WINGXTRA_UI_SERVICE_MODE must be 'db' when WINGXTRA_TESTING is false")
     if not settings.testing and _is_sqlite_url(settings.database_url):
         raise RuntimeError("WINGXTRA_DATABASE_URL must use postgres when WINGXTRA_TESTING is false")

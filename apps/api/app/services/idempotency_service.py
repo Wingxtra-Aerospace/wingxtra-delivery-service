@@ -12,11 +12,33 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.models.idempotency_record import IdempotencyRecord
 
+IDEMPOTENCY_KEY_MAX_LENGTH = 255
+
 
 @dataclass
 class IdempotencyResult:
     replay: bool
     response_payload: dict[str, Any] | None = None
+
+
+def validate_idempotency_key(idempotency_key: str | None) -> str | None:
+    if idempotency_key is None:
+        return None
+
+    normalized_key = idempotency_key.strip()
+    if not normalized_key:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Idempotency-Key must not be empty",
+        )
+
+    if len(normalized_key) > IDEMPOTENCY_KEY_MAX_LENGTH:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Idempotency-Key exceeds max length {IDEMPOTENCY_KEY_MAX_LENGTH}",
+        )
+
+    return normalized_key
 
 
 def _raise_payload_conflict() -> None:

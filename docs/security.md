@@ -63,6 +63,7 @@ Supported endpoints:
 
 Behavior:
 - `Idempotency-Key` is optional but, when provided, replay is deterministic.
+- `Idempotency-Key` values must be non-empty and at most 255 characters.
 - Scope is deterministic per endpoint/user (and per-order where required).
 - Replays with the same payload return the original response payload.
 - Reusing the same key with a different payload returns `409` (`Idempotency key reused with different payload`).

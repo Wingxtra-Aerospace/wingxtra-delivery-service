@@ -263,3 +263,45 @@ def test_public_tracking_placeholder_without_pod_still_returns_200(client):
     body = response.json()
     assert body["order_id"] == "ord-1"
     assert body["public_tracking_id"] == "11111111-1111-4111-8111-111111111111"
+
+
+def test_create_order_rejects_empty_idempotency_key(client):
+    response = client.post(
+        "/api/v1/orders",
+        json={
+            "customer_name": "Jane Doe",
+            "customer_phone": "+123456789",
+            "pickup_lat": 6.5,
+            "pickup_lng": 3.4,
+            "dropoff_lat": 6.6,
+            "dropoff_lng": 3.5,
+            "dropoff_accuracy_m": 8,
+            "payload_weight_kg": 2.2,
+            "payload_type": "parcel",
+            "priority": "NORMAL",
+        },
+        headers={"Idempotency-Key": "   "},
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Idempotency-Key must not be empty"
+
+
+def test_create_order_rejects_oversized_idempotency_key(client):
+    response = client.post(
+        "/api/v1/orders",
+        json={
+            "customer_name": "Jane Doe",
+            "customer_phone": "+123456789",
+            "pickup_lat": 6.5,
+            "pickup_lng": 3.4,
+            "dropoff_lat": 6.6,
+            "dropoff_lng": 3.5,
+            "dropoff_accuracy_m": 8,
+            "payload_weight_kg": 2.2,
+            "payload_type": "parcel",
+            "priority": "NORMAL",
+        },
+        headers={"Idempotency-Key": "x" * 256},
+    )
+    assert response.status_code == 400
+    assert "Idempotency-Key exceeds max length" in response.json()["detail"]

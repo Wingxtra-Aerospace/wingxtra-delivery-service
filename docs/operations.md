@@ -37,6 +37,7 @@ Current checks:
 
 Readiness config env vars:
 - `REDIS_URL` (optional; enables Redis dependency check in `/ready` when set, must use `redis://`)
+- `REDIS_READINESS_TIMEOUT_S` (optional; timeout in seconds for Redis readiness connection/ping, default `1.0`)
 
 Redis readiness check behavior:
 

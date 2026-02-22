@@ -37,7 +37,7 @@ def database_dependency_status(
     return "ok"
 
 
-def redis_dependency_status(redis_url: str) -> ReadinessStatus:
+def redis_dependency_status(redis_url: str, timeout_s: float = 1.0) -> ReadinessStatus:
     parsed = urlparse(redis_url)
     if parsed.scheme != "redis":
         return "error"
@@ -48,7 +48,7 @@ def redis_dependency_status(redis_url: str) -> ReadinessStatus:
 
     port = parsed.port or 6379
     try:
-        with socket.create_connection((host, port), timeout=1.0) as conn:
+        with socket.create_connection((host, port), timeout=timeout_s) as conn:
             conn.sendall(b"*1\r\n$4\r\nPING\r\n")
             payload = conn.recv(16)
     except OSError:

@@ -33,7 +33,10 @@ def readiness(response: Response) -> ReadinessResponse:
 
     if settings.redis_url.strip():
         redis_status = safe_dependency_status(
-            "redis", lambda: redis_dependency_status(settings.redis_url)
+            "redis",
+            lambda: redis_dependency_status(
+                settings.redis_url, timeout_s=settings.redis_readiness_timeout_s
+            ),
         )
         dependencies.append(ReadinessDependency(name="redis", status=redis_status))
 

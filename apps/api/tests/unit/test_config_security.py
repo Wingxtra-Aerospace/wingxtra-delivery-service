@@ -249,3 +249,14 @@ def test_settings_normalizes_redis_url_whitespace():
     settings = config_module.Settings(REDIS_URL="  redis://localhost:6379/0  ")
 
     assert settings.redis_url == "redis://localhost:6379/0"
+
+
+def test_settings_rejects_non_positive_redis_readiness_timeout():
+    with pytest.raises(ValidationError, match="redis_readiness_timeout_s must be greater than 0"):
+        config_module.Settings(redis_readiness_timeout_s=0)
+
+
+def test_settings_accepts_positive_redis_readiness_timeout():
+    settings = config_module.Settings(redis_readiness_timeout_s=2.0)
+
+    assert settings.redis_readiness_timeout_s == 2.0

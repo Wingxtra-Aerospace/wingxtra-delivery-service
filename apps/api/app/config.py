@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     gcs_bridge_backoff_s: float = 0.2
 
     redis_url: str = Field(default="", validation_alias="REDIS_URL")
+    redis_readiness_timeout_s: float = 1.0
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
@@ -68,6 +69,13 @@ class Settings(BaseSettings):
         if not redis_url.startswith("redis://"):
             raise ValueError("REDIS_URL must use redis:// scheme")
         return redis_url
+
+    @field_validator("redis_readiness_timeout_s")
+    @classmethod
+    def validate_redis_readiness_timeout_s(cls, value: float) -> float:
+        if value <= 0:
+            raise ValueError("redis_readiness_timeout_s must be greater than 0")
+        return value
 
 
 settings = Settings()

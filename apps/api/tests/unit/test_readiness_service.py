@@ -75,3 +75,33 @@ def test_safe_dependency_status_logs_unexpected_exception(monkeypatch):
 
     assert result == "error"
     assert events == [("readiness_dependency_check_failed", "database:RuntimeError")]
+
+
+def test_redis_dependency_status_passes_configured_timeout(monkeypatch):
+    from app.services import readiness_service
+
+    observed: dict[str, float] = {}
+
+    class _FakeSocket:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            return False
+
+        def sendall(self, _payload):
+            return None
+
+        def recv(self, _size):
+            return b"+PONG\r\n"
+
+    def _create_connection(_address, timeout):
+        observed["timeout"] = timeout
+        return _FakeSocket()
+
+    monkeypatch.setattr(readiness_service.socket, "create_connection", _create_connection)
+
+    assert (
+        readiness_service.redis_dependency_status("redis://localhost:6379/0", timeout_s=2.5) == "ok"
+    )
+    assert observed["timeout"] == 2.5

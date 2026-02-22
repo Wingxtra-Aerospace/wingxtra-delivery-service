@@ -207,6 +207,9 @@ def test_metrics_endpoint_requires_ops_or_admin_role():
 def test_metrics_endpoint_exposes_dispatch_and_mission_timings():
     headers = _headers("OPS", sub="ops-metrics")
 
+    run = client.post("/api/v1/dispatch/run", headers=headers)
+    assert run.status_code == 200
+
     assign = client.post(
         "/api/v1/orders/ord-1/assign",
         json={"drone_id": "DR-METRICS"},
@@ -224,12 +227,15 @@ def test_metrics_endpoint_exposes_dispatch_and_mission_timings():
     assert "counters" in payload
     assert "http_requests_total" in payload["counters"]
     assert "timings" in payload
+    assert "dispatch_run_seconds" in payload["timings"]
     assert "dispatch_assignment_seconds" in payload["timings"]
     assert "mission_intent_generation_seconds" in payload["timings"]
 
 
 def test_auto_dispatch_assigns_placeholder_ord2_when_queued():
     headers = _headers("OPS", sub="ops-dispatch-ord2")
+    ui_store_service.seed_placeholders_in_store_if_needed()
+    ui_store_service.store.orders["ord-2"].status = "QUEUED"
 
     run = client.post("/api/v1/dispatch/run", headers=headers)
     assert run.status_code == 200

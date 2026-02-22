@@ -58,6 +58,7 @@ Counter metrics currently captured include:
 
 Timing metrics currently captured:
 
+- `dispatch_run_seconds`
 - `dispatch_assignment_seconds`
 - `mission_intent_generation_seconds`
 - `http_request_duration_seconds`

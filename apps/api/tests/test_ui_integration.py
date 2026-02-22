@@ -8,6 +8,7 @@ from app.auth.jwt import issue_jwt
 from app.config import settings
 from app.main import app
 from app.models.order import Order, OrderStatus
+from app.services import ui_store_service
 
 client = TestClient(app)
 
@@ -236,6 +237,30 @@ def test_auto_dispatch_assigns_placeholder_ord2_when_queued():
     assignments = run.json()["assignments"]
     assert any(item["order_id"] == "ord-2" for item in assignments)
     assert all("order_id" in item and "status" in item for item in assignments)
+
+
+def test_dispatch_run_hybrid_fills_remaining_capacity_with_placeholder():
+    headers = _headers("OPS", sub="ops-dispatch-capacity")
+    ui_store_service.seed_placeholders_in_store_if_needed()
+    ui_store_service.store.orders["ord-2"].status = "QUEUED"
+
+    create = client.post(
+        "/api/v1/orders",
+        json={"customer_name": "Dispatch capacity"},
+        headers=headers,
+    )
+    assert create.status_code == 201
+
+    run = client.post(
+        "/api/v1/dispatch/run",
+        json={"max_assignments": 2},
+        headers=headers,
+    )
+
+    assert run.status_code == 200
+    payload = run.json()
+    assert payload["assigned"] == 2
+    assert any(item["order_id"] == "ord-2" for item in payload["assignments"])
 
 
 def test_auto_dispatch_and_manual_assign_routes_exist():

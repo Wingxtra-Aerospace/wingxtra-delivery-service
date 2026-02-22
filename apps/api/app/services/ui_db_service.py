@@ -5,7 +5,7 @@ import re
 import uuid
 from datetime import datetime, timezone
 from hashlib import sha256
-from typing import Any, Callable
+from typing import Any
 
 from fastapi import HTTPException, status
 from sqlalchemy import String, and_, func, or_, select

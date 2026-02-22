@@ -733,3 +733,20 @@ def test_create_pod_validates_method_specific_fields(client, db_session):
     assert missing_otp.json()["detail"] == "otp_code is required"
     assert missing_operator.status_code == 400
     assert missing_operator.json()["detail"] == "operator_name is required"
+
+
+def test_create_pod_accepts_confirmed_by_alias(client, db_session):
+    order = _create_order(client).json()
+
+    db_order = db_session.get(Order, UUID(order["id"]))
+    db_order.status = OrderStatus.DELIVERED
+    db_session.commit()
+
+    response = client.post(
+        f"/api/v1/orders/{order['id']}/pod",
+        json={"method": "OPERATOR_CONFIRM", "confirmed_by": "ops-agent"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["method"] == "OPERATOR_CONFIRM"
+    assert body["operator_name"] == "ops-agent"

@@ -172,6 +172,9 @@ def ingest_order_event(
                 ingest_event_type=event_type if idx == 0 else None,
                 ingest_occurred_at=base_time if idx == 0 else None,
             )
+
+        row.updated_at = _now_utc()
+        db.commit()
     except IntegrityError:
         db.rollback()
         existing_row = db.get(Order, oid)
@@ -185,8 +188,6 @@ def ingest_order_event(
             "applied_events": [],
         }
 
-    row.updated_at = _now_utc()
-    db.commit()
     db.refresh(row)
 
     return {

@@ -369,8 +369,12 @@ async def submit_mission_endpoint(
                     }
                 )
         else:
-            order_out, mission_intent_payload = submit_mission(auth, db, order_id)
-            publisher.publish_mission_intent(mission_intent_payload)
+            order_out, mission_intent_payload = submit_mission(
+                auth,
+                db,
+                order_id,
+                publish=publisher.publish_mission_intent,
+            )
 
             response_payload = MissionSubmitResponse(
                 order_id=str(order_out["id"]),

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, Callable
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
@@ -167,9 +167,12 @@ def update_order(
 
 
 def submit_mission(
-    auth: AuthContext, db: Session, order_id: str
+    auth: AuthContext,
+    db: Session,
+    order_id: str,
+    publish: Callable[[dict[str, str]], None] | None = None,
 ) -> tuple[dict[str, Any], dict[str, str]]:
-    return ui_db_service.submit_mission(auth, db, order_id)
+    return ui_db_service.submit_mission(auth, db, order_id, publish=publish)
 
 
 def run_auto_dispatch(

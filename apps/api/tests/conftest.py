@@ -9,6 +9,7 @@ from app.db.base import Base
 from app.db.session import engine as app_engine
 from app.db.session import get_db
 from app.main import app
+from app.services.store import reset_store
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -24,6 +25,12 @@ def reset_db():
     reset_rate_limits()
     Base.metadata.drop_all(bind=app_engine)
     Base.metadata.create_all(bind=app_engine)
+    yield
+
+
+@pytest.fixture(autouse=True)
+def reset_in_memory_store():
+    reset_store()
     yield
 
 

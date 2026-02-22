@@ -76,7 +76,7 @@ def test_jobs_list_query_params_documented(client):
     params = openapi.json()["paths"]["/api/v1/jobs"]["get"]["parameters"]
     by_name = {p["name"]: p for p in params}
 
-    assert {"active", "page", "page_size"}.issubset(by_name.keys())
+    assert {"active", "page", "page_size", "order_id"}.issubset(by_name.keys())
     assert by_name["page"]["schema"]["minimum"] == 1
     assert by_name["page_size"]["schema"]["minimum"] == 1
     assert by_name["page_size"]["schema"]["maximum"] == 100

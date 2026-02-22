@@ -230,8 +230,9 @@ def list_jobs(
     active_only: bool,
     page: int,
     page_size: int,
+    order_id: str | None = None,
 ) -> tuple[list[dict[str, Any]], int]:
-    return ui_db_service.list_jobs(auth, db, active_only, page, page_size)
+    return ui_db_service.list_jobs(auth, db, active_only, page, page_size, order_id)
 
 
 def get_job(auth: AuthContext, db: Session, job_id: str) -> dict[str, Any]:

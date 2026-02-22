@@ -380,6 +380,7 @@ def list_jobs(
     active_only: bool,
     page: int,
     page_size: int,
+    order_id: str | None = None,
 ) -> tuple[list[dict[str, Any]], int]:
     if auth.role not in {"OPS", "ADMIN"}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
@@ -389,6 +390,14 @@ def list_jobs(
         filters.append(
             DeliveryJob.status.in_({DeliveryJobStatus.PENDING, DeliveryJobStatus.ACTIVE})
         )
+    if order_id is not None:
+        try:
+            filters.append(DeliveryJob.order_id == uuid.UUID(order_id))
+        except ValueError as err:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Invalid order_id",
+            ) from err
 
     stmt = select(DeliveryJob).order_by(DeliveryJob.created_at.desc())
     if filters:
@@ -487,7 +496,7 @@ def create_pod(
         m = ProofOfDeliveryMethod(method)
     except ValueError as err:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid POD method"
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="Invalid POD method"
         ) from err
 
     if m == ProofOfDeliveryMethod.PHOTO and not photo_url:
@@ -608,7 +617,7 @@ def update_order(
             row.priority = OrderPriority(priority)
         except ValueError as err:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Invalid priority",
             ) from err
         changed = True

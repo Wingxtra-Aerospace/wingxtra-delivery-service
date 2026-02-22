@@ -259,6 +259,48 @@ def test_get_job_detail_404_for_missing_job(client):
     assert missing.status_code == 404
 
 
+def test_jobs_endpoint_can_filter_by_order_id(client):
+    _set_fleet_override(
+        [
+            FleetDroneTelemetry(
+                drone_id="DRONE-1", lat=6.45, lng=3.39, battery=95, is_available=True
+            ),
+            FleetDroneTelemetry(
+                drone_id="DRONE-2", lat=6.46, lng=3.40, battery=94, is_available=True
+            ),
+        ]
+    )
+
+    first = _create_order(client).json()
+    second = _create_order(client).json()
+
+    assert (
+        client.post(
+            f"/api/v1/orders/{first['id']}/assign", json={"drone_id": "DRONE-1"}
+        ).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            f"/api/v1/orders/{second['id']}/assign", json={"drone_id": "DRONE-2"}
+        ).status_code
+        == 200
+    )
+
+    filtered = client.get(f"/api/v1/jobs?active=false&page=1&page_size=10&order_id={first['id']}")
+    assert filtered.status_code == 200
+    body = filtered.json()
+    assert body["pagination"]["total"] == 1
+    assert len(body["items"]) == 1
+    assert body["items"][0]["order_id"] == first["id"]
+
+
+def test_jobs_endpoint_rejects_invalid_order_id_filter(client):
+    response = client.get("/api/v1/jobs?order_id=not-a-uuid")
+    assert response.status_code == 422
+    assert response.json()["detail"] == "Invalid order_id"
+
+
 def test_jobs_endpoint_returns_newest_first(client):
     _set_fleet_override(
         [

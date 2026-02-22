@@ -14,10 +14,11 @@ def list_jobs_endpoint(
     active: bool = Query(default=True),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
+    order_id: str | None = Query(default=None),
     auth: AuthContext = Depends(require_backoffice_write),
     db: Session = Depends(get_db),
 ) -> JobsListResponse:
-    items, total = list_jobs(auth, db, active, page, page_size)
+    items, total = list_jobs(auth, db, active, page, page_size, order_id)
     return JobsListResponse(
         items=[JobResponse.model_validate(job) for job in items],
         pagination=PaginationMeta(page=page, page_size=page_size, total=total),

@@ -164,6 +164,44 @@ def test_redis_dependency_status_returns_ok_when_ping_pong(monkeypatch):
     assert readiness_service.redis_dependency_status("redis://localhost:6379/0") == "ok"
 
 
+def test_redis_dependency_status_with_invalid_url_scheme():
+    from app.routers.health import _redis_dependency_status
+
+    assert _redis_dependency_status("rediss://localhost:6379/0") == "error"
+
+
+def test_redis_dependency_status_handles_connection_error(monkeypatch):
+    from app.routers import health
+
+    def _raise(*args, **kwargs):
+        raise OSError("no route")
+
+    monkeypatch.setattr(health.socket, "create_connection", _raise)
+
+    assert health._redis_dependency_status("redis://localhost:6379/0") == "error"
+
+
+def test_redis_dependency_status_returns_ok_when_ping_pong(monkeypatch):
+    from app.routers import health
+
+    class _FakeSocket:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            return False
+
+        def sendall(self, payload):
+            assert payload == b"*1\r\n$4\r\nPING\r\n"
+
+        def recv(self, _size):
+            return b"+PONG\r\n"
+
+    monkeypatch.setattr(health.socket, "create_connection", lambda *args, **kwargs: _FakeSocket())
+
+    assert health._redis_dependency_status("redis://localhost:6379/0") == "ok"
+
+
 def test_safe_dependency_status_logs_unexpected_exception(monkeypatch):
     from app.services import readiness_service
 

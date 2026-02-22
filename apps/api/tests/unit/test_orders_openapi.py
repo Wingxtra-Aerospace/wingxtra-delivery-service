@@ -54,3 +54,59 @@ def test_tracking_response_schema_includes_milestones(client):
 
     tracking_schema = openapi.json()["components"]["schemas"]["TrackingViewResponse"]
     assert "milestones" in tracking_schema["properties"]
+
+
+def test_jobs_list_response_schema_includes_pagination(client):
+    openapi = client.get("/openapi.json")
+    assert openapi.status_code == 200
+
+    jobs_get = openapi.json()["paths"]["/api/v1/jobs"]["get"]
+    assert jobs_get["responses"]["200"]["content"]["application/json"]["schema"]["$ref"] == (
+        "#/components/schemas/JobsListResponse"
+    )
+
+    jobs_schema = openapi.json()["components"]["schemas"]["JobsListResponse"]
+    assert "pagination" in jobs_schema["properties"]
+
+
+def test_jobs_list_query_params_documented(client):
+    openapi = client.get("/openapi.json")
+    assert openapi.status_code == 200
+
+    params = openapi.json()["paths"]["/api/v1/jobs"]["get"]["parameters"]
+    by_name = {p["name"]: p for p in params}
+
+    assert {"active", "page", "page_size"}.issubset(by_name.keys())
+    assert by_name["page"]["schema"]["minimum"] == 1
+    assert by_name["page_size"]["schema"]["minimum"] == 1
+    assert by_name["page_size"]["schema"]["maximum"] == 100
+
+
+def test_jobs_item_schema_exposes_nullable_eta_seconds(client):
+    openapi = client.get("/openapi.json")
+    assert openapi.status_code == 200
+
+    job_schema = openapi.json()["components"]["schemas"]["JobResponse"]
+    eta_schema = job_schema["properties"]["eta_seconds"]
+
+    assert eta_schema["anyOf"][0]["type"] == "integer"
+    assert eta_schema["anyOf"][1]["type"] == "null"
+
+
+def test_jobs_detail_response_schema_in_openapi(client):
+    openapi = client.get("/openapi.json")
+    assert openapi.status_code == 200
+
+    jobs_detail = openapi.json()["paths"]["/api/v1/jobs/{job_id}"]["get"]
+    assert jobs_detail["responses"]["200"]["content"]["application/json"]["schema"]["$ref"] == (
+        "#/components/schemas/JobResponse"
+    )
+
+
+def test_jobs_detail_endpoint_documents_auth_errors(client):
+    openapi = client.get("/openapi.json")
+    assert openapi.status_code == 200
+
+    jobs_detail_responses = openapi.json()["paths"]["/api/v1/jobs/{job_id}"]["get"]["responses"]
+    # FastAPI always includes 422 for path/query validation.
+    assert "422" in jobs_detail_responses

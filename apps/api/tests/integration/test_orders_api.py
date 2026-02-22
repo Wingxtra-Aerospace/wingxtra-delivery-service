@@ -517,3 +517,55 @@ def test_public_tracking_rate_limit_increments_rate_limit_metrics(client):
 
     assert delta("rate_limit_checked_total") >= 2
     assert delta("rate_limit_rejected_total") >= 1
+
+
+def test_metrics_exposes_idempotency_conflict_counter_after_conflict(client):
+    before = client.get("/metrics")
+    assert before.status_code == 200
+    before_counters = before.json().get("counters", {})
+
+    first = client.post(
+        "/api/v1/orders",
+        json={
+            "customer_name": "Jane Doe",
+            "customer_phone": "+123456789",
+            "pickup_lat": 6.5,
+            "pickup_lng": 3.4,
+            "dropoff_lat": 6.6,
+            "dropoff_lng": 3.5,
+            "dropoff_accuracy_m": 8,
+            "payload_weight_kg": 2.2,
+            "payload_type": "parcel",
+            "priority": "NORMAL",
+        },
+        headers={"Idempotency-Key": "idem-conflict-metrics-1"},
+    )
+    assert first.status_code == 201
+
+    conflict = client.post(
+        "/api/v1/orders",
+        json={
+            "customer_name": "Jane Doe",
+            "customer_phone": "+123456789",
+            "pickup_lat": 6.5,
+            "pickup_lng": 3.4,
+            "dropoff_lat": 6.6,
+            "dropoff_lng": 3.5,
+            "dropoff_accuracy_m": 8,
+            "payload_weight_kg": 3.4,
+            "payload_type": "parcel",
+            "priority": "NORMAL",
+        },
+        headers={"Idempotency-Key": "idem-conflict-metrics-1"},
+    )
+    assert conflict.status_code == 409
+    assert conflict.json()["detail"] == "Idempotency key reused with different payload"
+
+    after = client.get("/metrics")
+    assert after.status_code == 200
+    after_counters = after.json().get("counters", {})
+
+    delta = int(after_counters.get("idempotency_conflict_total", 0)) - int(
+        before_counters.get("idempotency_conflict_total", 0)
+    )
+    assert delta >= 1

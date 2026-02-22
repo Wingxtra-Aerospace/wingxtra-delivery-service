@@ -1,4 +1,8 @@
-from app.integrations.fleet_api_client import FleetDroneTelemetry
+import pytest
+from fastapi import HTTPException
+
+from app.config import settings
+from app.integrations.fleet_api_client import FleetDroneTelemetry, FleetServiceArea
 from app.schemas.order import OrderCreate
 from app.services.dispatch_service import manual_assign_order, run_auto_dispatch
 from app.services.orders_service import create_order
@@ -67,3 +71,69 @@ def test_auto_dispatch_can_assign_multiple_orders_when_max_assignments_increased
 
     assert len(assignments) == 2
     assert {assignment[0].id for assignment in assignments} == {first_order.id, second_order.id}
+
+
+def test_auto_dispatch_filters_incompatible_drones_before_scoring(db_session):
+    order = create_order(db_session, _payload())
+    client = FakeFleetApiClient(
+        [
+            FleetDroneTelemetry(drone_id="bad-weight", lat=1, lng=2, battery=95, max_payload_kg=1),
+            FleetDroneTelemetry(
+                drone_id="bad-type", lat=1, lng=2, battery=95, payload_type="MEDICAL"
+            ),
+            FleetDroneTelemetry(
+                drone_id="bad-area",
+                lat=1,
+                lng=2,
+                battery=95,
+                service_area=FleetServiceArea(min_lat=10, max_lat=20, min_lng=10, max_lng=20),
+            ),
+            FleetDroneTelemetry(drone_id="good", lat=1.01, lng=2.01, battery=80, max_payload_kg=2),
+        ]
+    )
+
+    assignments = run_auto_dispatch(db_session, client)
+
+    assert len(assignments) == 1
+    _, job = assignments[0]
+    assert job.assigned_drone_id == "good"
+    assert order.status.value == "ASSIGNED"
+
+
+def test_manual_assign_rejects_incompatible_drone_with_clear_reason(db_session):
+    order = create_order(db_session, _payload())
+    client = FakeFleetApiClient(
+        [FleetDroneTelemetry(drone_id="D1", lat=1, lng=2, battery=95, max_payload_kg=1)]
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        manual_assign_order(db_session, client, order.id, "D1")
+
+    assert exc.value.status_code == 400
+    assert exc.value.detail == "Drone payload capacity exceeded"
+
+
+def test_auto_dispatch_tie_break_prefers_higher_battery_when_scores_match(db_session):
+    order = create_order(db_session, _payload())
+
+    old_distance = settings.dispatch_score_distance_weight
+    old_battery = settings.dispatch_score_battery_weight
+    settings.dispatch_score_distance_weight = 0
+    settings.dispatch_score_battery_weight = 0
+    try:
+        client = FakeFleetApiClient(
+            [
+                FleetDroneTelemetry(drone_id="low-battery", lat=1.5, lng=2.5, battery=60),
+                FleetDroneTelemetry(drone_id="high-battery", lat=1, lng=2, battery=80),
+            ]
+        )
+
+        assignments = run_auto_dispatch(db_session, client)
+    finally:
+        settings.dispatch_score_distance_weight = old_distance
+        settings.dispatch_score_battery_weight = old_battery
+
+    assert len(assignments) == 1
+    _, job = assignments[0]
+    assert job.assigned_drone_id == "high-battery"
+    assert order.status.value == "ASSIGNED"

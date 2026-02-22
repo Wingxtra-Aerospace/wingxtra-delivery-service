@@ -43,6 +43,7 @@ from app.services.idempotency_service import (
     validate_idempotency_key,
 )
 from app.services.ui_service import (
+    build_public_tracking_payload,
     cancel_order,
     create_order,
     create_pod,
@@ -52,7 +53,6 @@ from app.services.ui_service import (
     list_orders,
     manual_assign,
     submit_mission,
-    tracking_view,
     update_order,
 )
 
@@ -470,23 +470,7 @@ def public_tracking_endpoint(
 ) -> TrackingViewResponse:
     _set_rate_limit_headers(response, rate_limit)
 
-    order = tracking_view(db, public_tracking_id)
-    order_id = order.get("id") or order["order_id"]
-    pod = get_pod(db, order_id)
-
-    payload: dict[str, object] = {
-        "order_id": order_id,
-        "public_tracking_id": order["public_tracking_id"],
-        "status": order["status"],
-        "milestones": order.get("milestones"),
-    }
-    if pod is not None:
-        payload["pod_summary"] = {
-            "method": pod.method.value,
-            "photo_url": pod.photo_url,
-            "created_at": pod.created_at,
-        }
-
+    payload = build_public_tracking_payload(db, public_tracking_id)
     return TrackingViewResponse.model_validate(payload)
 
 

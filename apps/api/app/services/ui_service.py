@@ -290,12 +290,49 @@ def tracking_view(db: Session, public_tracking_id: str) -> dict[str, Any]:
     return ui_db_service.tracking_view(db, public_tracking_id)
 
 
+def _split_etag_header(if_none_match: str) -> list[str]:
+    values: list[str] = []
+    current: list[str] = []
+    in_quotes = False
+    escaped = False
+
+    for char in if_none_match:
+        if escaped:
+            current.append(char)
+            escaped = False
+            continue
+
+        if char == "\\":
+            current.append(char)
+            escaped = True
+            continue
+
+        if char == '"':
+            in_quotes = not in_quotes
+            current.append(char)
+            continue
+
+        if char == "," and not in_quotes:
+            token = "".join(current).strip()
+            if token:
+                values.append(token)
+            current = []
+            continue
+
+        current.append(char)
+
+    tail = "".join(current).strip()
+    if tail:
+        values.append(tail)
+
+    return values
+
+
 def etag_matches(if_none_match: str | None, etag: str) -> bool:
     if not if_none_match:
         return False
 
-    candidates = [item.strip() for item in if_none_match.split(",") if item.strip()]
-    for candidate in candidates:
+    for candidate in _split_etag_header(if_none_match):
         if candidate == "*":
             return True
 

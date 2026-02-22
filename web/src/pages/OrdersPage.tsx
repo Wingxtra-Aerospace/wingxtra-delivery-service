@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { apiFetch } from "../api";
-import type { OrdersListResponse } from "../api/types";
+import type { components } from "../api/types";
+
+type OrdersListResponse = components["schemas"]["OrdersListResponse"];
 type OrderItem = OrdersListResponse["items"][number] & { priority?: string | null; assigned_drone_id?: string | null };
 
 const STATUS_OPTIONS = ["", "CREATED", "VALIDATED", "QUEUED", "ASSIGNED", "MISSION_SUBMITTED", "LAUNCHED", "ENROUTE", "ARRIVED", "DELIVERING", "DELIVERED", "CANCELED", "FAILED", "ABORTED"];

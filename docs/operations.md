@@ -75,6 +75,7 @@ For CI and local test safety, the service defaults to `sqlite+pysqlite:///./test
 
 CI now runs API tests against Postgres (service container in `.github/workflows/api.yml`) to improve environment parity with production.
 SQLite remains supported for local/dev safety when `WINGXTRA_DATABASE_URL` is unset.
+In non-test runtime (`WINGXTRA_TESTING=false`), startup fails fast when `WINGXTRA_DATABASE_URL` uses SQLite; use Postgres in production-like deployments.
 
 Set `WINGXTRA_TESTING=true` in test environments to disable startup demo-data seeding.
 This keeps API list endpoints deterministic for integration tests.
@@ -82,8 +83,10 @@ This keeps API list endpoints deterministic for integration tests.
 Set `WINGXTRA_UI_SERVICE_MODE` to explicitly select the UI service strategy:
 
 - `db`: only database-backed order and tracking flows.
-- `store`: only in-memory placeholder/test flows.
-- `hybrid` (default): DB-backed API flows with placeholder/store adapters enabled for UI test IDs like `ord-1` and `ord-2`.
+- `store`: only in-memory placeholder/test flows (test/dev only).
+- `hybrid` (default): DB-backed API flows with placeholder/store adapters enabled for UI test IDs like `ord-1` and `ord-2` (test/dev only).
+
+In non-test runtime (`WINGXTRA_TESTING=false`), startup fails fast unless `WINGXTRA_UI_SERVICE_MODE=db`.
 
 
 ## Local infrastructure (Docker Compose)

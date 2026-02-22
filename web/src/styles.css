@@ -107,3 +107,51 @@ code {
   padding: 0.45rem 0.85rem;
   cursor: pointer;
 }
+
+.filters-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.filters-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.orders-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.8rem 0;
+  font-size: 0.9rem;
+}
+
+.orders-table th,
+.orders-table td {
+  border-bottom: 1px solid #e2e8f0;
+  padding: 0.45rem 0.35rem;
+  text-align: left;
+}
+
+.row-clickable {
+  cursor: pointer;
+}
+
+.row-clickable:hover {
+  background: #f1f5f9;
+}
+
+.pagination-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.pagination-bar label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}

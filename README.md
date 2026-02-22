@@ -395,6 +395,7 @@ Document in `docs/security.md`.
 - Install: `cd web && npm install`
 - Run dev server: `cd web && npm run dev`
 - Build: `cd web && npm run build`
+- UI tests: `cd web && npm run test`
 - API base URL env: `VITE_API_BASE_URL` (defaults to `http://localhost:8000`)
 - Auth flow: use `/login` to paste JWT (OPS/DEV path); token is stored in memory + `sessionStorage` only, never `localStorage`
 - Route guards: ops routes require `OPS/ADMIN`; merchant routes require `MERCHANT/ADMIN`

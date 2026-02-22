@@ -70,3 +70,20 @@ UI decodes JWT payload claims locally (without signature validation) to display:
 - tenant hint from `tenant_id`, `tenant`, or `merchant_id`
 
 This is display-only and does not replace backend auth checks.
+
+
+## Run tests
+
+```bash
+npm run test
+```
+
+Includes Vitest + Testing Library coverage for Orders page loading and URL/filter behavior.
+
+
+## Orders page (MVP)
+
+- Route: `/orders`
+- Fetches `GET /api/v1/orders` with URL-driven filters and pagination
+- Query params mirrored in URL for shareable links: `page`, `page_size`, `status`, `q`, `from`, `to`
+- Row click navigates to `/orders/:orderId` detail

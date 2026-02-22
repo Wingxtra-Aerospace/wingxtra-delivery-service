@@ -5,6 +5,7 @@ import { HomePage } from "./pages/HomePage";
 import { JobsPage } from "./pages/JobsPage";
 import { LoginPage } from "./pages/LoginPage";
 import { OpsConsolePage } from "./pages/OpsConsolePage";
+import { OrderDetailPage } from "./pages/OrderDetailPage";
 import { OrdersPage } from "./pages/OrdersPage";
 import { TrackingPage } from "./pages/TrackingPage";
 
@@ -21,6 +22,14 @@ export default function App() {
             element={
               <ProtectedRoute roles={["MERCHANT", "ADMIN"]}>
                 <OrdersPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/orders/:orderId"
+            element={
+              <ProtectedRoute roles={["MERCHANT", "ADMIN"]}>
+                <OrderDetailPage />
               </ProtectedRoute>
             }
           />

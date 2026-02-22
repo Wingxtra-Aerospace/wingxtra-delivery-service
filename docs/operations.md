@@ -107,6 +107,7 @@ Set `WINGXTRA_UI_SERVICE_MODE` to select the UI service strategy:
 
 In non-test runtime (`WINGXTRA_TESTING=false`), startup fails fast unless the resolved mode is `db` (for example: `db` or `auto`).
 Invalid `WINGXTRA_UI_SERVICE_MODE` values are rejected during settings validation at startup.
+Values are normalized case-insensitively (for example, `HYBRID` resolves to `hybrid`).
 
 
 ## Local infrastructure (Docker Compose)

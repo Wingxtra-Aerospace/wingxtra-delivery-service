@@ -226,3 +226,9 @@ def test_runtime_security_allows_auto_mode_when_not_testing():
 def test_settings_rejects_invalid_ui_service_mode():
     with pytest.raises(ValidationError, match="WINGXTRA_UI_SERVICE_MODE must be one of"):
         config_module.Settings(WINGXTRA_UI_SERVICE_MODE="invalid-mode")
+
+
+def test_settings_normalizes_ui_service_mode_value():
+    settings = config_module.Settings(WINGXTRA_UI_SERVICE_MODE="  HYBRID  ")
+
+    assert settings.ui_service_mode == "hybrid"

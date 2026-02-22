@@ -33,16 +33,21 @@ jobs:
           WINGXTRA_TESTING: "true"
         run: |
           cd apps/api
-          uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+          nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 >/tmp/wingxtra-api.log 2>&1 &
           echo $! > /tmp/wingxtra-api.pid
+          ready=0
           for i in {1..30}; do
             if curl -fsS http://127.0.0.1:8000/openapi.json >/dev/null; then
-              exit 0
+              ready=1
+              break
             fi
             sleep 1
           done
-          echo "API failed to start" >&2
-          exit 1
+          if [ "$ready" -ne 1 ]; then
+            echo "API failed to start" >&2
+            tail -n 200 /tmp/wingxtra-api.log >&2 || true
+            exit 1
+          fi
 
       - uses: actions/setup-node@v4
         with:

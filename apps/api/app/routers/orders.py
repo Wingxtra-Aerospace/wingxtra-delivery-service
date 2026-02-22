@@ -11,7 +11,7 @@ from app.auth.dependencies import (
     require_backoffice_write,
     require_roles,
 )
-from app.config import settings
+from app.config import resolved_ui_service_mode
 from app.db.session import get_db
 from app.integrations.errors import (
     IntegrationBadGatewayError,
@@ -346,7 +346,7 @@ def cancel_endpoint(
         if idem.replay and idem.response_payload:
             return OrderActionResponse.model_validate(idem.response_payload)
 
-    if settings.ui_service_mode in {"store", "hybrid"} and _is_placeholder_order_id(order_id):
+    if resolved_ui_service_mode() in {"store", "hybrid"} and _is_placeholder_order_id(order_id):
         response_payload = OrderActionResponse(order_id=order_id, status="CANCELED").model_dump(
             mode="json"
         )

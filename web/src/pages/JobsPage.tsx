@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { apiFetch } from "../api";
-import type { JobsListResponse } from "../api/schema-types";
-type JobItem = JobsListResponse["items"][number];
+import type { JobListItem, JobsListResponse } from "../api/schema-types";
+type JobItem = JobListItem;
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 
@@ -44,7 +44,7 @@ export function JobsPage() {
         throw new Error(`Request failed with status ${response.status}`);
       }
       const body = (await response.json()) as JobsListResponse;
-      setItems(body.items || []);
+      setItems((body.items || []) as JobItem[]);
       setTotal(body.total || 0);
     } catch {
       setError("Unable to load jobs. Please retry.");

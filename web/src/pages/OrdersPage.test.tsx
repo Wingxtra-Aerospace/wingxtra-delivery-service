@@ -33,7 +33,7 @@ afterEach(() => {
 
 describe("OrdersPage", () => {
   it("renders loading then rows", async () => {
-    const fetchMock = vi.spyOn(global, "fetch").mockResolvedValue(
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(
         JSON.stringify({
           items: [
@@ -61,7 +61,7 @@ describe("OrdersPage", () => {
   });
 
   it("status filter updates URL and request params", async () => {
-    const fetchMock = vi.spyOn(global, "fetch").mockResolvedValue(
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ items: [], page: 1, page_size: 20, total: 0 }), { status: 200 })
     );
 

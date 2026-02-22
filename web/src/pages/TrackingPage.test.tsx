@@ -20,7 +20,7 @@ afterEach(() => {
 
 describe("TrackingPage", () => {
   it("renders tracking status and milestones", async () => {
-    vi.spyOn(global, "fetch").mockResolvedValue(
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(
         JSON.stringify({
           order_id: "ord-1",
@@ -41,7 +41,7 @@ describe("TrackingPage", () => {
   });
 
   it("handles 429 with friendly countdown", async () => {
-    vi.spyOn(global, "fetch").mockResolvedValue(new Response("", { status: 429, headers: { "Retry-After": "7" } }));
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("", { status: 429, headers: { "Retry-After": "7" } }));
 
     renderTracking();
 
@@ -50,7 +50,7 @@ describe("TrackingPage", () => {
   });
 
   it("navigates from form input", async () => {
-    vi.spyOn(global, "fetch")
+    vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ order_id: "ord-1", public_tracking_id: "TRK-1", status: "CREATED" }), {
           status: 200

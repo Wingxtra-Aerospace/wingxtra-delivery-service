@@ -4,9 +4,11 @@ from sqlalchemy.orm import Session
 from app.auth.dependencies import RateLimitStatus, rate_limit_public_tracking
 from app.db.session import get_db
 from app.routers.rate_limit_headers import (
-    RATE_LIMIT_SUCCESS_HEADERS,
     RATE_LIMIT_THROTTLED_HEADERS,
+    TRACKING_NOT_MODIFIED_HEADERS,
+    TRACKING_SUCCESS_HEADERS,
     apply_rate_limit_headers,
+    apply_tracking_cache_headers,
 )
 from app.schemas.ui import TrackingViewResponse
 from app.services.safety import assert_production_safe
@@ -39,16 +41,10 @@ CACHE_CONTROL_HEADER = {
     response_model_exclude_none=True,
     summary="Tracking view",
     responses={
-        200: {
-            "headers": {
-                **RATE_LIMIT_SUCCESS_HEADERS,
-                **ETAG_RESPONSE_HEADER,
-                **CACHE_CONTROL_HEADER,
-            }
-        },
+        200: {"headers": TRACKING_SUCCESS_HEADERS},
         304: {
             "description": "Not Modified",
-            "headers": {**ETAG_RESPONSE_HEADER, **CACHE_CONTROL_HEADER},
+            "headers": TRACKING_NOT_MODIFIED_HEADERS,
         },
         429: {"description": "Rate limit exceeded", "headers": RATE_LIMIT_THROTTLED_HEADERS},
     },
@@ -70,8 +66,7 @@ def tracking_endpoint(
 
     payload = build_public_tracking_payload(db, public_tracking_id)
     etag = build_public_tracking_etag(payload)
-    response.headers["ETag"] = etag
-    response.headers["Cache-Control"] = "public, max-age=0, must-revalidate"
+    apply_tracking_cache_headers(response, etag=etag)
 
     if etag_matches(if_none_match, etag):
         response.status_code = 304

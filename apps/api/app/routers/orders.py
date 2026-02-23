@@ -23,7 +23,10 @@ from app.observability import log_event, observe_timing
 from app.routers.rate_limit_headers import (
     RATE_LIMIT_SUCCESS_HEADERS,
     RATE_LIMIT_THROTTLED_HEADERS,
+    TRACKING_NOT_MODIFIED_HEADERS,
+    TRACKING_SUCCESS_HEADERS,
     apply_rate_limit_headers,
+    apply_tracking_cache_headers,
 )
 from app.schemas.ui import (
     EventResponse,
@@ -539,16 +542,10 @@ def create_pod_endpoint(
     response_model_exclude_none=True,
     summary="Public tracking",
     responses={
-        200: {
-            "headers": {
-                **RATE_LIMIT_SUCCESS_HEADERS,
-                **ETAG_RESPONSE_HEADER,
-                **CACHE_CONTROL_HEADER,
-            }
-        },
+        200: {"headers": TRACKING_SUCCESS_HEADERS},
         304: {
             "description": "Not Modified",
-            "headers": {**ETAG_RESPONSE_HEADER, **CACHE_CONTROL_HEADER},
+            "headers": TRACKING_NOT_MODIFIED_HEADERS,
         },
         429: {"description": "Rate limit exceeded", "headers": RATE_LIMIT_THROTTLED_HEADERS},
     },
@@ -565,8 +562,7 @@ def public_tracking_endpoint(
 
     payload = build_public_tracking_payload(db, public_tracking_id)
     etag = build_public_tracking_etag(payload)
-    response.headers["ETag"] = etag
-    response.headers["Cache-Control"] = "public, max-age=0, must-revalidate"
+    apply_tracking_cache_headers(response, etag=etag)
 
     if etag_matches(if_none_match, etag):
         response.status_code = 304

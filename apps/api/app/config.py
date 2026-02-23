@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     testing: bool = Field(default=False, validation_alias="WINGXTRA_TESTING")
     app_mode: str = Field(default="pilot", validation_alias="APP_MODE")
     ui_service_mode: str = Field(default="auto", validation_alias="WINGXTRA_UI_SERVICE_MODE")
+    auto_create_schema: bool = Field(default=False, validation_alias="AUTO_CREATE_SCHEMA")
+    require_migrations: bool | None = Field(default=None, validation_alias="REQUIRE_MIGRATIONS")
 
     public_tracking_rate_limit_requests: int = 10
     public_tracking_rate_limit_window_s: int = 60
@@ -159,6 +161,18 @@ def is_production_mode() -> bool:
     return settings.app_mode == "production"
 
 
+def resolved_require_migrations() -> bool:
+    if settings.require_migrations is not None:
+        return settings.require_migrations
+    if settings.testing:
+        return False
+    return settings.app_mode in {"pilot", "production"}
+
+
+def should_auto_create_schema() -> bool:
+    return settings.auto_create_schema
+
+
 def ensure_secure_runtime_settings() -> None:
     """Fail fast when production-like runtime uses insecure defaults."""
     if not settings.testing and settings.jwt_secret == DEFAULT_JWT_SECRET:
@@ -185,6 +199,10 @@ def ensure_secure_runtime_settings() -> None:
         raise RuntimeError("WINGXTRA_DATABASE_URL must use postgres when WINGXTRA_TESTING is false")
     if is_production_mode() and resolved_ui_service_mode() != "db":
         raise RuntimeError("APP_MODE=production requires WINGXTRA_UI_SERVICE_MODE=db")
+    if is_production_mode() and settings.auto_create_schema:
+        raise RuntimeError("APP_MODE=production requires AUTO_CREATE_SCHEMA=false")
+    if is_production_mode() and not resolved_require_migrations():
+        raise RuntimeError("APP_MODE=production requires REQUIRE_MIGRATIONS=true")
 
 
 def _is_sqlite_url(database_url: str) -> bool:

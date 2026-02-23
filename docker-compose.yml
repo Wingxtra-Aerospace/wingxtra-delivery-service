@@ -38,7 +38,8 @@ services:
     environment:
       WINGXTRA_DATABASE_URL: postgresql+psycopg://postgres:postgres@postgres:5432/wingxtra
       WINGXTRA_UI_SERVICE_MODE: db
-      WINGXTRA_TESTING: "true"
+      WINGXTRA_TESTING: "false"
+      APP_MODE: pilot
       REDIS_URL: redis://redis:6379/0
       RATE_LIMIT_BACKEND: redis
       JWT_SECRET: dev-only-not-for-production-32-chars

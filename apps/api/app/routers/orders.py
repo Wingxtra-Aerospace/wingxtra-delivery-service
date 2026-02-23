@@ -23,7 +23,10 @@ from app.observability import log_event, observe_timing
 from app.routers.rate_limit_headers import (
     RATE_LIMIT_SUCCESS_HEADERS,
     RATE_LIMIT_THROTTLED_HEADERS,
+    TRACKING_NOT_MODIFIED_HEADERS,
+    TRACKING_SUCCESS_HEADERS,
     apply_rate_limit_headers,
+    apply_tracking_cache_headers,
 )
 from app.schemas.ui import (
     EventResponse,
@@ -49,10 +52,12 @@ from app.services.idempotency_service import (
 )
 from app.services.safety import assert_production_safe
 from app.services.ui_service import (
+    build_public_tracking_etag,
     build_public_tracking_payload,
     cancel_order,
     create_order,
     create_pod,
+    etag_matches,
     get_order,
     get_pod,
     ingest_order_event,
@@ -523,7 +528,11 @@ def create_pod_endpoint(
     response_model_exclude_none=True,
     summary="Public tracking",
     responses={
-        200: {"headers": RATE_LIMIT_SUCCESS_HEADERS},
+        200: {"headers": TRACKING_SUCCESS_HEADERS},
+        304: {
+            "description": "Not Modified",
+            "headers": TRACKING_NOT_MODIFIED_HEADERS,
+        },
         429: {"description": "Rate limit exceeded", "headers": RATE_LIMIT_THROTTLED_HEADERS},
     },
 )
@@ -532,11 +541,19 @@ def public_tracking_endpoint(
     response: Response,
     db: Session = Depends(get_db),
     rate_limit: RateLimitStatus = Depends(rate_limit_public_tracking),
-) -> TrackingViewResponse:
+    if_none_match: str | None = Header(default=None, alias="If-None-Match"),
+) -> TrackingViewResponse | Response:
     assert_production_safe(order_id=public_tracking_id)
     _set_rate_limit_headers(response, rate_limit)
 
     payload = build_public_tracking_payload(db, public_tracking_id)
+    etag = build_public_tracking_etag(payload)
+    apply_tracking_cache_headers(response, etag=etag)
+
+    if etag_matches(if_none_match, etag):
+        response.status_code = 304
+        return response
+
     return TrackingViewResponse.model_validate(payload)
 
 

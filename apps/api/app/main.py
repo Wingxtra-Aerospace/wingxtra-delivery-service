@@ -7,8 +7,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import Response
 
-from app.config import allowed_origins, ensure_secure_runtime_settings, settings
-from app.db.base import Base
+from app.config import (
+    allowed_origins,
+    ensure_secure_runtime_settings,
+    resolved_require_migrations,
+    settings,
+    should_auto_create_schema,
+)
+from app.db.migration_check import assert_db_is_up_to_date, maybe_create_schema
 from app.db.session import engine
 from app.observability import log_event, metrics_store, set_request_id
 from app.routers.dispatch import router as dispatch_router
@@ -25,7 +31,10 @@ async def lifespan(_app: FastAPI):
     import app.models  # noqa: F401 (register all SQLAlchemy models)
 
     ensure_secure_runtime_settings()
-    Base.metadata.create_all(bind=engine)
+    if should_auto_create_schema():
+        maybe_create_schema(engine)
+    if resolved_require_migrations():
+        assert_db_is_up_to_date(engine)
     if settings.app_mode == "demo":
         seed_data()
     yield

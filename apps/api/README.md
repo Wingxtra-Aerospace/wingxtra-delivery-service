@@ -33,3 +33,21 @@ ruff format .
 ruff check .
 pytest
 ```
+
+
+## Database migrations
+
+Apply migrations:
+
+```bash
+cd apps/api
+alembic -c alembic.ini upgrade head
+```
+
+Runtime schema controls:
+
+- `AUTO_CREATE_SCHEMA` (default: `false`) allows `create_all` only for non-production local/dev bootstraps.
+- `REQUIRE_MIGRATIONS` (optional) forces startup check against Alembic head.
+- In `APP_MODE=production`, startup enforces `AUTO_CREATE_SCHEMA=false` and `REQUIRE_MIGRATIONS=true`.
+
+Docker image startup uses `apps/api/scripts/entrypoint.sh`, which runs migrations before uvicorn.

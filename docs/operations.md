@@ -108,6 +108,36 @@ Error translation for API callers:
 
 ## Database configuration
 
+
+### Schema migrations and startup policy
+
+Schema management is Alembic-first. In production-like modes (`APP_MODE=pilot` or `APP_MODE=production`), the API can be configured to require DB migration head alignment at startup.
+
+- `AUTO_CREATE_SCHEMA` (default `false`)
+  - when `true`, the service may run `Base.metadata.create_all(...)` for local/dev bootstrap only
+  - forbidden in `APP_MODE=production`
+- `REQUIRE_MIGRATIONS` (optional override)
+  - when unset, defaults to `true` for non-test `pilot`/`production`, `false` for tests
+  - when enabled, startup fails fast if `alembic_version` is missing or behind head with:
+    `Database schema not up to date. Run: alembic upgrade head`
+
+Run migrations manually:
+
+```bash
+cd apps/api
+alembic -c alembic.ini upgrade head
+```
+
+Container startup path (`apps/api/scripts/entrypoint.sh`) runs migrations before starting uvicorn:
+
+```bash
+alembic -c /app/alembic.ini upgrade head
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+In production, run migrations as a release step (or the same entrypoint) before serving traffic; the API refuses startup until schema is at Alembic head.
+
+
 Set `WINGXTRA_DATABASE_URL` to configure the SQLAlchemy connection URL.
 For CI and local test safety, the service defaults to `sqlite+pysqlite:///./test.db` when unset.
 

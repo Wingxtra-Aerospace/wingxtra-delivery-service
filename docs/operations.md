@@ -212,3 +212,68 @@ Health endpoint now includes non-blocking downstream dependency status:
 - `gcs_bridge`: `ok` / `degraded` / `down`
 
 These statuses are informative only and do not change `/health` HTTP status from `200`.
+
+## Production rollout checklist
+
+Use this copy/paste baseline for production-like deployments, then override service-specific URLs/secrets.
+
+### Required environment variables
+
+```bash
+APP_MODE=production
+WINGXTRA_TESTING=false
+WINGXTRA_UI_SERVICE_MODE=db
+
+# Postgres only (SQLite is rejected in non-test runtime)
+WINGXTRA_DATABASE_URL=postgresql+psycopg://<user>:<password>@<host>:5432/<db>
+
+# Must be non-default and >= 32 chars
+JWT_SECRET=<strong-random-secret-at-least-32-chars>
+POD_OTP_HMAC_SECRET=<strong-random-secret-at-least-32-chars>
+
+# Startup policy
+AUTO_CREATE_SCHEMA=false
+REQUIRE_MIGRATIONS=true
+
+# Recommended distributed rate limiting
+RATE_LIMIT_BACKEND=redis
+REDIS_URL=redis://<redis-host>:6379/0
+```
+
+### Recommended integration variables
+
+```bash
+# Fleet telemetry source for dispatch/manual assignment
+FLEET_API_BASE_URL=https://<fleet-api-base>
+FLEET_API_TIMEOUT_S=2.0
+FLEET_API_MAX_RETRIES=2
+FLEET_API_BACKOFF_S=0.2
+FLEET_API_CACHE_TTL_S=2.0
+
+# Mission intent publish bridge (empty disables HTTP publish and uses no-op publisher)
+GCS_BRIDGE_BASE_URL=https://<gcs-bridge-base>
+GCS_BRIDGE_TIMEOUT_S=2.0
+GCS_BRIDGE_MAX_RETRIES=2
+GCS_BRIDGE_BACKOFF_S=0.2
+```
+
+### Startup and validation sequence
+
+1. Run DB migrations before serving traffic:
+
+   ```bash
+   cd apps/api
+   alembic -c alembic.ini upgrade head
+   ```
+
+2. Start API and validate health/readiness:
+
+   ```bash
+   curl -sS http://<api-host>/health
+   curl -sS -o /dev/null -w "%{http_code}\n" http://<api-host>/ready
+   ```
+
+3. Validate production guards are active:
+   - non-UUID placeholder IDs are rejected on order/tracking endpoints,
+   - startup fails if secrets are default/weak,
+   - startup fails if SQLite URL is used with `WINGXTRA_TESTING=false`.

@@ -316,3 +316,54 @@ def test_settings_rejects_non_positive_fleet_cache_ttl():
         ValidationError, match="fleet_api timeout/cache settings must be greater than 0"
     ):
         config_module.Settings(fleet_api_cache_ttl_s=0)
+
+
+def test_resolved_require_migrations_defaults_by_mode_and_testing():
+    settings = config_module.Settings(APP_MODE="pilot", WINGXTRA_TESTING="false")
+    assert settings.require_migrations is None
+
+
+def test_runtime_security_rejects_auto_create_schema_in_production():
+    original_mode = config_module.settings.app_mode
+    original_auto = config_module.settings.auto_create_schema
+    original_require = config_module.settings.require_migrations
+    original_testing = config_module.settings.testing
+    original_ui_mode = config_module.settings.ui_service_mode
+    try:
+        config_module.settings.app_mode = "production"
+        config_module.settings.testing = True
+        config_module.settings.ui_service_mode = "db"
+        config_module.settings.auto_create_schema = True
+        config_module.settings.require_migrations = True
+
+        with pytest.raises(RuntimeError, match="AUTO_CREATE_SCHEMA"):
+            config_module.ensure_secure_runtime_settings()
+    finally:
+        config_module.settings.app_mode = original_mode
+        config_module.settings.auto_create_schema = original_auto
+        config_module.settings.require_migrations = original_require
+        config_module.settings.testing = original_testing
+        config_module.settings.ui_service_mode = original_ui_mode
+
+
+def test_runtime_security_requires_migrations_in_production():
+    original_mode = config_module.settings.app_mode
+    original_auto = config_module.settings.auto_create_schema
+    original_require = config_module.settings.require_migrations
+    original_testing = config_module.settings.testing
+    original_ui_mode = config_module.settings.ui_service_mode
+    try:
+        config_module.settings.app_mode = "production"
+        config_module.settings.testing = True
+        config_module.settings.ui_service_mode = "db"
+        config_module.settings.auto_create_schema = False
+        config_module.settings.require_migrations = False
+
+        with pytest.raises(RuntimeError, match="REQUIRE_MIGRATIONS"):
+            config_module.ensure_secure_runtime_settings()
+    finally:
+        config_module.settings.app_mode = original_mode
+        config_module.settings.auto_create_schema = original_auto
+        config_module.settings.require_migrations = original_require
+        config_module.settings.testing = original_testing
+        config_module.settings.ui_service_mode = original_ui_mode
